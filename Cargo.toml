@@ -1,0 +1,16 @@
+[package]
+name = "snapcd"
+version = "0.1.0"
+authors = ["5225225 <5225225@mailbox.org>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+cdchunking = "1.0.0"
+blake2 = "0.8.1"
+rand = "0.7.2"
+rand_chacha = "0.2.1"
+adler32 = "1.0.4"
+serde_cbor = "0.10"
+serde = { version = "1.0", features = ["derive"] }
