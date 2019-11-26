@@ -1,16 +1,17 @@
 use std::io::prelude::*;
-use cdchunking::{Chunker, ZPAQ};
 use blake2::{Blake2b, Digest};
-use std::collections::{HashMap, VecDeque};
+use std::collections::HashMap;
 use rand::prelude::*;
 use rand::RngCore;
 use rand_chacha::ChaChaRng;
 use std::mem;
+use cdc::RollingHash64;
 
 #[derive(Debug, Default)]
 #[derive(serde::Serialize, serde::Deserialize)]
 struct Key(Vec<u8>);
 
+#[derive(Debug)]
 #[derive(serde::Serialize, serde::Deserialize)]
 enum Object {
     Blob(Vec<u8>),
@@ -34,39 +35,39 @@ trait DataStore {
     }
 }
 
-const WINDOW_LENGTH: usize = 32;
-
 fn put_data<DS: DataStore, R: Read>(data: R, store: &mut DS) -> Key {
     let mut key_bufs: [Vec<Key>; 5] = Default::default();
 
     let mut current_chunk = Vec::with_capacity(4096);
 
-    // let mut hasher = fixedadler::FixedSizeAdler32::new();
+    let mut hasher = cdc::Rabin64::new(6);
+    let h2l = cdc::HashToLevel::custom_new(12, 4);
 
     for byte_r in data.bytes() {
         let byte = byte_r.unwrap();
-        hasher.write_one(&[byte]);
+        hasher.slide(&byte);
         current_chunk.push(byte);
 
-        let h = hasher.hash();
+        let h = hasher.get_hash();
 
-        if h / (1<<(32-12)) == 0 {
+        let level = h2l.to_level(*h);
+
+        dbg!(h, level);
+
+        if level > 0 {
             let data = mem::replace(&mut current_chunk, Vec::with_capacity(4096));
             let key = store.put_obj(&Object::Blob(data));
             key_bufs[0].push(key);
+        }
 
-            for offset in 0..4 {
-                if h / (1<<((32-(16 + offset*4)))) == 0 { 
-                    let keys = mem::replace(&mut key_bufs[offset], Vec::new());
-                    let key = store.put_obj(&Object::Keys(keys));
-                    key_bufs[offset + 1].push(key);
-                } else {
-                    continue;
-                }
+        for offset in 0..4 {
+            if level > offset { 
+                let keys = mem::replace(&mut key_bufs[offset], Vec::new());
+                let key = store.put_obj(&Object::Keys(keys));
+                key_bufs[offset + 1].push(key);
             }
         }
     }
-
 
     if current_chunk.len() > 0 {
         let data = mem::replace(&mut current_chunk, Vec::new());
@@ -104,6 +105,8 @@ fn put_data<DS: DataStore, R: Read>(data: R, store: &mut DS) -> Key {
 fn read_data<DS: DataStore, W: Write>(key: &Key, store: &DS, to: &mut W) {
     let obj = store.get_obj(key);
 
+    dbg!(&obj);
+
     match obj { 
         Object::Keys(keys) => {
             for key in keys {
@@ -111,7 +114,7 @@ fn read_data<DS: DataStore, W: Write>(key: &Key, store: &DS, to: &mut W) {
             }
         }
         Object::Blob(vec) => {
-            to.write(&vec);
+            to.write(&vec).expect("failed to write to out");
         }
     }
 
@@ -142,7 +145,7 @@ struct NullB2DS {
 }
 
 impl DataStore for NullB2DS {
-    fn get(&self, key: &Key) -> &[u8] {
+    fn get(&self, _key: &Key) -> &[u8] {
         &[0; 0]
     }
 
@@ -163,18 +166,15 @@ fn print_stats(data: &HashSetDS) {
 }
 
 fn sanity_check() {
-    let mut data = HashSetDS::default();
+    for i in 0..1024 {
 
-    for i in 0..32 {
         let mut rng = ChaChaRng::seed_from_u64(i);
 
-        if i % 5 == 0 {
-            data = HashSetDS::default();
-        }
+        let mut data = HashSetDS::default();
 
         let mut test_vector = Vec::new();
 
-        test_vector.resize(rng.gen_range(1, 1<<24), 0);
+        test_vector.resize(rng.gen_range(1, 1<<3), 0);
 
         rng.fill(&mut test_vector[..]);
 
@@ -183,6 +183,12 @@ fn sanity_check() {
         let mut to = Vec::new();
 
         read_data(&hash, &data, &mut to);
+
+        for key in &data.data {
+            println!("{:?}\n", key);
+        }
+
+        println!("\n{:?}", &hash);
 
         assert_eq!(to, test_vector);
 
@@ -241,14 +247,14 @@ fn perf_test() {
 
     let rng: Box<dyn RngCore> = Box::new(ChaChaRng::seed_from_u64(1));
 
-    let bar = rng.take(1<<28);
+    let bar = rng.take(1<<30);
 
     println!("{:?}", put_data(bar, &mut data));
 }
 
 fn main() {
-//    sanity_check();
-//    test_infinite();
-//    size_check();
+    sanity_check();
+    size_check();
+    test_infinite();
     perf_test();
 }
