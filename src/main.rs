@@ -52,23 +52,25 @@ fn put_data<DS: DataStore, R: Read>(data: R, store: &mut DS) -> Key {
 
         let level = h2l.to_level(*h);
 
-        dbg!(h, level);
-
         if level > 0 {
             let data = mem::replace(&mut current_chunk, Vec::with_capacity(4096));
             let key = store.put_obj(&Object::Blob(data));
             key_bufs[0].push(key);
-        }
 
-        for offset in 0..4 {
-            if level > offset { 
-                let keys = mem::replace(&mut key_bufs[offset], Vec::new());
-                let key = store.put_obj(&Object::Keys(keys));
-                key_bufs[offset + 1].push(key);
+            for offset in 0..4 {
+                if level > offset+1 { 
+                    let keys = mem::replace(&mut key_bufs[offset], Vec::new());
+                    let key = store.put_obj(&Object::Keys(keys));
+                    key_bufs[offset + 1].push(key);
+                } else {
+                    continue;
+                }
             }
         }
+
     }
 
+    println!("#{} {:?}", current_chunk.len(), &key_bufs.iter().map(|x| x.len()).collect::<Vec<_>>());
     if current_chunk.len() > 0 {
         let data = mem::replace(&mut current_chunk, Vec::new());
         let key = store.put_obj(&Object::Blob(data));
@@ -76,22 +78,12 @@ fn put_data<DS: DataStore, R: Read>(data: R, store: &mut DS) -> Key {
     }
 
     for offset in 0..4 {
-        if key_bufs[offset].len() > 0 {
-            if ((offset+1)..4).map(|x| key_bufs[x].len()).all(|x| x == 0) {
-                if key_bufs[offset].len() == 1 {
-                    let mut taken = mem::replace(&mut key_bufs[offset], Vec::new());
-                    return taken.pop().unwrap();
-                } else {
-                    let taken = mem::replace(&mut key_bufs[offset], Vec::new());
-                    return store.put_obj(&Object::Keys(taken));
-                }
-            }
-
-            let keys = mem::replace(&mut key_bufs[offset], Vec::new());
-            let key = store.put_obj(&Object::Keys(keys));
-            key_bufs[offset + 1].push(key);
-        }
+        println!("!{} {} {:?}", offset, current_chunk.len(), &key_bufs.iter().map(|x| x.len()).collect::<Vec<_>>());
+        let keys = mem::replace(&mut key_bufs[offset], Vec::new());
+        let key = store.put_obj(&Object::Keys(keys));
+        key_bufs[offset + 1].push(key);
     }
+    println!("^{} {:?}", current_chunk.len(), &key_bufs.iter().map(|x| x.len()).collect::<Vec<_>>());
 
     assert!(key_bufs[0].len() == 0);
     assert!(key_bufs[1].len() == 0);
@@ -105,7 +97,7 @@ fn put_data<DS: DataStore, R: Read>(data: R, store: &mut DS) -> Key {
 fn read_data<DS: DataStore, W: Write>(key: &Key, store: &DS, to: &mut W) {
     let obj = store.get_obj(key);
 
-    dbg!(&obj);
+    //dbg!(&obj);
 
     match obj { 
         Object::Keys(keys) => {
@@ -166,7 +158,7 @@ fn print_stats(data: &HashSetDS) {
 }
 
 fn sanity_check() {
-    for i in 0..1024 {
+    for i in 0..(1<<32) {
 
         let mut rng = ChaChaRng::seed_from_u64(i);
 
@@ -174,7 +166,7 @@ fn sanity_check() {
 
         let mut test_vector = Vec::new();
 
-        test_vector.resize(rng.gen_range(1, 1<<3), 0);
+        test_vector.resize(rng.gen_range(1, 1<<16), 0);
 
         rng.fill(&mut test_vector[..]);
 
@@ -184,15 +176,19 @@ fn sanity_check() {
 
         read_data(&hash, &data, &mut to);
 
+        /*
         for key in &data.data {
             println!("{:?}\n", key);
         }
 
         println!("\n{:?}", &hash);
 
-        assert_eq!(to, test_vector);
+        // */
 
-        print_stats(&data);
+        println!("testing seed {}", i);
+        assert!(to == test_vector);
+
+//        print_stats(&data);
     }
 }
 
@@ -254,7 +250,7 @@ fn perf_test() {
 
 fn main() {
     sanity_check();
-    size_check();
-    test_infinite();
-    perf_test();
+//    size_check();
+//    test_infinite();
+//    perf_test();
 }
