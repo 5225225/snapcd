@@ -166,7 +166,7 @@ fn sanity_check() {
 
         let mut test_vector = Vec::new();
 
-        test_vector.resize(rng.gen_range(1, 1<<16), 0);
+        test_vector.resize(rng.gen_range(1, 1<<24), 0);
 
         rng.fill(&mut test_vector[..]);
 
