@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::io::prelude::*;
 use blake2::{Blake2b, Digest};
 use std::collections::HashMap;
@@ -6,37 +7,47 @@ use rand::RngCore;
 use rand_chacha::ChaChaRng;
 use std::mem;
 use cdc::RollingHash64;
+use std::io::BufReader;
 
-#[derive(Debug, Default)]
+#[derive(Debug, Clone, Copy)]
+struct Key<'a>(&'a [u8]);
+
+#[derive(Debug, Default, Clone)]
 #[derive(serde::Serialize, serde::Deserialize)]
-struct Key(Vec<u8>);
+struct KeyBuf(Vec<u8>);
+
+impl KeyBuf {
+    fn as_key<'a>(&'a self) -> Key<'a> {
+        Key(&self.0[..])
+    }
+}
 
 #[derive(Debug)]
 #[derive(serde::Serialize, serde::Deserialize)]
-enum Object {
-    Blob(Vec<u8>),
-    Keys(Vec<Key>),
+enum Object<'a> {
+    Blob(Cow<'a, [u8]>),
+    Keys(Cow<'a, [KeyBuf]>),
 }
 
 trait DataStore {
-    fn get(&self, key: &Key) -> &[u8];
-    fn put(&mut self, data: Vec<u8>) -> Key;
+    fn get<'a>(&self, key: Key) -> &[u8];
+    fn put(&mut self, data: Vec<u8>) -> KeyBuf;
 
-    fn get_obj(&self, key: &Key) -> Object {
+    fn get_obj(&self, key: Key) -> Object {
         let data = self.get(key);
 
         serde_cbor::from_slice(data).unwrap()
     }
 
-    fn put_obj(&mut self, data: &Object) -> Key {
+    fn put_obj(&mut self, data: &Object) -> KeyBuf {
         let data = serde_cbor::to_vec(data).unwrap();
 
         self.put(data)
     }
 }
 
-fn put_data<DS: DataStore, R: Read>(data: R, store: &mut DS) -> Key {
-    let mut key_bufs: [Vec<Key>; 5] = Default::default();
+fn put_data<DS: DataStore, R: Read>(data: R, store: &mut DS) -> KeyBuf {
+    let mut key_bufs: [Vec<KeyBuf>; 5] = Default::default();
 
     let mut current_chunk = Vec::with_capacity(4096);
 
@@ -53,14 +64,14 @@ fn put_data<DS: DataStore, R: Read>(data: R, store: &mut DS) -> Key {
         let level = h2l.to_level(*h);
 
         if level > 0 {
-            let data = mem::replace(&mut current_chunk, Vec::with_capacity(4096));
-            let key = store.put_obj(&Object::Blob(data));
+            let key = store.put_obj(&Object::Blob(Cow::Borrowed(&current_chunk)));
             key_bufs[0].push(key);
+            current_chunk = Vec::with_capacity(4096);
 
             for offset in 0..4 {
                 if level > offset+1 { 
                     let keys = mem::replace(&mut key_bufs[offset], Vec::new());
-                    let key = store.put_obj(&Object::Keys(keys));
+                    let key = store.put_obj(&Object::Keys(Cow::Borrowed(&keys)));
                     key_bufs[offset + 1].push(key);
                 } else {
                     continue;
@@ -73,14 +84,14 @@ fn put_data<DS: DataStore, R: Read>(data: R, store: &mut DS) -> Key {
     println!("#{} {:?}", current_chunk.len(), &key_bufs.iter().map(|x| x.len()).collect::<Vec<_>>());
     if current_chunk.len() > 0 {
         let data = mem::replace(&mut current_chunk, Vec::new());
-        let key = store.put_obj(&Object::Blob(data));
+        let key = store.put_obj(&Object::Blob(Cow::Borrowed(&data)));
         key_bufs[0].push(key);
     }
 
     for offset in 0..4 {
         println!("!{} {} {:?}", offset, current_chunk.len(), &key_bufs.iter().map(|x| x.len()).collect::<Vec<_>>());
         let keys = mem::replace(&mut key_bufs[offset], Vec::new());
-        let key = store.put_obj(&Object::Keys(keys));
+        let key = store.put_obj(&Object::Keys(Cow::Borrowed(&keys)));
         key_bufs[offset + 1].push(key);
     }
     println!("^{} {:?}", current_chunk.len(), &key_bufs.iter().map(|x| x.len()).collect::<Vec<_>>());
@@ -91,18 +102,16 @@ fn put_data<DS: DataStore, R: Read>(data: R, store: &mut DS) -> Key {
     assert!(key_bufs[3].len() == 0);
 
     let taken = mem::replace(&mut key_bufs[4], Vec::new());
-    return store.put_obj(&Object::Keys(taken));
+    return store.put_obj(&Object::Keys(Cow::Borrowed(&taken)));
 }
 
-fn read_data<DS: DataStore, W: Write>(key: &Key, store: &DS, to: &mut W) {
+fn read_data<DS: DataStore, W: Write>(key: Key, store: &DS, to: &mut W) {
     let obj = store.get_obj(key);
-
-    //dbg!(&obj);
 
     match obj { 
         Object::Keys(keys) => {
-            for key in keys {
-                read_data(&key, store, to);
+            for key in keys.iter() {
+                read_data(key.as_key(), store, to);
             }
         }
         Object::Blob(vec) => {
@@ -119,16 +128,16 @@ struct HashSetDS {
 }
 
 impl DataStore for HashSetDS {
-    fn get(&self, key: &Key) -> &[u8] {
-        &self.data[&key.0]
+    fn get(&self, key: Key) -> &[u8] {
+        &self.data[&*key.0]
     }
 
-    fn put(&mut self, data: Vec<u8>) -> Key {
+    fn put(&mut self, data: Vec<u8>) -> KeyBuf {
         let mut b2 = Blake2b::new();
         b2.input(&data);
         let hash = b2.result().to_vec();
         self.data.insert(hash.clone(), data);
-        Key(hash)
+        KeyBuf(hash)
     }
 }
 
@@ -137,15 +146,15 @@ struct NullB2DS {
 }
 
 impl DataStore for NullB2DS {
-    fn get(&self, _key: &Key) -> &[u8] {
+    fn get(&self, _key: Key) -> &[u8] {
         &[0; 0]
     }
 
-    fn put(&mut self, data: Vec<u8>) -> Key {
+    fn put(&mut self, data: Vec<u8>) -> KeyBuf {
         let mut b2 = Blake2b::new();
         b2.input(&data);
         let hash = b2.result().to_vec();
-        Key(hash)
+        KeyBuf(hash)
     }
 }
 
@@ -158,7 +167,7 @@ fn print_stats(data: &HashSetDS) {
 }
 
 fn sanity_check() {
-    for i in 0..(1<<32) {
+    for i in 0..256 {
 
         let mut rng = ChaChaRng::seed_from_u64(i);
 
@@ -166,7 +175,7 @@ fn sanity_check() {
 
         let mut test_vector = Vec::new();
 
-        test_vector.resize(rng.gen_range(1, 1<<24), 0);
+        test_vector.resize(rng.gen_range(1, 1<<20), 0);
 
         rng.fill(&mut test_vector[..]);
 
@@ -174,7 +183,7 @@ fn sanity_check() {
 
         let mut to = Vec::new();
 
-        read_data(&hash, &data, &mut to);
+        read_data(hash.as_key(), &data, &mut to);
 
         /*
         for key in &data.data {
@@ -204,7 +213,7 @@ fn size_check() {
     rng.fill(&mut test_vector[..]);
     let hash = put_data(&test_vector[..], &mut data);
     let mut to = Vec::new();
-    read_data(&hash, &data, &mut to);
+    read_data(hash.as_key(), &data, &mut to);
     assert_eq!(to, test_vector);
     print_stats(&data);
 
@@ -214,7 +223,7 @@ fn size_check() {
 
     let hash = put_data(&test_vector[..], &mut data);
     let mut to = Vec::new();
-    read_data(&hash, &data, &mut to);
+    read_data(hash.as_key(), &data, &mut to);
     assert_eq!(to, test_vector);
     print_stats(&data);
 
@@ -243,14 +252,23 @@ fn perf_test() {
 
     let rng: Box<dyn RngCore> = Box::new(ChaChaRng::seed_from_u64(1));
 
-    let bar = rng.take(1<<30);
+    let bar = rng.take(1<<20);
 
     println!("{:?}", put_data(bar, &mut data));
+}
+
+fn perf_test_file() {
+    let mut data = NullB2DS::default();
+
+    let f = std::fs::File::open("test.bin").unwrap();
+    let reader = BufReader::new(f);
+
+    println!("{:?}", put_data(reader, &mut data));
 }
 
 fn main() {
     sanity_check();
 //    size_check();
 //    test_infinite();
-//    perf_test();
+//    perf_test_file();
 }
