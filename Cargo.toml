@@ -14,3 +14,6 @@ rand_chacha = "0.2.1"
 serde_cbor = "0.10"
 serde = { version = "1.0", features = ["derive"] }
 cdc = "0.1.0"
+
+[profile.release]
+debug = true
