@@ -46,13 +46,15 @@ trait DataStore {
     }
 }
 
+const BLOB_ZERO_COUNT: u32 = 11;
+const PER_LEVEL_COUNT: u32 = 5;
+
 fn put_data<DS: DataStore, R: Read>(data: R, store: &mut DS) -> KeyBuf {
     let mut key_bufs: [Vec<KeyBuf>; 5] = Default::default();
 
     let mut current_chunk = Vec::with_capacity(4096);
 
     let mut hasher = cdc::Rabin64::new(6);
-    let h2l = cdc::HashToLevel::custom_new(12, 4);
 
     for byte_r in data.bytes() {
         let byte = byte_r.unwrap();
@@ -61,18 +63,18 @@ fn put_data<DS: DataStore, R: Read>(data: R, store: &mut DS) -> KeyBuf {
 
         let h = hasher.get_hash();
 
-        let level = h2l.to_level(*h);
+        let zeros = h.trailing_zeros();
 
-        if level > 0 {
+        if zeros > BLOB_ZERO_COUNT {
             let key = store.put_obj(&Object::Blob(Cow::Borrowed(&current_chunk)));
             key_bufs[0].push(key);
             current_chunk = Vec::with_capacity(4096);
 
             for offset in 0..4 {
-                if level > offset+1 { 
-                    let keys = mem::replace(&mut key_bufs[offset], Vec::new());
+                if zeros > BLOB_ZERO_COUNT + (offset + 1) * PER_LEVEL_COUNT { 
+                    let keys = mem::replace(&mut key_bufs[offset as usize], Vec::new());
                     let key = store.put_obj(&Object::Keys(Cow::Borrowed(&keys)));
-                    key_bufs[offset + 1].push(key);
+                    key_bufs[offset as usize + 1].push(key);
                 } else {
                     continue;
                 }
@@ -267,8 +269,8 @@ fn perf_test_file() {
 }
 
 fn main() {
-    sanity_check();
+//    sanity_check();
 //    size_check();
 //    test_infinite();
-//    perf_test_file();
+    perf_test_file();
 }
