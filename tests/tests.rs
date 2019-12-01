@@ -1,0 +1,35 @@
+use snapcd::{HashSetDS, DataStore};
+use rand::prelude::*;
+use rand_chacha::ChaChaRng;
+
+fn internal_test(size_upper_bound: usize, seed_lower_bound: u64, seed_upper_bound: u64) {
+    for i in seed_lower_bound..seed_upper_bound {
+        let mut rng = ChaChaRng::seed_from_u64(i);
+
+        let mut data = HashSetDS::default();
+
+        let mut test_vector = Vec::new();
+
+        test_vector.resize(rng.gen_range(1, size_upper_bound), 0);
+
+        rng.fill(&mut test_vector[..]);
+
+        let hash = data.put_data(&test_vector[..]);
+
+        let mut to = Vec::new();
+
+        data.read_data(hash.as_key(), &mut to);
+
+        if to != test_vector {
+            panic!("failed at seed {}", i);
+        }
+    }
+}
+
+#[test]
+fn sanity_check() {
+    internal_test(1<<16, 0, 8);
+    internal_test(1<<10, 8, 64);
+    internal_test(1<<6, 64, 128);
+}
+
