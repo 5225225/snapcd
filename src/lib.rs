@@ -30,6 +30,14 @@ impl std::fmt::Display for KeyBuf {
     }
 }
 
+impl std::str::FromStr for KeyBuf {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(KeyBuf(hex::decode(s).unwrap()))
+    }
+}
+
 #[derive(Debug)]
 #[derive(serde::Serialize, serde::Deserialize)]
 pub enum Object<'a> {
@@ -66,17 +74,19 @@ pub trait DataStore {
             current_chunk.push(byte);
             hasher.slide(&byte);
 
-            let h = hasher.get_hash();
+            let h = !hasher.get_hash();
 
             let zeros = h.trailing_zeros();
 
-            if zeros > BLOB_ZERO_COUNT {
+            if zeros > BLOB_ZERO_COUNT || current_chunk.len() >= 1<<(BLOB_ZERO_COUNT+1) {
+                hasher.reset();
+
                 let key = self.put_obj(&Object::Blob(Cow::Borrowed(&current_chunk)));
                 key_bufs[0].push(key);
                 current_chunk.clear();
 
                 for offset in 0..4 {
-                    if zeros > BLOB_ZERO_COUNT + (offset + 1) * PER_LEVEL_COUNT { 
+                    if zeros > BLOB_ZERO_COUNT + (offset + 1) * PER_LEVEL_COUNT || key_bufs[offset as usize].len() >= 1<<(PER_LEVEL_COUNT+1) { 
                         let key = self.put_obj(&Object::Keys(Cow::Borrowed(&key_bufs[offset as usize])));
                         key_bufs[offset as usize].clear();
                         key_bufs[offset as usize + 1].push(key);
@@ -136,11 +146,13 @@ impl SqliteDS {
     pub fn new(path: &str) -> Self {
         let conn = rusqlite::Connection::open(path).unwrap();
 
+        conn.pragma_update(None, &"journal_mode", &"WAL").unwrap();
+
         conn.execute("
             CREATE TABLE IF NOT EXISTS data (
                 key BLOB NOT NULL UNIQUE PRIMARY KEY,
-                value BLOB NOT NULL UNIQUE
-            )
+                value BLOB NOT NULL
+            ) WITHOUT ROWID
         ", params![]).unwrap();
 
         Self {
