@@ -1,20 +1,19 @@
 #![deny(clippy::pedantic)]
 #![allow(clippy::must_use_candidate)]
 
-use std::io::Cursor;
-use std::borrow::Cow;
-use std::io::prelude::*;
 use blake2::{Blake2b, Digest};
-use std::collections::HashMap;
-use std::mem;
 use cdc::RollingHash64;
 use rusqlite::params;
+use std::borrow::Cow;
+use std::collections::HashMap;
+use std::io::prelude::*;
+use std::io::Cursor;
+use std::mem;
 
 #[derive(Debug, Clone, Copy)]
 pub struct Key<'a>(&'a [u8]);
 
-#[derive(Debug, Default, Clone)]
-#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Default, Clone, serde::Serialize, serde::Deserialize)]
 pub struct KeyBuf(Vec<u8>);
 
 impl KeyBuf {
@@ -37,8 +36,7 @@ impl std::str::FromStr for KeyBuf {
     }
 }
 
-#[derive(Debug)]
-#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
 pub enum Object<'a> {
     Blob(Cow<'a, [u8]>),
     Keys(Cow<'a, [KeyBuf]>),
@@ -99,7 +97,7 @@ pub trait DataStore {
             current_chunk.push(byte);
             hasher.slide(&byte);
 
-            if current_chunk.len() < 1<<BLOB_ZERO_COUNT_MIN {
+            if current_chunk.len() < 1 << BLOB_ZERO_COUNT_MIN {
                 continue;
             }
 
@@ -107,7 +105,7 @@ pub trait DataStore {
 
             let zeros = h.trailing_zeros();
 
-            if zeros > BLOB_ZERO_COUNT || current_chunk.len() >= 1<<(BLOB_ZERO_COUNT_MAX) {
+            if zeros > BLOB_ZERO_COUNT || current_chunk.len() >= 1 << (BLOB_ZERO_COUNT_MAX) {
                 hasher.reset();
 
                 let key = self.put_obj(&Object::Blob(Cow::Borrowed(&current_chunk)));
@@ -116,8 +114,11 @@ pub trait DataStore {
 
                 for offset in 0..4 {
                     let len = key_bufs[offset as usize].len();
-                    if zeros > BLOB_ZERO_COUNT + (offset + 1) * PER_LEVEL_COUNT || len >= 1<<PER_LEVEL_COUNT_MAX { 
-                        let key = self.put_obj(&Object::Keys(Cow::Borrowed(&key_bufs[offset as usize])));
+                    if zeros > BLOB_ZERO_COUNT + (offset + 1) * PER_LEVEL_COUNT
+                        || len >= 1 << PER_LEVEL_COUNT_MAX
+                    {
+                        let key =
+                            self.put_obj(&Object::Keys(Cow::Borrowed(&key_bufs[offset as usize])));
                         key_bufs[offset as usize].clear();
                         key_bufs[offset as usize + 1].push(key);
                     } else {
@@ -125,10 +126,13 @@ pub trait DataStore {
                     }
                 }
             }
-
         }
 
-        println!("#{} {:?}", current_chunk.len(), &key_bufs.iter().map(Vec::len).collect::<Vec<_>>());
+        println!(
+            "#{} {:?}",
+            current_chunk.len(),
+            &key_bufs.iter().map(Vec::len).collect::<Vec<_>>()
+        );
         if !current_chunk.is_empty() {
             let data = mem::replace(&mut current_chunk, Vec::new());
             let key = self.put_obj(&Object::Blob(Cow::Borrowed(&data)));
@@ -136,12 +140,21 @@ pub trait DataStore {
         }
 
         for offset in 0..4 {
-            println!("!{} {} {:?}", offset, current_chunk.len(), &key_bufs.iter().map(Vec::len).collect::<Vec<_>>());
+            println!(
+                "!{} {} {:?}",
+                offset,
+                current_chunk.len(),
+                &key_bufs.iter().map(Vec::len).collect::<Vec<_>>()
+            );
             let keys = mem::replace(&mut key_bufs[offset], Vec::new());
             let key = self.put_obj(&Object::Keys(Cow::Borrowed(&keys)));
             key_bufs[offset + 1].push(key);
         }
-        println!("^{} {:?}", current_chunk.len(), &key_bufs.iter().map(Vec::len).collect::<Vec<_>>());
+        println!(
+            "^{} {:?}",
+            current_chunk.len(),
+            &key_bufs.iter().map(Vec::len).collect::<Vec<_>>()
+        );
 
         assert!(key_bufs[0].is_empty());
         assert!(key_bufs[1].is_empty());
@@ -156,7 +169,7 @@ pub trait DataStore {
     fn read_data<W: Write>(&self, key: Key, to: &mut W) {
         let obj = self.get_obj(key);
 
-        match obj { 
+        match obj {
             Object::Keys(keys) => {
                 for key in keys.iter() {
                     self.read_data(key.as_key(), to);
@@ -179,25 +192,31 @@ impl SqliteDS {
 
         conn.pragma_update(None, &"journal_mode", &"WAL").unwrap();
 
-        conn.execute("
+        conn.execute(
+            "
             CREATE TABLE IF NOT EXISTS data (
                 key BLOB NOT NULL UNIQUE PRIMARY KEY,
                 value BLOB NOT NULL
             ) WITHOUT ROWID
-        ", params![]).unwrap();
+        ",
+            params![],
+        )
+        .unwrap();
 
-        Self {
-            conn
-        }
+        Self { conn }
     }
 }
 
 impl DataStore for SqliteDS {
     fn get<'a>(&'a self, key: Key) -> Cow<'a, [u8]> {
-        let results: Vec<u8> = self.conn.query_row(
-            "SELECT value FROM data WHERE key=?",
-            params![key.0],
-            |row| row.get(0)).unwrap();
+        let results: Vec<u8> = self
+            .conn
+            .query_row(
+                "SELECT value FROM data WHERE key=?",
+                params![key.0],
+                |row| row.get(0),
+            )
+            .unwrap();
 
         let cursor = Cursor::new(results);
 
@@ -214,9 +233,12 @@ impl DataStore for SqliteDS {
         let cursor = Cursor::new(data);
         let compressed = zstd::encode_all(cursor, 6).unwrap();
 
-        self.conn.execute(
-            "INSERT OR IGNORE INTO data VALUES (?, ?)",
-            params![hash, compressed]).unwrap();
+        self.conn
+            .execute(
+                "INSERT OR IGNORE INTO data VALUES (?, ?)",
+                params![hash, compressed],
+            )
+            .unwrap();
 
         KeyBuf(hash)
     }
@@ -257,8 +279,7 @@ impl DataStore for HashSetDS {
 }
 
 #[derive(Debug, Default)]
-pub struct NullB2DS {
-}
+pub struct NullB2DS {}
 
 impl DataStore for NullB2DS {
     fn get<'a>(&'a self, _key: Key) -> Cow<'a, [u8]> {

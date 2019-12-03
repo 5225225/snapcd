@@ -4,8 +4,8 @@ extern crate test;
 
 use rand::prelude::*;
 use rand_chacha::ChaChaRng;
+use snapcd::{put_data, NullB2DS};
 use std::io::{self, Read};
-use snapcd::{NullB2DS, put_data};
 
 fn inner_bench(bench: &mut test::Bencher, size: u64) {
     let mut data = NullB2DS::default();
@@ -31,17 +31,17 @@ fn perf_test_32B(bench: &mut test::Bencher) {
 #[bench]
 #[allow(non_snake_case)]
 fn perf_test_64KB(bench: &mut test::Bencher) {
-    inner_bench(bench, 1<<16);
+    inner_bench(bench, 1 << 16);
 }
 
 #[bench]
 #[allow(non_snake_case)]
 fn perf_test_1MB(bench: &mut test::Bencher) {
-    inner_bench(bench, 1<<20);
+    inner_bench(bench, 1 << 20);
 }
 
 #[bench]
 #[allow(non_snake_case)]
 fn perf_test_16MB(bench: &mut test::Bencher) {
-    inner_bench(bench, 1<<24);
+    inner_bench(bench, 1 << 24);
 }

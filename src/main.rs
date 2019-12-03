@@ -1,7 +1,7 @@
+use snapcd::{DataStore, KeyBuf, SqliteDS};
 use std::path::PathBuf;
-use structopt::StructOpt;
 use std::str::FromStr;
-use snapcd::{SqliteDS, DataStore, KeyBuf};
+use structopt::StructOpt;
 
 #[derive(StructOpt, Debug)]
 struct Opt {
@@ -59,7 +59,6 @@ struct PrettyPrintArgs {
     key: String,
 }
 
-
 fn insert(mut state: State, args: InsertArgs) {
     let f = std::fs::File::open(args.path).unwrap();
 
@@ -89,7 +88,9 @@ fn debug(state: State, args: DebugCommand) {
 }
 
 fn debug_pretty_print(state: State, args: PrettyPrintArgs) {
-    let key = state.ds.get_obj(KeyBuf::from_str(&args.key).unwrap().as_key());
+    let key = state
+        .ds
+        .get_obj(KeyBuf::from_str(&args.key).unwrap().as_key());
 
     println!("{}", key);
 }
@@ -99,9 +100,7 @@ fn main() {
 
     let ds = SqliteDS::new(&opt.common.db_path);
 
-    let state = State {
-        ds
-    };
+    let state = State { ds };
 
     match opt.cmd {
         Command::Insert(args) => insert(state, args),

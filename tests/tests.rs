@@ -1,6 +1,6 @@
-use snapcd::{HashSetDS, DataStore};
 use rand::prelude::*;
 use rand_chacha::ChaChaRng;
+use snapcd::{DataStore, HashSetDS};
 
 fn internal_test(size_upper_bound: usize, seed_lower_bound: u64, seed_upper_bound: u64) {
     for i in seed_lower_bound..seed_upper_bound {
@@ -28,8 +28,7 @@ fn internal_test(size_upper_bound: usize, seed_lower_bound: u64, seed_upper_boun
 
 #[test]
 fn sanity_check() {
-    internal_test(1<<16, 0, 8);
-    internal_test(1<<10, 8, 64);
-    internal_test(1<<6, 64, 128);
+    internal_test(1 << 16, 0, 8);
+    internal_test(1 << 10, 8, 64);
+    internal_test(1 << 6, 64, 128);
 }
-
