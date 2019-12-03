@@ -24,6 +24,12 @@ fn inner_bench(bench: &mut test::Bencher, size: u64) {
 
 #[bench]
 #[allow(non_snake_case)]
+fn perf_test_32B(bench: &mut test::Bencher) {
+    inner_bench(bench, 32);
+}
+
+#[bench]
+#[allow(non_snake_case)]
 fn perf_test_64KB(bench: &mut test::Bencher) {
     inner_bench(bench, 1<<16);
 }

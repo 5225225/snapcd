@@ -129,7 +129,7 @@ pub trait DataStore {
         }
 
         println!("#{} {:?}", current_chunk.len(), &key_bufs.iter().map(Vec::len).collect::<Vec<_>>());
-        if current_chunk.is_empty() {
+        if !current_chunk.is_empty() {
             let data = mem::replace(&mut current_chunk, Vec::new());
             let key = self.put_obj(&Object::Blob(Cow::Borrowed(&data)));
             key_bufs[0].push(key);
