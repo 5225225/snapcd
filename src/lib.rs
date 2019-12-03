@@ -1,3 +1,4 @@
+use std::io::Cursor;
 use std::borrow::Cow;
 use std::io::prelude::*;
 use blake2::{Blake2b, Digest};
@@ -78,7 +79,11 @@ pub trait DataStore {
 
             let zeros = h.trailing_zeros();
 
-            if zeros > BLOB_ZERO_COUNT || current_chunk.len() >= 1<<(BLOB_ZERO_COUNT+1) {
+            if current_chunk.len() < 1<<BLOB_ZERO_COUNT_MIN {
+                continue;
+            }
+
+            if zeros > BLOB_ZERO_COUNT || current_chunk.len() >= 1<<(BLOB_ZERO_COUNT_MAX) {
                 hasher.reset();
 
                 let key = self.put_obj(&Object::Blob(Cow::Borrowed(&current_chunk)));
@@ -86,7 +91,8 @@ pub trait DataStore {
                 current_chunk.clear();
 
                 for offset in 0..4 {
-                    if zeros > BLOB_ZERO_COUNT + (offset + 1) * PER_LEVEL_COUNT || key_bufs[offset as usize].len() >= 1<<(PER_LEVEL_COUNT+1) { 
+                    let len = key_bufs[offset as usize].len();
+                    if zeros > BLOB_ZERO_COUNT + (offset + 1) * PER_LEVEL_COUNT || len >= 1<<PER_LEVEL_COUNT_MAX { 
                         let key = self.put_obj(&Object::Keys(Cow::Borrowed(&key_bufs[offset as usize])));
                         key_bufs[offset as usize].clear();
                         key_bufs[offset as usize + 1].push(key);
@@ -168,7 +174,11 @@ impl DataStore for SqliteDS {
             params![key.0],
             |row| row.get(0)).unwrap();
 
-        Cow::Owned(results)
+        let cursor = Cursor::new(results);
+
+        let decompressed = zstd::decode_all(cursor).unwrap();
+
+        Cow::Owned(decompressed)
     }
 
     fn put(&mut self, data: Vec<u8>) -> KeyBuf {
@@ -176,16 +186,23 @@ impl DataStore for SqliteDS {
         b2.input(&data);
         let hash = b2.result().to_vec();
 
+        let cursor = Cursor::new(data);
+        let compressed = zstd::encode_all(cursor, 6).unwrap();
+
         self.conn.execute(
-            "INSERT INTO data VALUES (?, ?)",
-            params![hash, data]);
+            "INSERT OR IGNORE INTO data VALUES (?, ?)",
+            params![hash, compressed]).unwrap();
 
         KeyBuf(hash)
     }
 }
 
-const BLOB_ZERO_COUNT: u32 = 11;
+const BLOB_ZERO_COUNT_MIN: u32 = BLOB_ZERO_COUNT - 2;
+const BLOB_ZERO_COUNT: u32 = 12;
+const BLOB_ZERO_COUNT_MAX: u32 = BLOB_ZERO_COUNT + 2;
+
 const PER_LEVEL_COUNT: u32 = 5;
+const PER_LEVEL_COUNT_MAX: u32 = PER_LEVEL_COUNT + 2;
 
 pub fn put_data<DS: DataStore, R: Read>(data: R, store: &mut DS) -> KeyBuf {
     store.put_data(data)
