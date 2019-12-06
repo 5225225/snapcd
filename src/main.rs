@@ -69,6 +69,7 @@ fn insert(mut state: State, args: InsertArgs) {
     println!("{}", hash);
 }
 
+#[allow(clippy::needless_pass_by_value)]
 fn fetch(state: State, args: FetchArgs) {
     let mut f = std::fs::OpenOptions::new()
         .write(true)
@@ -87,6 +88,7 @@ fn debug(state: State, args: DebugCommand) {
     }
 }
 
+#[allow(clippy::needless_pass_by_value)]
 fn debug_pretty_print(state: State, args: PrettyPrintArgs) {
     let key = state
         .ds

@@ -1,6 +1,3 @@
-#![deny(clippy::pedantic)]
-#![allow(clippy::must_use_candidate)]
-
 use blake2::{Blake2b, Digest};
 use cdc::RollingHash64;
 use rusqlite::params;
@@ -17,6 +14,7 @@ pub struct Key<'a>(&'a [u8]);
 pub struct KeyBuf(Vec<u8>);
 
 impl KeyBuf {
+    #[must_use]
     pub fn as_key(&self) -> Key<'_> {
         Key(&self.0[..])
     }
@@ -187,6 +185,7 @@ pub struct SqliteDS {
 }
 
 impl SqliteDS {
+    #[must_use]
     pub fn new(path: &str) -> Self {
         let conn = rusqlite::Connection::open(path).unwrap();
 
