@@ -2,7 +2,6 @@ use crate::{DataStore, Key, KeyBuf, Object};
 use cdc::RollingHash64;
 use std::borrow::Cow;
 use std::io::prelude::*;
-use std::mem;
 
 pub fn put_data<DS: DataStore, R: Read>(ds: &mut DS, data: R) -> KeyBuf {
     let mut key_bufs: [Vec<KeyBuf>; 5] = Default::default();
@@ -53,49 +52,36 @@ pub fn put_data<DS: DataStore, R: Read>(ds: &mut DS, data: R) -> KeyBuf {
         }
     }
 
-    println!(
-        "#{} {:?}",
-        current_chunk.len(),
-        &key_bufs.iter().map(Vec::len).collect::<Vec<_>>()
-    );
+    if (0..4).all(|x| key_bufs[x].is_empty()) {
+        // No chunks were made.
+        return ds.put_obj(&Object::only_data(Cow::Borrowed(&current_chunk), Cow::Borrowed("file.blob")));
+    }
+
     if !current_chunk.is_empty() {
-        let data = mem::replace(&mut current_chunk, Vec::new());
         let key = ds.put_obj(&Object::only_data(
-            Cow::Borrowed(&data),
+            Cow::Borrowed(&current_chunk),
             Cow::Borrowed("file.blob"),
         ));
         key_bufs[0].push(key);
     }
 
     for offset in 0..4 {
-        println!(
-            "!{} {} {:?}",
-            offset,
-            current_chunk.len(),
-            &key_bufs.iter().map(Vec::len).collect::<Vec<_>>()
-        );
-        let keys = mem::replace(&mut key_bufs[offset], Vec::new());
         let key = ds.put_obj(&Object::only_keys(
-            Cow::Borrowed(&keys),
+            Cow::Borrowed(&key_bufs[offset]),
             Cow::Borrowed("file.blobtree"),
         ));
+
+
+        if key_bufs[offset].len() == 1 && (1+offset..4).all(|x| key_bufs[x].is_empty()) {
+            // We know this is safe because key_bufs[offset] has exactly 1 element
+            return key_bufs[offset].pop().unwrap();
+        }
+
         key_bufs[offset + 1].push(key);
     }
-    println!(
-        "^{} {:?}",
-        current_chunk.len(),
-        &key_bufs.iter().map(Vec::len).collect::<Vec<_>>()
-    );
-
-    assert!(key_bufs[0].is_empty());
-    assert!(key_bufs[1].is_empty());
-    assert!(key_bufs[2].is_empty());
-    assert!(key_bufs[3].is_empty());
-
-    let taken = mem::replace(&mut key_bufs[4], Vec::new());
 
     ds.put_obj(&Object::only_keys(
-        Cow::Borrowed(&taken),
+        Cow::Borrowed(&key_bufs[4]),
         Cow::Borrowed("file.blobtree"),
     ))
 }
