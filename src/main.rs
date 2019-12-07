@@ -1,4 +1,4 @@
-use snapcd::{DataStore, KeyBuf, SqliteDS};
+use snapcd::{file, DataStore, KeyBuf, SqliteDS};
 use std::path::PathBuf;
 use std::str::FromStr;
 use structopt::StructOpt;
@@ -64,7 +64,7 @@ fn insert(mut state: State, args: InsertArgs) {
 
     let reader = std::io::BufReader::new(f);
 
-    let hash = state.ds.put_data(reader);
+    let hash = file::put_data(&mut state.ds, reader);
 
     println!("{}", hash);
 }
@@ -79,7 +79,7 @@ fn fetch(state: State, args: FetchArgs) {
 
     let key = KeyBuf::from_str(&args.key).unwrap();
 
-    state.ds.read_data(key.as_key(), &mut f);
+    file::read_data(&state.ds, key.as_key(), &mut f);
 }
 
 fn debug(state: State, args: DebugCommand) {

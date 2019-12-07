@@ -4,7 +4,8 @@ extern crate test;
 
 use rand::prelude::*;
 use rand_chacha::ChaChaRng;
-use snapcd::{put_data, NullB2DS};
+use snapcd::file::put_data;
+use snapcd::NullB2DS;
 use std::io::{self, Read};
 
 fn inner_bench(bench: &mut test::Bencher, size: u64) {
@@ -18,7 +19,7 @@ fn inner_bench(bench: &mut test::Bencher, size: u64) {
     bench.bytes = size;
 
     bench.iter(|| {
-        test::black_box(put_data(&buf[..], &mut data));
+        test::black_box(put_data(&mut data, &buf[..]));
     });
 }
 

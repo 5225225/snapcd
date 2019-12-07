@@ -1,11 +1,11 @@
 use blake2::{Blake2b, Digest};
-use cdc::RollingHash64;
+
 use rusqlite::params;
 use std::borrow::Cow;
 use std::collections::HashMap;
-use std::io::prelude::*;
 use std::io::Cursor;
-use std::mem;
+
+pub mod file;
 
 #[derive(Debug, Clone, Copy)]
 pub struct Key<'a>(&'a [u8]);
@@ -35,34 +35,53 @@ impl std::str::FromStr for KeyBuf {
 }
 
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
-pub enum Object<'a> {
-    Blob(Cow<'a, [u8]>),
-    Keys(Cow<'a, [KeyBuf]>),
+pub struct Object<'a> {
+    data: Cow<'a, [u8]>,
+    keys: Cow<'a, [KeyBuf]>,
+    objtype: Cow<'a, str>,
+}
+
+impl<'a> Object<'a> {
+    fn only_data(data: Cow<'a, [u8]>, objtype: Cow<'a, str>) -> Self {
+        Self {
+            data,
+            keys: Cow::Borrowed(&[]),
+            objtype,
+        }
+    }
+
+    fn only_keys(keys: Cow<'a, [KeyBuf]>, objtype: Cow<'a, str>) -> Self {
+        Self {
+            data: Cow::Borrowed(&[]),
+            keys,
+            objtype,
+        }
+    }
 }
 
 const DISPLAY_CHUNK_SIZE: usize = 20;
 impl<'a> std::fmt::Display for Object<'a> {
     fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
-        match self {
-            Object::Blob(blob) => {
-                writeln!(fmt, "blob")?;
-                for chunk in blob.chunks(DISPLAY_CHUNK_SIZE) {
-                    let ashex = hex::encode(chunk);
-                    writeln!(fmt, "{}", ashex)?;
-                }
+        writeln!(fmt, "--type: {:?}--", self.objtype)?;
 
-                Ok(())
-            }
-            Object::Keys(keys) => {
-                writeln!(fmt, "keys")?;
-
-                for key in keys.iter() {
-                    writeln!(fmt, "{}", key)?;
-                }
-
-                Ok(())
+        writeln!(fmt, "--keys--")?;
+        if !self.keys.is_empty() {
+            for key in self.keys.iter() {
+                writeln!(fmt, "{}", key)?;
             }
         }
+        writeln!(fmt, "-/keys--")?;
+
+        writeln!(fmt, "--data--")?;
+        if !self.data.is_empty() {
+            for chunk in self.data.chunks(DISPLAY_CHUNK_SIZE) {
+                let ashex = hex::encode(chunk);
+                writeln!(fmt, "{}", ashex)?;
+            }
+        }
+        writeln!(fmt, "-/data--")?;
+
+        Ok(())
     }
 }
 
@@ -80,103 +99,6 @@ pub trait DataStore {
         let data = serde_cbor::to_vec(data).unwrap();
 
         self.put(data)
-    }
-
-    fn put_data<R: Read>(&mut self, data: R) -> KeyBuf {
-        let mut key_bufs: [Vec<KeyBuf>; 5] = Default::default();
-
-        let mut current_chunk = Vec::new();
-
-        let mut hasher = cdc::Rabin64::new(6);
-
-        for byte_r in data.bytes() {
-            let byte = byte_r.unwrap();
-
-            current_chunk.push(byte);
-            hasher.slide(&byte);
-
-            if current_chunk.len() < 1 << BLOB_ZERO_COUNT_MIN {
-                continue;
-            }
-
-            let h = !hasher.get_hash();
-
-            let zeros = h.trailing_zeros();
-
-            if zeros > BLOB_ZERO_COUNT || current_chunk.len() >= 1 << (BLOB_ZERO_COUNT_MAX) {
-                hasher.reset();
-
-                let key = self.put_obj(&Object::Blob(Cow::Borrowed(&current_chunk)));
-                key_bufs[0].push(key);
-                current_chunk.clear();
-
-                for offset in 0..4 {
-                    let len = key_bufs[offset as usize].len();
-                    if zeros > BLOB_ZERO_COUNT + (offset + 1) * PER_LEVEL_COUNT
-                        || len >= 1 << PER_LEVEL_COUNT_MAX
-                    {
-                        let key =
-                            self.put_obj(&Object::Keys(Cow::Borrowed(&key_bufs[offset as usize])));
-                        key_bufs[offset as usize].clear();
-                        key_bufs[offset as usize + 1].push(key);
-                    } else {
-                        break;
-                    }
-                }
-            }
-        }
-
-        println!(
-            "#{} {:?}",
-            current_chunk.len(),
-            &key_bufs.iter().map(Vec::len).collect::<Vec<_>>()
-        );
-        if !current_chunk.is_empty() {
-            let data = mem::replace(&mut current_chunk, Vec::new());
-            let key = self.put_obj(&Object::Blob(Cow::Borrowed(&data)));
-            key_bufs[0].push(key);
-        }
-
-        for offset in 0..4 {
-            println!(
-                "!{} {} {:?}",
-                offset,
-                current_chunk.len(),
-                &key_bufs.iter().map(Vec::len).collect::<Vec<_>>()
-            );
-            let keys = mem::replace(&mut key_bufs[offset], Vec::new());
-            let key = self.put_obj(&Object::Keys(Cow::Borrowed(&keys)));
-            key_bufs[offset + 1].push(key);
-        }
-        println!(
-            "^{} {:?}",
-            current_chunk.len(),
-            &key_bufs.iter().map(Vec::len).collect::<Vec<_>>()
-        );
-
-        assert!(key_bufs[0].is_empty());
-        assert!(key_bufs[1].is_empty());
-        assert!(key_bufs[2].is_empty());
-        assert!(key_bufs[3].is_empty());
-
-        let taken = mem::replace(&mut key_bufs[4], Vec::new());
-
-        self.put_obj(&Object::Keys(Cow::Borrowed(&taken)))
-    }
-
-    fn read_data<W: Write>(&self, key: Key, to: &mut W) {
-        let obj = self.get_obj(key);
-
-        match obj {
-            Object::Keys(keys) => {
-                for key in keys.iter() {
-                    self.read_data(key.as_key(), to);
-                }
-            }
-            Object::Blob(vec) => {
-                to.write_all(&vec).expect("failed to write to out");
-            }
-        }
     }
 }
 
@@ -241,21 +163,6 @@ impl DataStore for SqliteDS {
 
         KeyBuf(hash)
     }
-}
-
-const BLOB_ZERO_COUNT_MIN: u32 = BLOB_ZERO_COUNT - 2;
-const BLOB_ZERO_COUNT: u32 = 12;
-const BLOB_ZERO_COUNT_MAX: u32 = BLOB_ZERO_COUNT + 2;
-
-const PER_LEVEL_COUNT: u32 = 5;
-const PER_LEVEL_COUNT_MAX: u32 = PER_LEVEL_COUNT + 2;
-
-pub fn put_data<DS: DataStore, R: Read>(data: R, store: &mut DS) -> KeyBuf {
-    store.put_data(data)
-}
-
-pub fn read_data<DS: DataStore, W: Write>(key: Key, store: &DS, to: &mut W) {
-    store.read_data(key, to);
 }
 
 #[derive(Debug, Default)]

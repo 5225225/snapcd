@@ -1,6 +1,7 @@
 use rand::prelude::*;
 use rand_chacha::ChaChaRng;
-use snapcd::{DataStore, HashSetDS};
+use snapcd::file::{put_data, read_data};
+use snapcd::HashSetDS;
 
 fn internal_test(size_upper_bound: usize, seed_lower_bound: u64, seed_upper_bound: u64) {
     for i in seed_lower_bound..seed_upper_bound {
@@ -14,11 +15,11 @@ fn internal_test(size_upper_bound: usize, seed_lower_bound: u64, seed_upper_boun
 
         rng.fill(&mut test_vector[..]);
 
-        let hash = data.put_data(&test_vector[..]);
+        let hash = put_data(&mut data, &test_vector[..]);
 
         let mut to = Vec::new();
 
-        data.read_data(hash.as_key(), &mut to);
+        read_data(&data, hash.as_key(), &mut to);
 
         if to != test_vector {
             panic!("failed at seed {}", i);
