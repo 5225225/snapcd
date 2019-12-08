@@ -120,7 +120,10 @@ pub fn get_fs_item<DS: DataStore>(ds: &DS, key: Key, path: &Path) {
             }
         }
         FSItemType::File => {
-            let mut f = std::fs::OpenOptions::new().write(true).create_new(true).open(dbg!(&path)).unwrap();
+            let fpath = &path.join(&fsobj.name);
+            std::fs::create_dir_all(fpath.parent().unwrap()).unwrap();
+
+            let mut f = std::fs::OpenOptions::new().write(true).create_new(true).open(dbg!(fpath)).unwrap();
 
             file::read_data(ds, fsobj.children[0].as_key(), &mut f);
         }
