@@ -67,15 +67,9 @@ fn insert(mut state: State, args: InsertArgs) {
 
 #[allow(clippy::needless_pass_by_value)]
 fn fetch(state: State, args: FetchArgs) {
-    let mut f = std::fs::OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .open(args.dest)
-        .unwrap();
-
     let key = KeyBuf::from_str(&args.key).unwrap();
 
-    file::read_data(&state.ds, key.as_key(), &mut f);
+    dir::get_fs_item(&state.ds, key.as_key(), &args.dest);
 }
 
 fn debug(state: State, args: DebugCommand) {

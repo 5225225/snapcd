@@ -1,6 +1,6 @@
 use std::borrow::Cow;
-use std::path::{PathBuf, Path};
-use std::ffi::{OsStr, OsString};
+use std::path::{Path};
+use std::ffi::{OsString};
 use crate::{DataStore, Key, KeyBuf, Object, file};
 use std::convert::TryInto;
 
@@ -23,7 +23,11 @@ impl TryInto<Object<'static>> for FSItem {
     type Error = serde_cbor::error::Error;
 
     fn try_into(self) -> Result<Object<'static>, serde_cbor::error::Error> {
-        let obj = serde_cbor::to_vec(&self)?;
+        let value = serde_cbor::value::to_value(&self).unwrap();
+
+        dbg!(&value);
+
+        let obj = serde_cbor::to_vec(&value)?;
 
         let objtype = match self.itemtype {
             FSItemType::Dir => "dir.FSItem.dir",
@@ -42,11 +46,15 @@ impl<'a> TryInto<FSItem> for Object<'a> {
     type Error = serde_cbor::error::Error;
 
     fn try_into(self) -> Result<FSItem, serde_cbor::error::Error> {
-        let mut item: FSItem = serde_cbor::from_slice(&self.data)?;
+        let item: serde_cbor::Value = serde_cbor::from_slice(&self.data).unwrap();
 
-        item.children = self.keys.into_owned();
+        dbg!(&item);
 
-        Ok(item)
+        let mut fsitem: FSItem = serde_cbor::value::from_value(item).unwrap();
+
+        fsitem.children = self.keys.into_owned();
+
+        Ok(fsitem)
     }
 }
 
@@ -88,7 +96,7 @@ pub fn put_fs_item<DS: DataStore>(ds: &mut DS, path: &Path) -> KeyBuf {
         let obj = FSItem {
             name: path.file_name().unwrap().to_os_string(),
             children: vec![hash],
-            itemtype: FSItemType::Dir,
+            itemtype: FSItemType::File,
             size: meta.len(),
         };
 
