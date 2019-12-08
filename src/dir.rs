@@ -27,7 +27,7 @@ impl TryInto<Object<'static>> for FSItem {
 
         let objtype = match self.itemtype {
             FSItemType::Dir => "dir.FSItem.dir",
-            FSItemType::File => "dir.FSItem.dir",
+            FSItemType::File => "dir.FSItem.file",
         };
 
         Ok(Object {
@@ -35,6 +35,18 @@ impl TryInto<Object<'static>> for FSItem {
             keys: Cow::Owned(self.children),
             objtype: Cow::Borrowed(objtype),
         })
+    }
+}
+
+impl<'a> TryInto<FSItem> for Object<'a> {
+    type Error = serde_cbor::error::Error;
+
+    fn try_into(self) -> Result<FSItem, serde_cbor::error::Error> {
+        let mut item: FSItem = serde_cbor::from_slice(&self.data)?;
+
+        item.children = self.keys.into_owned();
+
+        Ok(item)
     }
 }
 
@@ -86,4 +98,23 @@ pub fn put_fs_item<DS: DataStore>(ds: &mut DS, path: &Path) -> KeyBuf {
     }
 
     unimplemented!("meta is not a file or a directory?")
+}
+
+pub fn get_fs_item<DS: DataStore>(ds: &DS, key: Key, path: &Path) {
+    let obj = ds.get_obj(key);
+
+    let fsobj: FSItem = obj.try_into().unwrap();
+
+    match fsobj.itemtype {
+        FSItemType::Dir => {
+            for child in fsobj.children {
+                get_fs_item(ds, child.as_key(), &path.join(&fsobj.name))
+            }
+        }
+        FSItemType::File => {
+            let mut f = std::fs::OpenOptions::new().write(true).create_new(true).open(dbg!(path.join(&fsobj.name))).unwrap();
+
+            file::read_data(ds, fsobj.children[0].as_key(), &mut f);
+        }
+    }
 }
