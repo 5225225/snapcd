@@ -1,4 +1,4 @@
-use snapcd::{file, DataStore, KeyBuf, SqliteDS};
+use snapcd::{file, DataStore, KeyBuf, SqliteDS, dir};
 use std::path::PathBuf;
 use std::str::FromStr;
 use structopt::StructOpt;
@@ -60,11 +60,7 @@ struct PrettyPrintArgs {
 }
 
 fn insert(mut state: State, args: InsertArgs) {
-    let f = std::fs::File::open(args.path).unwrap();
-
-    let reader = std::io::BufReader::new(f);
-
-    let hash = file::put_data(&mut state.ds, reader);
+    let hash = dir::put_fs_item(&mut state.ds, &args.path);
 
     println!("{}", hash);
 }

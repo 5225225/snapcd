@@ -6,6 +6,7 @@ use std::collections::HashMap;
 use std::io::Cursor;
 
 pub mod file;
+pub mod dir;
 
 #[derive(Debug, Clone, Copy)]
 pub struct Key<'a>(&'a [u8]);
