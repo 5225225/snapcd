@@ -4,6 +4,8 @@ use std::ffi::{OsString};
 use crate::{DataStore, Key, KeyBuf, Object, file};
 use std::convert::TryInto;
 
+use failure::Fallible;
+
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
 struct FSItem {
     name: OsString,
@@ -24,8 +26,6 @@ impl TryInto<Object<'static>> for FSItem {
 
     fn try_into(self) -> Result<Object<'static>, serde_cbor::error::Error> {
         let value = serde_cbor::value::to_value(&self).unwrap();
-
-        dbg!(&value);
 
         let obj = serde_cbor::to_vec(&value)?;
 
@@ -58,7 +58,7 @@ impl<'a> TryInto<FSItem> for Object<'a> {
     }
 }
 
-pub fn put_fs_item<DS: DataStore>(ds: &mut DS, path: &Path) -> KeyBuf {
+pub fn put_fs_item<DS: DataStore>(ds: &mut DS, path: &Path) -> Fallible<KeyBuf> {
     let meta = std::fs::metadata(path).unwrap();
 
     if meta.is_dir() {
@@ -69,13 +69,28 @@ pub fn put_fs_item<DS: DataStore>(ds: &mut DS, path: &Path) -> KeyBuf {
         for r_entry in entries {
             let entry = r_entry.unwrap();
 
-            result.push(put_fs_item(ds, &entry.path()));
+            result.push(put_fs_item(ds, &entry.path())?);
         }
 
         let size = result.len() as u64;
 
+        dbg!(path.file_name());
+
+        let name;
+
+        if let Some(f) = path.file_name() {
+            name = f.to_os_string();
+        } else {
+            let canon = path.canonicalize()?;
+
+            name = canon
+                .file_name()
+                .expect("we tried to canonicalize the filename and it still has no name")
+                .to_os_string();
+        }
+
         let obj = FSItem {
-            name: path.file_name().unwrap().to_os_string(),
+            name,
             children: result,
             itemtype: FSItemType::Dir,
             size,
@@ -83,7 +98,7 @@ pub fn put_fs_item<DS: DataStore>(ds: &mut DS, path: &Path) -> KeyBuf {
 
         let object = obj.try_into().unwrap();
 
-        return ds.put_obj(&object);
+        return Ok(ds.put_obj(&object));
     }
 
     if meta.is_file() {
@@ -93,8 +108,15 @@ pub fn put_fs_item<DS: DataStore>(ds: &mut DS, path: &Path) -> KeyBuf {
 
         let hash = file::put_data(ds, reader);
 
+        dbg!(path.file_name());
+
+        #[allow(clippy::option_unwrap_used)]
+        // From the docs: "Returns None if the path terminates in `..`."
+        // Therefore, this can never fail since we will only execute this if it's a valid filename.
+        let fname = path.file_name().unwrap();
+
         let obj = FSItem {
-            name: path.file_name().unwrap().to_os_string(),
+            name: fname.to_os_string(),
             children: vec![hash],
             itemtype: FSItemType::File,
             size: meta.len(),
@@ -102,13 +124,13 @@ pub fn put_fs_item<DS: DataStore>(ds: &mut DS, path: &Path) -> KeyBuf {
 
         let object = obj.try_into().unwrap();
 
-        return ds.put_obj(&object);
+        return Ok(ds.put_obj(&object));
     }
 
     unimplemented!("meta is not a file or a directory?")
 }
 
-pub fn get_fs_item<DS: DataStore>(ds: &DS, key: Key, path: &Path) {
+pub fn get_fs_item<DS: DataStore>(ds: &DS, key: Key, path: &Path) -> Fallible<()> {
     let obj = ds.get_obj(key);
 
     let fsobj: FSItem = obj.try_into().unwrap();
@@ -116,16 +138,21 @@ pub fn get_fs_item<DS: DataStore>(ds: &DS, key: Key, path: &Path) {
     match fsobj.itemtype {
         FSItemType::Dir => {
             for child in fsobj.children {
-                get_fs_item(ds, child.as_key(), &path.join(&fsobj.name))
+                get_fs_item(ds, child.as_key(), &path.join(&fsobj.name))?;
             }
         }
         FSItemType::File => {
             let fpath = &path.join(&fsobj.name);
-            std::fs::create_dir_all(fpath.parent().unwrap()).unwrap();
 
-            let mut f = std::fs::OpenOptions::new().write(true).create_new(true).open(dbg!(fpath)).unwrap();
+            if let Some(parent) = fpath.parent() {
+                std::fs::create_dir_all(parent)?;
+            }
+
+            let mut f = std::fs::OpenOptions::new().write(true).create_new(true).open(fpath).unwrap();
 
             file::read_data(ds, fsobj.children[0].as_key(), &mut f);
         }
     }
+
+    Ok(())
 }

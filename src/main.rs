@@ -3,6 +3,8 @@ use std::path::PathBuf;
 use std::str::FromStr;
 use structopt::StructOpt;
 
+type CMDResult = failure::Fallible<()>;
+
 #[derive(StructOpt, Debug)]
 struct Opt {
     #[structopt(flatten)]
@@ -59,32 +61,39 @@ struct PrettyPrintArgs {
     key: String,
 }
 
-fn insert(mut state: State, args: InsertArgs) {
-    let hash = dir::put_fs_item(&mut state.ds, &args.path);
+#[allow(clippy::needless_pass_by_value)]
+fn insert(mut state: State, args: InsertArgs) -> CMDResult {
+    let hash = dir::put_fs_item(&mut state.ds, &args.path)?;
 
     println!("{}", hash);
+
+    Ok(())
 }
 
 #[allow(clippy::needless_pass_by_value)]
-fn fetch(state: State, args: FetchArgs) {
+fn fetch(state: State, args: FetchArgs) -> CMDResult {
     let key = KeyBuf::from_str(&args.key).unwrap();
 
     dir::get_fs_item(&state.ds, key.as_key(), &args.dest);
+
+    Ok(())
 }
 
-fn debug(state: State, args: DebugCommand) {
+fn debug(state: State, args: DebugCommand) -> CMDResult {
     match args {
         DebugCommand::PrettyPrint(args) => debug_pretty_print(state, args),
     }
 }
 
 #[allow(clippy::needless_pass_by_value)]
-fn debug_pretty_print(state: State, args: PrettyPrintArgs) {
+fn debug_pretty_print(state: State, args: PrettyPrintArgs) -> CMDResult {
     let key = state
         .ds
         .get_obj(KeyBuf::from_str(&args.key).unwrap().as_key());
 
     println!("{}", key);
+
+    Ok(())
 }
 
 fn main() {
@@ -94,9 +103,13 @@ fn main() {
 
     let state = State { ds };
 
-    match opt.cmd {
+    let result = match opt.cmd {
         Command::Insert(args) => insert(state, args),
         Command::Fetch(args) => fetch(state, args),
         Command::Debug(args) => debug(state, args),
+    };
+
+    if let Err(e) = result {
+        println!("{:?}", e);
     }
 }

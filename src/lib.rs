@@ -28,10 +28,10 @@ impl std::fmt::Display for KeyBuf {
 }
 
 impl std::str::FromStr for KeyBuf {
-    type Err = ();
+    type Err = failure::Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Ok(Self(hex::decode(s).unwrap()))
+        Ok(Self(hex::decode(s)?))
     }
 }
 
