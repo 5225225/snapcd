@@ -17,6 +17,7 @@ rusqlite = "0.20.0"
 hex = "0.4.0"
 zstd = "0.5.1"
 failure = "0.1.6"
+failure_derive = "0.1.6"
 
 [profile.release]
 debug = true

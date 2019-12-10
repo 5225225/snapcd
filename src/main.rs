@@ -1,4 +1,8 @@
-use snapcd::{file, DataStore, KeyBuf, SqliteDS, dir};
+// StructOpt generated code triggers this lint.
+#![allow(clippy::option_unwrap_used)]
+#![allow(clippy::result_unwrap_used)]
+
+use snapcd::{DataStore, KeyBuf, SqliteDS, dir};
 use std::path::PathBuf;
 use std::str::FromStr;
 use structopt::StructOpt;
@@ -74,7 +78,7 @@ fn insert(mut state: State, args: InsertArgs) -> CMDResult {
 fn fetch(state: State, args: FetchArgs) -> CMDResult {
     let key = KeyBuf::from_str(&args.key).unwrap();
 
-    dir::get_fs_item(&state.ds, key.as_key(), &args.dest);
+    dir::get_fs_item(&state.ds, key.as_key(), &args.dest)?;
 
     Ok(())
 }
@@ -89,17 +93,17 @@ fn debug(state: State, args: DebugCommand) -> CMDResult {
 fn debug_pretty_print(state: State, args: PrettyPrintArgs) -> CMDResult {
     let key = state
         .ds
-        .get_obj(KeyBuf::from_str(&args.key).unwrap().as_key());
+        .get_obj(KeyBuf::from_str(&args.key)?.as_key())?;
 
     println!("{}", key);
 
     Ok(())
 }
 
-fn main() {
+fn main() -> CMDResult {
     let opt = Opt::from_args();
 
-    let ds = SqliteDS::new(&opt.common.db_path);
+    let ds = SqliteDS::new(&opt.common.db_path)?;
 
     let state = State { ds };
 
@@ -110,6 +114,8 @@ fn main() {
     };
 
     if let Err(e) = result {
-        println!("{:?}", e);
+        println!("fatal: {}", e);
     }
+
+    Ok(())
 }

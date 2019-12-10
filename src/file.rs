@@ -3,7 +3,9 @@ use cdc::RollingHash64;
 use std::borrow::Cow;
 use std::io::prelude::*;
 
-pub fn put_data<DS: DataStore, R: Read>(ds: &mut DS, data: R) -> KeyBuf {
+use failure::Fallible;
+
+pub fn put_data<DS: DataStore, R: Read>(ds: &mut DS, data: R) -> Fallible<KeyBuf> {
     let mut key_bufs: [Vec<KeyBuf>; 5] = Default::default();
 
     let mut current_chunk = Vec::new();
@@ -11,7 +13,7 @@ pub fn put_data<DS: DataStore, R: Read>(ds: &mut DS, data: R) -> KeyBuf {
     let mut hasher = cdc::Rabin64::new(6);
 
     for byte_r in data.bytes() {
-        let byte = byte_r.unwrap();
+        let byte = byte_r?;
 
         current_chunk.push(byte);
         hasher.slide(&byte);
@@ -30,7 +32,7 @@ pub fn put_data<DS: DataStore, R: Read>(ds: &mut DS, data: R) -> KeyBuf {
             let key = ds.put_obj(&Object::only_data(
                 Cow::Borrowed(&current_chunk),
                 Cow::Borrowed("file.blob"),
-            ));
+            ))?;
             key_bufs[0].push(key);
             current_chunk.clear();
 
@@ -42,7 +44,7 @@ pub fn put_data<DS: DataStore, R: Read>(ds: &mut DS, data: R) -> KeyBuf {
                     let key = ds.put_obj(&Object::only_keys(
                         Cow::Borrowed(&key_bufs[offset as usize]),
                         Cow::Borrowed("file.blobtree"),
-                    ));
+                    ))?;
                     key_bufs[offset as usize].clear();
                     key_bufs[offset as usize + 1].push(key);
                 } else {
@@ -54,14 +56,14 @@ pub fn put_data<DS: DataStore, R: Read>(ds: &mut DS, data: R) -> KeyBuf {
 
     if (0..4).all(|x| key_bufs[x].is_empty()) {
         // No chunks were made.
-        return ds.put_obj(&Object::only_data(Cow::Borrowed(&current_chunk), Cow::Borrowed("file.blob")));
+        return Ok(ds.put_obj(&Object::only_data(Cow::Borrowed(&current_chunk), Cow::Borrowed("file.blob")))?);
     }
 
     if !current_chunk.is_empty() {
         let key = ds.put_obj(&Object::only_data(
             Cow::Borrowed(&current_chunk),
             Cow::Borrowed("file.blob"),
-        ));
+        ))?;
         key_bufs[0].push(key);
     }
 
@@ -69,12 +71,13 @@ pub fn put_data<DS: DataStore, R: Read>(ds: &mut DS, data: R) -> KeyBuf {
         let key = ds.put_obj(&Object::only_keys(
             Cow::Borrowed(&key_bufs[offset]),
             Cow::Borrowed("file.blobtree"),
-        ));
+        ))?;
 
 
         if key_bufs[offset].len() == 1 && (1+offset..4).all(|x| key_bufs[x].is_empty()) {
             // We know this is safe because key_bufs[offset] has exactly 1 element
-            return key_bufs[offset].pop().unwrap();
+            #[allow(clippy::option_unwrap_used)]
+            return Ok(key_bufs[offset].pop().unwrap());
         }
 
         key_bufs[offset + 1].push(key);
@@ -86,17 +89,17 @@ pub fn put_data<DS: DataStore, R: Read>(ds: &mut DS, data: R) -> KeyBuf {
     ))
 }
 
-pub fn read_data<DS: DataStore, W: Write>(ds: &DS, key: Key, to: &mut W) {
-    let obj = ds.get_obj(key);
+pub fn read_data<DS: DataStore, W: Write>(ds: &DS, key: Key, to: &mut W) -> Fallible<()> {
+    let obj = ds.get_obj(key)?;
 
     match &*obj.objtype {
         "file.blobtree" => {
             for key in obj.keys.iter() {
-                read_data(ds, key.as_key(), to);
+                read_data(ds, key.as_key(), to)?;
             }
         }
         "file.blob" => {
-            to.write_all(&obj.data).expect("failed to write to out");
+            to.write_all(&obj.data)?;
         }
         _ => {
             panic!(
@@ -105,6 +108,8 @@ pub fn read_data<DS: DataStore, W: Write>(ds: &DS, key: Key, to: &mut W) {
             );
         }
     }
+
+    Ok(())
 }
 
 const BLOB_ZERO_COUNT_MIN: u32 = BLOB_ZERO_COUNT - 2;

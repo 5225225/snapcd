@@ -1,9 +1,12 @@
+use failure_derive::Fail;
 use blake2::{Blake2b, Digest};
 
 use rusqlite::params;
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::io::Cursor;
+
+use failure::Fallible;
 
 pub mod file;
 pub mod dir;
@@ -86,20 +89,34 @@ impl<'a> std::fmt::Display for Object<'a> {
     }
 }
 
+#[derive(Debug, Fail)]
+pub enum CanonicalizeError {
+    #[fail(display = "Invalid object id {}", _0)]
+    InvalidHex(String),
+
+    #[fail(display = "Object id {} not found", _0)]
+    NotFound(String),
+
+    #[fail(display = "Object id {} is ambiguous", _0)]
+    Ambigious(String, Vec<String>),
+}
+
 pub trait DataStore {
-    fn get<'a>(&'a self, key: Key) -> Cow<'a, [u8]>;
-    fn put(&mut self, data: Vec<u8>) -> KeyBuf;
+    fn get<'a>(&'a self, key: Key) -> Fallible<Cow<'a, [u8]>>;
+    fn put(&mut self, data: Vec<u8>) -> Fallible<KeyBuf>;
 
-    fn get_obj(&self, key: Key) -> Object {
-        let data = self.get(key);
+    fn canonicalize(&self, search: String) -> Result<KeyBuf, CanonicalizeError>;
 
-        serde_cbor::from_slice(&data).unwrap()
+    fn get_obj(&self, key: Key) -> Fallible<Object> {
+        let data = self.get(key)?;
+
+        Ok(serde_cbor::from_slice(&data)?)
     }
 
-    fn put_obj(&mut self, data: &Object) -> KeyBuf {
-        let data = serde_cbor::to_vec(data).unwrap();
+    fn put_obj(&mut self, data: &Object) -> Fallible<KeyBuf> {
+        let data = serde_cbor::to_vec(data)?;
 
-        self.put(data)
+        Ok(self.put(data)?)
     }
 }
 
@@ -108,11 +125,10 @@ pub struct SqliteDS {
 }
 
 impl SqliteDS {
-    #[must_use]
-    pub fn new(path: &str) -> Self {
-        let conn = rusqlite::Connection::open(path).unwrap();
+    pub fn new(path: &str) -> Fallible<Self> {
+        let conn = rusqlite::Connection::open(path)?;
 
-        conn.pragma_update(None, &"journal_mode", &"WAL").unwrap();
+        conn.pragma_update(None, &"journal_mode", &"WAL")?;
 
         conn.execute(
             "
@@ -122,47 +138,48 @@ impl SqliteDS {
             ) WITHOUT ROWID
         ",
             params![],
-        )
-        .unwrap();
+        )?;
 
-        Self { conn }
+        Ok(Self { conn })
     }
 }
 
 impl DataStore for SqliteDS {
-    fn get<'a>(&'a self, key: Key) -> Cow<'a, [u8]> {
+    fn get<'a>(&'a self, key: Key) -> Fallible<Cow<'a, [u8]>> {
         let results: Vec<u8> = self
             .conn
             .query_row(
                 "SELECT value FROM data WHERE key=?",
                 params![key.0],
                 |row| row.get(0),
-            )
-            .unwrap();
+            )?;
 
         let cursor = Cursor::new(results);
 
-        let decompressed = zstd::decode_all(cursor).unwrap();
+        let decompressed = zstd::decode_all(cursor)?;
 
-        Cow::Owned(decompressed)
+        Ok(Cow::Owned(decompressed))
     }
 
-    fn put(&mut self, data: Vec<u8>) -> KeyBuf {
+    fn put(&mut self, data: Vec<u8>) -> Fallible<KeyBuf> {
         let mut b2 = Blake2b::new();
         b2.input(&data);
         let hash = b2.result().to_vec();
 
         let cursor = Cursor::new(data);
-        let compressed = zstd::encode_all(cursor, 6).unwrap();
+        let compressed = zstd::encode_all(cursor, 6)?;
 
         self.conn
             .execute(
                 "INSERT OR IGNORE INTO data VALUES (?, ?)",
                 params![hash, compressed],
-            )
-            .unwrap();
+            )?;
 
-        KeyBuf(hash)
+        Ok(KeyBuf(hash))
+    }
+
+    fn canonicalize(&self, search: String) -> Result<KeyBuf, CanonicalizeError> {
+        unimplemented!();
     }
 }
 
@@ -172,16 +189,21 @@ pub struct HashSetDS {
 }
 
 impl DataStore for HashSetDS {
-    fn get<'a>(&'a self, key: Key) -> Cow<'a, [u8]> {
-        Cow::Borrowed(&self.data[&*key.0])
+    fn get<'a>(&'a self, key: Key) -> Fallible<Cow<'a, [u8]>> {
+        Ok(Cow::Borrowed(&self.data.get(&*key.0).ok_or_else(|| failure::format_err!("not found"))?))
     }
 
-    fn put(&mut self, data: Vec<u8>) -> KeyBuf {
+    fn put(&mut self, data: Vec<u8>) -> Fallible<KeyBuf> {
         let mut b2 = Blake2b::new();
         b2.input(&data);
         let hash = b2.result().to_vec();
         self.data.insert(hash.clone(), data);
-        KeyBuf(hash)
+
+        Ok(KeyBuf(hash))
+    }
+
+    fn canonicalize(&self, search: String) -> Result<KeyBuf, CanonicalizeError> {
+        unimplemented!();
     }
 }
 
@@ -189,14 +211,18 @@ impl DataStore for HashSetDS {
 pub struct NullB2DS {}
 
 impl DataStore for NullB2DS {
-    fn get<'a>(&'a self, _key: Key) -> Cow<'a, [u8]> {
-        Cow::Borrowed(&[0; 0])
+    fn get<'a>(&'a self, _key: Key) -> Fallible<Cow<'a, [u8]>> {
+        Ok(Cow::Borrowed(&[0; 0]))
     }
 
-    fn put(&mut self, data: Vec<u8>) -> KeyBuf {
+    fn put(&mut self, data: Vec<u8>) -> Fallible<KeyBuf> {
         let mut b2 = Blake2b::new();
         b2.input(&data);
         let hash = b2.result().to_vec();
-        KeyBuf(hash)
+        Ok(KeyBuf(hash))
+    }
+
+    fn canonicalize(&self, search: String) -> Result<KeyBuf, CanonicalizeError> {
+        Err(CanonicalizeError::NotFound(search))
     }
 }
