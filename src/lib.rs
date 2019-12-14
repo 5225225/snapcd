@@ -108,19 +108,19 @@ impl std::str::FromStr for Keyish {
             Err(_) => Err(KeyishParseError::Invalid(s.to_string()))?,
         };
 
+        let did_overflow = input.all();
+
         let start = input.clone();
-
-        let mut end = input.clone();
-
-        end += bitvec![BigEndian, u8; 1];
-
-        let did_overflow = start.all();
 
         let ret_start = start.into_vec();
 
         let ret_end = if did_overflow {
             None
         } else {
+            let mut end = input.clone();
+
+            end += bitvec![BigEndian, u8; 1];
+
             Some(end.into_vec())
         };
 
@@ -128,23 +128,19 @@ impl std::str::FromStr for Keyish {
     }
 }
 
-fn u5_to_bitvec(x: u8) -> BitVec<BigEndian, u8> {
-    bitvec![BigEndian, u8; x & 0b10000,
-     x & 0b01000,
-     x & 0b00100,
-     x & 0b00010,
-     x & 0b00001]
-}
-
 fn pop_u5_from_bitvec(x: &mut BitVec<BigEndian, u8>) -> u8 {
     let mut v = 0;
-    for _ in 0..5 {
-        if let Some(bit) = x.pop() {
-            v<<=1; v |= bit as u8;
-        } else {
-            return v;
+    for to_shift in (0..5).rev() {
+        if x.is_empty() {
+            return v<<to_shift;
         }
+
+        let bit = x.remove(0);
+        v<<=1; v |= bit as u8;
     }
+
+    assert!(v <= 31);
+
     v
 }
 
@@ -157,17 +153,13 @@ fn from_base32(x: &str) -> Fallible<BitVec<BigEndian, u8>> {
         }
 
         let idx = table.iter().position(|&x| x == ch).unwrap();
+        dbg!(idx);
 
-        result.extend(u5_to_bitvec(idx as u8));
-        
-        /*
-        match ch {
-            0_u8..=b'1' => bail!("invalid input"),
-            b'2'..=b'7' => result.extend(u5_to_bitvec((ch - b'2') + 26)),
-            b'8'..=b'@' => bail!("invalid input"),
-            b'A'..=b'Z' => result.extend(u5_to_bitvec(ch - b'A')),
-            _ => bail!("invalid input"),
-        }*/
+        result.push(idx & 0b10000 != 0);
+        result.push(idx & 0b01000 != 0);
+        result.push(idx & 0b00100 != 0);
+        result.push(idx & 0b00010 != 0);
+        result.push(idx & 0b00001 != 0);
     }
 
     Ok(result)
@@ -176,9 +168,9 @@ fn from_base32(x: &str) -> Fallible<BitVec<BigEndian, u8>> {
 static table: [u8; 32] = *b"abcdefghijklmnopqrstuvwxyz234567";
 
 fn to_base32(x: Vec<u8>) -> String {
+    dbg!(&x);
     let mut scratch = BitVec::<BigEndian, u8>::from_vec(x);
     let mut ret = String::new();
-
     while !scratch.is_empty() {
         let v = pop_u5_from_bitvec(&mut scratch);
         ret.push(table[v as usize] as char);
