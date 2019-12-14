@@ -1,12 +1,14 @@
+use std::path::Path;
 use failure_derive::Fail;
 use blake2::{Blake2b, Digest};
+use bitvec::prelude::*;
 
 use rusqlite::params;
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::io::Cursor;
 
-use failure::Fallible;
+use failure::{Fallible, bail};
 
 pub mod file;
 pub mod dir;
@@ -89,6 +91,104 @@ impl<'a> std::fmt::Display for Object<'a> {
     }
 }
 
+#[derive(Debug)]
+pub enum Keyish {
+    /// Strictly speaking, this is for prefix searches
+    ///
+    /// .0 will be a value for which all keys that match the prefix will be lexographically ordered
+    /// afterwards. For display, an encoded form of .0 should be used.
+    Range(String, Vec<u8>, Option<Vec<u8>>)
+}
+
+#[derive(Debug, Fail)]
+pub enum KeyishParseError {
+    #[fail(display = "{} is an invalid key", _0)]
+    Invalid(String)
+}
+
+impl std::str::FromStr for Keyish {
+    type Err = KeyishParseError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let input = match from_base32(s) {
+            Ok(v) => v,
+            Err(_) => Err(KeyishParseError::Invalid(s.to_string()))?,
+        };
+
+        let mut start = input.clone();
+
+        let pad_amount = input.len() % 8;
+        for _ in 0..pad_amount {
+            start.push(false);
+        }
+
+        let mut end = input.clone();
+
+        end += bitvec![LittleEndian, u8; 1];
+
+        let did_overflow = start.all();
+
+        let ret_start = start.into_vec();
+
+        let ret_end = if did_overflow {
+            None
+        } else {
+            Some(end.into_vec())
+        };
+
+        Ok(Keyish::Range(s.to_string(), ret_start, ret_end))
+    }
+}
+
+fn u5_to_bitvec(x: u8) -> BitVec {
+    bitvec![x & 0b10000,
+     x & 0b01000,
+     x & 0b00100,
+     x & 0b00010,
+     x & 0b00001]
+}
+
+fn pop_u5_from_bitvec(x: &mut BitVec<LittleEndian, u8>) -> u8 {
+    let mut v = 0;
+    for _ in 0..5 {
+        v |= x.pop().unwrap() as u8; v <<= 1;
+    }
+    v
+}
+
+fn from_base32(x: &str) -> Fallible<BitVec<LittleEndian, u8>> {
+    let mut result = BitVec::<_, u8>::new();
+
+    for mut ch in x.bytes() {
+        if (b'a'..=b'z').contains(&ch) {
+            ch &= 0b11011111; // Convert to uppercase
+        }
+
+        match ch {
+            0_u8..=b'1' => bail!("invalid input"),
+            b'2'..=b'7' => result.extend(u5_to_bitvec((ch - b'2') + 26)),
+            b'8'..=b'@' => bail!("invalid input"),
+            b'A'..=b'Z' => result.extend(u5_to_bitvec(ch - b'A')),
+            _ => bail!("invalid input"),
+        }
+    }
+
+    Ok(result)
+}
+
+fn to_base32(x: Vec<u8>) -> String {
+    let mut scratch = BitVec::from_vec(x);
+    let mut ret = String::new();
+    let table: [u8; 32] = *b"abcdefghijklmnopqrstuvwxyz234567";
+
+    while !scratch.is_empty() {
+        let v = pop_u5_from_bitvec(&mut scratch);
+        ret.push(table[v as usize] as char);
+    }
+
+    ret
+}
+
 #[derive(Debug, Fail)]
 pub enum CanonicalizeError {
     #[fail(display = "Invalid object id {}", _0)]
@@ -98,14 +198,14 @@ pub enum CanonicalizeError {
     NotFound(String),
 
     #[fail(display = "Object id {} is ambiguous", _0)]
-    Ambigious(String, Vec<String>),
+    Ambigious(String, Vec<KeyBuf>),
 }
 
 pub trait DataStore {
     fn get<'a>(&'a self, key: Key) -> Fallible<Cow<'a, [u8]>>;
     fn put(&mut self, data: Vec<u8>) -> Fallible<KeyBuf>;
 
-    fn canonicalize(&self, search: String) -> Result<KeyBuf, CanonicalizeError>;
+    fn canonicalize(&self, search: Keyish) -> Result<KeyBuf, CanonicalizeError>;
 
     fn get_obj(&self, key: Key) -> Fallible<Object> {
         let data = self.get(key)?;
@@ -125,7 +225,7 @@ pub struct SqliteDS {
 }
 
 impl SqliteDS {
-    pub fn new(path: &str) -> Fallible<Self> {
+    pub fn new<S: AsRef<Path>>(path: S) -> Fallible<Self> {
         let conn = rusqlite::Connection::open(path)?;
 
         conn.pragma_update(None, &"journal_mode", &"WAL")?;
@@ -178,8 +278,42 @@ impl DataStore for SqliteDS {
         Ok(KeyBuf(hash))
     }
 
-    fn canonicalize(&self, search: String) -> Result<KeyBuf, CanonicalizeError> {
-        unimplemented!();
+    fn canonicalize(&self, search: Keyish) -> Result<KeyBuf, CanonicalizeError> {
+        match search {
+            Keyish::Range(s, start, end) => {
+
+                let mut results: Vec<Vec<u8>>;
+
+                if let Some(e) = end {
+                    let mut statement = self.conn.prepare("SELECT key FROM data WHERE key >= ? AND key < ?").unwrap();
+                    let rows = statement.query_map(params![start, e], |row| row.get(0)).unwrap();
+
+                    results = Vec::new();
+
+                    for row in rows {
+                        results.push(row.unwrap());
+                    }
+                } else {
+                    let mut statement = self.conn.prepare("SELECT key FROM data WHERE key >= ?").unwrap();
+                    let rows = statement.query_map(params![start], |row| row.get(0)).unwrap();
+
+                    results = Vec::new();
+
+                    for row in rows {
+                        results.push(row.unwrap());
+                    }
+                }
+
+                match results.len() {
+                    0 => Err(CanonicalizeError::NotFound(s)),
+                    1 => Ok(KeyBuf(results.pop().unwrap())),
+                    _ => {
+                        let strs = results.into_iter().map(|x| KeyBuf(x)).collect();
+                        Err(CanonicalizeError::Ambigious(s, strs))
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -202,7 +336,7 @@ impl DataStore for HashSetDS {
         Ok(KeyBuf(hash))
     }
 
-    fn canonicalize(&self, search: String) -> Result<KeyBuf, CanonicalizeError> {
+    fn canonicalize(&self, search: Keyish) -> Result<KeyBuf, CanonicalizeError> {
         unimplemented!();
     }
 }
@@ -222,7 +356,7 @@ impl DataStore for NullB2DS {
         Ok(KeyBuf(hash))
     }
 
-    fn canonicalize(&self, search: String) -> Result<KeyBuf, CanonicalizeError> {
-        Err(CanonicalizeError::NotFound(search))
+    fn canonicalize(&self, search: Keyish) -> Result<KeyBuf, CanonicalizeError> {
+        unimplemented!();
     }
 }

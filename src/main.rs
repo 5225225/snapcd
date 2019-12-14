@@ -2,7 +2,7 @@
 #![allow(clippy::option_unwrap_used)]
 #![allow(clippy::result_unwrap_used)]
 
-use snapcd::{DataStore, KeyBuf, SqliteDS, dir};
+use snapcd::{DataStore, KeyBuf, SqliteDS, dir, Keyish};
 use std::path::PathBuf;
 use std::str::FromStr;
 use structopt::StructOpt;
@@ -21,7 +21,7 @@ struct Opt {
 struct Common {
     /// Path to sqlite database
     #[structopt(short = "-d", long = "--db", default_value = "snapcd.db")]
-    db_path: String,
+    db_path: PathBuf,
 }
 
 struct State {
@@ -49,7 +49,7 @@ struct InsertArgs {
 #[derive(StructOpt, Debug)]
 struct FetchArgs {
     /// Hex-encoded hash (As output by 'insert')
-    key: String,
+    key: Keyish,
 
     /// Destination path to write to
     dest: PathBuf,
@@ -62,7 +62,7 @@ enum DebugCommand {
 
 #[derive(StructOpt, Debug)]
 struct PrettyPrintArgs {
-    key: String,
+    key: Keyish,
 }
 
 #[allow(clippy::needless_pass_by_value)]
@@ -76,7 +76,7 @@ fn insert(mut state: State, args: InsertArgs) -> CMDResult {
 
 #[allow(clippy::needless_pass_by_value)]
 fn fetch(state: State, args: FetchArgs) -> CMDResult {
-    let key = KeyBuf::from_str(&args.key).unwrap();
+    let key = state.ds.canonicalize(args.key)?;
 
     dir::get_fs_item(&state.ds, key.as_key(), &args.dest)?;
 
@@ -91,11 +91,13 @@ fn debug(state: State, args: DebugCommand) -> CMDResult {
 
 #[allow(clippy::needless_pass_by_value)]
 fn debug_pretty_print(state: State, args: PrettyPrintArgs) -> CMDResult {
-    let key = state
-        .ds
-        .get_obj(KeyBuf::from_str(&args.key)?.as_key())?;
+    let key = state.ds.canonicalize(args.key)?;
 
-    println!("{}", key);
+    let item = state
+        .ds
+        .get_obj(key.as_key())?;
+
+    println!("{}", item);
 
     Ok(())
 }
