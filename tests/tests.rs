@@ -15,7 +15,7 @@ fn internal_test(size_upper_bound: usize, seed_lower_bound: u64, seed_upper_boun
 
         rng.fill(&mut test_vector[..]);
 
-        let hash = put_data(&mut data, &test_vector[..]);
+        let hash = put_data(&mut data, &test_vector[..]).unwrap();
 
         let mut to = Vec::new();
 

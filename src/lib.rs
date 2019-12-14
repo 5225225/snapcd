@@ -2,6 +2,7 @@ use std::path::Path;
 use failure_derive::Fail;
 use blake2::{Blake2b, Digest};
 use bitvec::prelude::*;
+use proptest::prelude::*;
 
 use rusqlite::params;
 use std::borrow::Cow;
@@ -28,15 +29,7 @@ impl KeyBuf {
 
 impl std::fmt::Display for KeyBuf {
     fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
-        fmt.write_str(&hex::encode(&self.0))
-    }
-}
-
-impl std::str::FromStr for KeyBuf {
-    type Err = failure::Error;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Ok(Self(hex::decode(s)?))
+        fmt.write_str(&to_base32(self.0.clone()))
     }
 }
 
@@ -115,16 +108,11 @@ impl std::str::FromStr for Keyish {
             Err(_) => Err(KeyishParseError::Invalid(s.to_string()))?,
         };
 
-        let mut start = input.clone();
-
-        let pad_amount = input.len() % 8;
-        for _ in 0..pad_amount {
-            start.push(false);
-        }
+        let start = input.clone();
 
         let mut end = input.clone();
 
-        end += bitvec![LittleEndian, u8; 1];
+        end += bitvec![BigEndian, u8; 1];
 
         let did_overflow = start.all();
 
@@ -140,46 +128,56 @@ impl std::str::FromStr for Keyish {
     }
 }
 
-fn u5_to_bitvec(x: u8) -> BitVec {
-    bitvec![x & 0b10000,
+fn u5_to_bitvec(x: u8) -> BitVec<BigEndian, u8> {
+    bitvec![BigEndian, u8; x & 0b10000,
      x & 0b01000,
      x & 0b00100,
      x & 0b00010,
      x & 0b00001]
 }
 
-fn pop_u5_from_bitvec(x: &mut BitVec<LittleEndian, u8>) -> u8 {
+fn pop_u5_from_bitvec(x: &mut BitVec<BigEndian, u8>) -> u8 {
     let mut v = 0;
     for _ in 0..5 {
-        v |= x.pop().unwrap() as u8; v <<= 1;
+        if let Some(bit) = x.pop() {
+            v<<=1; v |= bit as u8;
+        } else {
+            return v;
+        }
     }
     v
 }
 
-fn from_base32(x: &str) -> Fallible<BitVec<LittleEndian, u8>> {
-    let mut result = BitVec::<_, u8>::new();
+fn from_base32(x: &str) -> Fallible<BitVec<BigEndian, u8>> {
+    let mut result = BitVec::<BigEndian, u8>::new();
 
     for mut ch in x.bytes() {
-        if (b'a'..=b'z').contains(&ch) {
-            ch &= 0b11011111; // Convert to uppercase
+        if (b'A'..=b'Z').contains(&ch) {
+            ch |= 0b00100000; // Convert to uppercase
         }
 
+        let idx = table.iter().position(|&x| x == ch).unwrap();
+
+        result.extend(u5_to_bitvec(idx as u8));
+        
+        /*
         match ch {
             0_u8..=b'1' => bail!("invalid input"),
             b'2'..=b'7' => result.extend(u5_to_bitvec((ch - b'2') + 26)),
             b'8'..=b'@' => bail!("invalid input"),
             b'A'..=b'Z' => result.extend(u5_to_bitvec(ch - b'A')),
             _ => bail!("invalid input"),
-        }
+        }*/
     }
 
     Ok(result)
 }
 
+static table: [u8; 32] = *b"abcdefghijklmnopqrstuvwxyz234567";
+
 fn to_base32(x: Vec<u8>) -> String {
-    let mut scratch = BitVec::from_vec(x);
+    let mut scratch = BitVec::<BigEndian, u8>::from_vec(x);
     let mut ret = String::new();
-    let table: [u8; 32] = *b"abcdefghijklmnopqrstuvwxyz234567";
 
     while !scratch.is_empty() {
         let v = pop_u5_from_bitvec(&mut scratch);
@@ -187,6 +185,16 @@ fn to_base32(x: Vec<u8>) -> String {
     }
 
     ret
+}
+
+proptest! {
+    #[test]
+    fn test_base_conv(x: Vec<u8>) {
+        let s = to_base32(x.clone());
+        dbg!(&s);
+        let parsed = from_base32(&s).unwrap().into_vec();
+        prop_assert_eq!(parsed, x);
+    }
 }
 
 #[derive(Debug, Fail)]
@@ -279,9 +287,10 @@ impl DataStore for SqliteDS {
     }
 
     fn canonicalize(&self, search: Keyish) -> Result<KeyBuf, CanonicalizeError> {
+        dbg!(&search);
+
         match search {
             Keyish::Range(s, start, end) => {
-
                 let mut results: Vec<Vec<u8>>;
 
                 if let Some(e) = end {

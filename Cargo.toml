@@ -14,11 +14,12 @@ serde = { version = "1.0", features = ["derive"] }
 cdc = "0.1.0"
 structopt = "0.3.5"
 rusqlite = "0.20.0"
-hex = "0.4.0"
 zstd = "0.5.1"
 failure = "0.1.6"
 failure_derive = "0.1.6"
 bitvec = "0.16.1"
+hex = "0.4.0"
+proptest = "0.9.4"
 
 [profile.release]
 debug = true
