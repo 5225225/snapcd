@@ -64,8 +64,7 @@ struct PrettyPrintArgs {
     key: Keyish,
 }
 
-#[allow(clippy::needless_pass_by_value)]
-fn insert(mut state: State, args: InsertArgs) -> CMDResult {
+fn insert(state: &mut State, args: InsertArgs) -> CMDResult {
     let hash = dir::put_fs_item(&mut state.ds, &args.path)?;
 
     println!("{}", hash);
@@ -73,8 +72,7 @@ fn insert(mut state: State, args: InsertArgs) -> CMDResult {
     Ok(())
 }
 
-#[allow(clippy::needless_pass_by_value)]
-fn fetch(state: State, args: FetchArgs) -> CMDResult {
+fn fetch(state: &mut State, args: FetchArgs) -> CMDResult {
     let key = state.ds.canonicalize(args.key)?;
 
     dir::get_fs_item(&state.ds, &key, &args.dest)?;
@@ -82,14 +80,13 @@ fn fetch(state: State, args: FetchArgs) -> CMDResult {
     Ok(())
 }
 
-fn debug(state: State, args: DebugCommand) -> CMDResult {
+fn debug(state: &mut State, args: DebugCommand) -> CMDResult {
     match args {
         DebugCommand::PrettyPrint(args) => debug_pretty_print(state, args),
     }
 }
 
-#[allow(clippy::needless_pass_by_value)]
-fn debug_pretty_print(state: State, args: PrettyPrintArgs) -> CMDResult {
+fn debug_pretty_print(state: &mut State, args: PrettyPrintArgs) -> CMDResult {
     let key = state.ds.canonicalize(args.key)?;
 
     let item = state.ds.get_obj(&key)?;
@@ -102,18 +99,23 @@ fn debug_pretty_print(state: State, args: PrettyPrintArgs) -> CMDResult {
 fn main() -> CMDResult {
     let opt = Opt::from_args();
 
-    let ds = SqliteDS::new(&opt.common.db_path)?;
+    let mut ds = SqliteDS::new(&opt.common.db_path)?;
 
-    let state = State { ds };
+    ds.begin_trans();
+
+    let mut state = State { ds };
 
     let result = match opt.cmd {
-        Command::Insert(args) => insert(state, args),
-        Command::Fetch(args) => fetch(state, args),
-        Command::Debug(args) => debug(state, args),
+        Command::Insert(args) => insert(&mut state, args),
+        Command::Fetch(args) => fetch(&mut state, args),
+        Command::Debug(args) => debug(&mut state, args),
     };
 
     if let Err(e) = result {
         println!("fatal: {}", e);
+        state.ds.rollback();
+    } else {
+        state.ds.commit();
     }
 
     Ok(())

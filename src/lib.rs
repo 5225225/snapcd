@@ -5,7 +5,6 @@ use std::path::Path;
 
 use rusqlite::params;
 use std::borrow::Cow;
-use std::collections::HashMap;
 use std::io::Cursor;
 
 use failure::Fallible;
@@ -199,7 +198,7 @@ impl<T: std::error::Error + Send + Sync + 'static> std::convert::From<T> for Can
 
 pub trait DataStore {
     fn get<'a>(&'a self, key: &KeyBuf) -> Fallible<Cow<'a, [u8]>>;
-    fn put(&mut self, data: Vec<u8>) -> Fallible<KeyBuf>;
+    fn put(&self, data: Vec<u8>) -> Fallible<KeyBuf>;
 
     fn canonicalize(&self, search: Keyish) -> Result<KeyBuf, CanonicalizeError>;
 
@@ -209,11 +208,15 @@ pub trait DataStore {
         Ok(serde_cbor::from_slice(&data)?)
     }
 
-    fn put_obj(&mut self, data: &Object) -> Fallible<KeyBuf> {
+    fn put_obj(&self, data: &Object) -> Fallible<KeyBuf> {
         let data = serde_cbor::to_vec(data)?;
 
         Ok(self.put(data)?)
     }
+
+    fn begin_trans(&mut self) {}
+    fn commit(&mut self) {}
+    fn rollback(&mut self) {}
 }
 
 pub struct SqliteDS {
@@ -241,6 +244,18 @@ impl SqliteDS {
 }
 
 impl DataStore for SqliteDS {
+    fn begin_trans(&mut self) {
+        self.conn.execute("BEGIN TRANSACTION", params![]).unwrap();
+    }
+
+    fn commit(&mut self) {
+        self.conn.execute("COMMIT", params![]).unwrap();
+    }
+
+    fn rollback(&mut self) {
+        self.conn.execute("ROLLBACK", params![]).unwrap();
+    }
+
     fn get<'a>(&'a self, key: &KeyBuf) -> Fallible<Cow<'a, [u8]>> {
         let results: Vec<u8> = self.conn.query_row(
             "SELECT value FROM data WHERE key=?",
@@ -255,7 +270,7 @@ impl DataStore for SqliteDS {
         Ok(Cow::Owned(decompressed))
     }
 
-    fn put(&mut self, data: Vec<u8>) -> Fallible<KeyBuf> {
+    fn put(&self, data: Vec<u8>) -> Fallible<KeyBuf> {
         let mut b2 = Blake2b::new();
         b2.input(&data);
         let hash = b2.result().to_vec();
@@ -314,35 +329,6 @@ impl DataStore for SqliteDS {
 }
 
 #[derive(Debug, Default)]
-pub struct HashSetDS {
-    data: HashMap<Vec<u8>, Vec<u8>>,
-}
-
-impl DataStore for HashSetDS {
-    fn get<'a>(&'a self, key: &KeyBuf) -> Fallible<Cow<'a, [u8]>> {
-        Ok(Cow::Borrowed(
-            &self
-                .data
-                .get(&*key.0)
-                .ok_or_else(|| failure::format_err!("not found"))?,
-        ))
-    }
-
-    fn put(&mut self, data: Vec<u8>) -> Fallible<KeyBuf> {
-        let mut b2 = Blake2b::new();
-        b2.input(&data);
-        let hash = b2.result().to_vec();
-        self.data.insert(hash.clone(), data);
-
-        Ok(KeyBuf(hash))
-    }
-
-    fn canonicalize(&self, _search: Keyish) -> Result<KeyBuf, CanonicalizeError> {
-        unimplemented!();
-    }
-}
-
-#[derive(Debug, Default)]
 pub struct NullB2DS {}
 
 impl DataStore for NullB2DS {
@@ -350,7 +336,7 @@ impl DataStore for NullB2DS {
         Ok(Cow::Borrowed(&[0; 0]))
     }
 
-    fn put(&mut self, data: Vec<u8>) -> Fallible<KeyBuf> {
+    fn put(&self, data: Vec<u8>) -> Fallible<KeyBuf> {
         let mut b2 = Blake2b::new();
         b2.input(&data);
         let hash = b2.result().to_vec();
