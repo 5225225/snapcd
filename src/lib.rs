@@ -166,7 +166,6 @@ fn from_base32(x: &str) -> Fallible<BitVec<BigEndian, u8>> {
 static TABLE: [u8; 32] = *b"abcdefghijklmnopqrstuvwxyz234567";
 
 fn to_base32(x: Vec<u8>) -> String {
-    dbg!(&x);
     let mut scratch = BitVec::<BigEndian, u8>::from_vec(x);
     let mut ret = String::new();
     while !scratch.is_empty() {
@@ -273,8 +272,6 @@ impl DataStore for SqliteDS {
     }
 
     fn canonicalize(&self, search: Keyish) -> Result<KeyBuf, CanonicalizeError> {
-        dbg!(&search);
-
         match search {
             Keyish::Range(s, start, end) => {
                 let mut results: Vec<Vec<u8>>;

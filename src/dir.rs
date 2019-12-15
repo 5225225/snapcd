@@ -48,8 +48,6 @@ impl<'a> TryInto<FSItem> for Object<'a> {
     fn try_into(self) -> Result<FSItem, serde_cbor::error::Error> {
         let item: serde_cbor::Value = serde_cbor::from_slice(&self.data)?;
 
-        dbg!(&item);
-
         let mut fsitem: FSItem = serde_cbor::value::from_value(item)?;
 
         fsitem.children = self.keys.into_owned();
@@ -71,8 +69,6 @@ pub fn put_fs_item<DS: DataStore>(ds: &mut DS, path: &Path) -> Fallible<KeyBuf> 
         }
 
         let size = result.len() as u64;
-
-        dbg!(path.file_name());
 
         let name;
 
@@ -105,8 +101,6 @@ pub fn put_fs_item<DS: DataStore>(ds: &mut DS, path: &Path) -> Fallible<KeyBuf> 
         let reader = std::io::BufReader::new(f);
 
         let hash = file::put_data(ds, reader)?;
-
-        dbg!(path.file_name());
 
         #[allow(clippy::option_unwrap_used)]
         // From the docs: "Returns None if the path terminates in `..`."
