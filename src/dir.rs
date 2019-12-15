@@ -1,8 +1,8 @@
+use crate::{file, DataStore, Key, KeyBuf, Object};
 use std::borrow::Cow;
-use std::path::{Path};
-use std::ffi::{OsString};
-use crate::{DataStore, Key, KeyBuf, Object, file};
 use std::convert::TryInto;
+use std::ffi::OsString;
+use std::path::Path;
 
 use failure::Fallible;
 
@@ -146,7 +146,10 @@ pub fn get_fs_item<DS: DataStore>(ds: &DS, key: Key, path: &Path) -> Fallible<()
                 std::fs::create_dir_all(parent)?;
             }
 
-            let mut f = std::fs::OpenOptions::new().write(true).create_new(true).open(fpath)?;
+            let mut f = std::fs::OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(fpath)?;
 
             file::read_data(ds, fsobj.children[0].as_key(), &mut f)?;
         }

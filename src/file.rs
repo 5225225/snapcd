@@ -56,7 +56,10 @@ pub fn put_data<DS: DataStore, R: Read>(ds: &mut DS, data: R) -> Fallible<KeyBuf
 
     if (0..4).all(|x| key_bufs[x].is_empty()) {
         // No chunks were made.
-        return Ok(ds.put_obj(&Object::only_data(Cow::Borrowed(&current_chunk), Cow::Borrowed("file.blob")))?);
+        return Ok(ds.put_obj(&Object::only_data(
+            Cow::Borrowed(&current_chunk),
+            Cow::Borrowed("file.blob"),
+        ))?);
     }
 
     if !current_chunk.is_empty() {
@@ -73,8 +76,7 @@ pub fn put_data<DS: DataStore, R: Read>(ds: &mut DS, data: R) -> Fallible<KeyBuf
             Cow::Borrowed("file.blobtree"),
         ))?;
 
-
-        if key_bufs[offset].len() == 1 && (1+offset..4).all(|x| key_bufs[x].is_empty()) {
+        if key_bufs[offset].len() == 1 && (1 + offset..4).all(|x| key_bufs[x].is_empty()) {
             // We know this is safe because key_bufs[offset] has exactly 1 element
             #[allow(clippy::option_unwrap_used)]
             return Ok(key_bufs[offset].pop().unwrap());

@@ -2,9 +2,8 @@
 #![allow(clippy::option_unwrap_used)]
 #![allow(clippy::result_unwrap_used)]
 
-use snapcd::{DataStore, KeyBuf, SqliteDS, dir, Keyish};
+use snapcd::{dir, DataStore, Keyish, SqliteDS};
 use std::path::PathBuf;
-use std::str::FromStr;
 use structopt::StructOpt;
 
 type CMDResult = failure::Fallible<()>;
@@ -93,9 +92,7 @@ fn debug(state: State, args: DebugCommand) -> CMDResult {
 fn debug_pretty_print(state: State, args: PrettyPrintArgs) -> CMDResult {
     let key = state.ds.canonicalize(args.key)?;
 
-    let item = state
-        .ds
-        .get_obj(key.as_key())?;
+    let item = state.ds.get_obj(key.as_key())?;
 
     println!("{}", item);
 

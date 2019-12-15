@@ -19,7 +19,6 @@ failure = "0.1.6"
 failure_derive = "0.1.6"
 bitvec = "0.16.1"
 hex = "0.4.0"
-proptest = "0.9.4"
 
 [profile.release]
 debug = true

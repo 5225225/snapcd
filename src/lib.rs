@@ -1,18 +1,17 @@
-use std::path::Path;
-use failure_derive::Fail;
-use blake2::{Blake2b, Digest};
 use bitvec::prelude::*;
-use proptest::prelude::*;
+use blake2::{Blake2b, Digest};
+use failure_derive::Fail;
+use std::path::Path;
 
 use rusqlite::params;
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::io::Cursor;
 
-use failure::{Fallible, bail};
+use failure::Fallible;
 
-pub mod file;
 pub mod dir;
+pub mod file;
 
 #[derive(Debug, Clone, Copy)]
 pub struct Key<'a>(&'a [u8]);
@@ -90,13 +89,13 @@ pub enum Keyish {
     ///
     /// .0 will be a value for which all keys that match the prefix will be lexographically ordered
     /// afterwards. For display, an encoded form of .0 should be used.
-    Range(String, Vec<u8>, Option<Vec<u8>>)
+    Range(String, Vec<u8>, Option<Vec<u8>>),
 }
 
 #[derive(Debug, Fail)]
 pub enum KeyishParseError {
     #[fail(display = "{} is an invalid key", _0)]
-    Invalid(String)
+    Invalid(String),
 }
 
 impl std::str::FromStr for Keyish {
@@ -105,7 +104,7 @@ impl std::str::FromStr for Keyish {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let input = match from_base32(s) {
             Ok(v) => v,
-            Err(_) => Err(KeyishParseError::Invalid(s.to_string()))?,
+            Err(_) => return Err(KeyishParseError::Invalid(s.to_string())),
         };
 
         let did_overflow = input.all();
@@ -117,7 +116,7 @@ impl std::str::FromStr for Keyish {
         let ret_end = if did_overflow {
             None
         } else {
-            let mut end = input.clone();
+            let mut end = input;
 
             end += bitvec![BigEndian, u8; 1];
 
@@ -132,11 +131,12 @@ fn pop_u5_from_bitvec(x: &mut BitVec<BigEndian, u8>) -> u8 {
     let mut v = 0;
     for to_shift in (0..5).rev() {
         if x.is_empty() {
-            return v<<to_shift;
+            return v << to_shift;
         }
 
         let bit = x.remove(0);
-        v<<=1; v |= bit as u8;
+        v <<= 1;
+        v |= bit as u8;
     }
 
     assert!(v <= 31);
@@ -144,16 +144,24 @@ fn pop_u5_from_bitvec(x: &mut BitVec<BigEndian, u8>) -> u8 {
     v
 }
 
+#[derive(Debug, Fail)]
+pub enum FromBase32Error {
+    #[fail(display = "found non-base32 char {}", _0)]
+    UnknownByte(char),
+}
+
 fn from_base32(x: &str) -> Fallible<BitVec<BigEndian, u8>> {
     let mut result = BitVec::<BigEndian, u8>::new();
 
     for mut ch in x.bytes() {
         if (b'A'..=b'Z').contains(&ch) {
-            ch |= 0b00100000; // Convert to uppercase
+            ch |= 0b0010_0000; // Convert to uppercase
         }
 
-        let idx = table.iter().position(|&x| x == ch).unwrap();
-        dbg!(idx);
+        let idx = TABLE
+            .iter()
+            .position(|&x| x == ch)
+            .ok_or_else(|| FromBase32Error::UnknownByte(ch as char))?;
 
         result.push(idx & 0b10000 != 0);
         result.push(idx & 0b01000 != 0);
@@ -165,7 +173,7 @@ fn from_base32(x: &str) -> Fallible<BitVec<BigEndian, u8>> {
     Ok(result)
 }
 
-static table: [u8; 32] = *b"abcdefghijklmnopqrstuvwxyz234567";
+static TABLE: [u8; 32] = *b"abcdefghijklmnopqrstuvwxyz234567";
 
 fn to_base32(x: Vec<u8>) -> String {
     dbg!(&x);
@@ -173,20 +181,10 @@ fn to_base32(x: Vec<u8>) -> String {
     let mut ret = String::new();
     while !scratch.is_empty() {
         let v = pop_u5_from_bitvec(&mut scratch);
-        ret.push(table[v as usize] as char);
+        ret.push(TABLE[v as usize] as char);
     }
 
     ret
-}
-
-proptest! {
-    #[test]
-    fn test_base_conv(x: Vec<u8>) {
-        let s = to_base32(x.clone());
-        dbg!(&s);
-        let parsed = from_base32(&s).unwrap().into_vec();
-        prop_assert_eq!(parsed, x);
-    }
 }
 
 #[derive(Debug, Fail)]
@@ -199,6 +197,15 @@ pub enum CanonicalizeError {
 
     #[fail(display = "Object id {} is ambiguous", _0)]
     Ambigious(String, Vec<KeyBuf>),
+
+    #[fail(display = "{}", _0)]
+    Unknown(failure::Error),
+}
+
+impl<T: std::error::Error + Send + Sync + 'static> std::convert::From<T> for CanonicalizeError {
+    fn from(err: T) -> Self {
+        Self::Unknown(failure::Error::from_boxed_compat(Box::new(err)))
+    }
 }
 
 pub trait DataStore {
@@ -246,13 +253,11 @@ impl SqliteDS {
 
 impl DataStore for SqliteDS {
     fn get<'a>(&'a self, key: Key) -> Fallible<Cow<'a, [u8]>> {
-        let results: Vec<u8> = self
-            .conn
-            .query_row(
-                "SELECT value FROM data WHERE key=?",
-                params![key.0],
-                |row| row.get(0),
-            )?;
+        let results: Vec<u8> = self.conn.query_row(
+            "SELECT value FROM data WHERE key=?",
+            params![key.0],
+            |row| row.get(0),
+        )?;
 
         let cursor = Cursor::new(results);
 
@@ -269,11 +274,10 @@ impl DataStore for SqliteDS {
         let cursor = Cursor::new(data);
         let compressed = zstd::encode_all(cursor, 6)?;
 
-        self.conn
-            .execute(
-                "INSERT OR IGNORE INTO data VALUES (?, ?)",
-                params![hash, compressed],
-            )?;
+        self.conn.execute(
+            "INSERT OR IGNORE INTO data VALUES (?, ?)",
+            params![hash, compressed],
+        )?;
 
         Ok(KeyBuf(hash))
     }
@@ -286,30 +290,34 @@ impl DataStore for SqliteDS {
                 let mut results: Vec<Vec<u8>>;
 
                 if let Some(e) = end {
-                    let mut statement = self.conn.prepare("SELECT key FROM data WHERE key >= ? AND key < ?").unwrap();
-                    let rows = statement.query_map(params![start, e], |row| row.get(0)).unwrap();
+                    let mut statement = self
+                        .conn
+                        .prepare("SELECT key FROM data WHERE key >= ? AND key < ?")?;
+                    let rows = statement.query_map(params![start, e], |row| row.get(0))?;
 
                     results = Vec::new();
 
                     for row in rows {
-                        results.push(row.unwrap());
+                        results.push(row?);
                     }
                 } else {
-                    let mut statement = self.conn.prepare("SELECT key FROM data WHERE key >= ?").unwrap();
-                    let rows = statement.query_map(params![start], |row| row.get(0)).unwrap();
+                    let mut statement = self.conn.prepare("SELECT key FROM data WHERE key >= ?")?;
+                    let rows = statement.query_map(params![start], |row| row.get(0))?;
 
                     results = Vec::new();
 
                     for row in rows {
-                        results.push(row.unwrap());
+                        results.push(row?);
                     }
                 }
 
                 match results.len() {
                     0 => Err(CanonicalizeError::NotFound(s)),
+                    // This is okay since we know it will have one item.
+                    #[allow(clippy::option_unwrap_used)]
                     1 => Ok(KeyBuf(results.pop().unwrap())),
                     _ => {
-                        let strs = results.into_iter().map(|x| KeyBuf(x)).collect();
+                        let strs = results.into_iter().map(KeyBuf).collect();
                         Err(CanonicalizeError::Ambigious(s, strs))
                     }
                 }
@@ -325,7 +333,12 @@ pub struct HashSetDS {
 
 impl DataStore for HashSetDS {
     fn get<'a>(&'a self, key: Key) -> Fallible<Cow<'a, [u8]>> {
-        Ok(Cow::Borrowed(&self.data.get(&*key.0).ok_or_else(|| failure::format_err!("not found"))?))
+        Ok(Cow::Borrowed(
+            &self
+                .data
+                .get(&*key.0)
+                .ok_or_else(|| failure::format_err!("not found"))?,
+        ))
     }
 
     fn put(&mut self, data: Vec<u8>) -> Fallible<KeyBuf> {
@@ -337,7 +350,7 @@ impl DataStore for HashSetDS {
         Ok(KeyBuf(hash))
     }
 
-    fn canonicalize(&self, search: Keyish) -> Result<KeyBuf, CanonicalizeError> {
+    fn canonicalize(&self, _search: Keyish) -> Result<KeyBuf, CanonicalizeError> {
         unimplemented!();
     }
 }
@@ -357,7 +370,7 @@ impl DataStore for NullB2DS {
         Ok(KeyBuf(hash))
     }
 
-    fn canonicalize(&self, search: Keyish) -> Result<KeyBuf, CanonicalizeError> {
+    fn canonicalize(&self, _search: Keyish) -> Result<KeyBuf, CanonicalizeError> {
         unimplemented!();
     }
 }
