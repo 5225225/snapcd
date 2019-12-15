@@ -77,7 +77,7 @@ fn insert(mut state: State, args: InsertArgs) -> CMDResult {
 fn fetch(state: State, args: FetchArgs) -> CMDResult {
     let key = state.ds.canonicalize(args.key)?;
 
-    dir::get_fs_item(&state.ds, key.as_key(), &args.dest)?;
+    dir::get_fs_item(&state.ds, &key, &args.dest)?;
 
     Ok(())
 }
@@ -92,7 +92,7 @@ fn debug(state: State, args: DebugCommand) -> CMDResult {
 fn debug_pretty_print(state: State, args: PrettyPrintArgs) -> CMDResult {
     let key = state.ds.canonicalize(args.key)?;
 
-    let item = state.ds.get_obj(key.as_key())?;
+    let item = state.ds.get_obj(&key)?;
 
     println!("{}", item);
 

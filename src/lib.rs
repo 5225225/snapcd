@@ -13,18 +13,8 @@ use failure::Fallible;
 pub mod dir;
 pub mod file;
 
-#[derive(Debug, Clone, Copy)]
-pub struct Key<'a>(&'a [u8]);
-
 #[derive(Debug, Default, Clone, serde::Serialize, serde::Deserialize)]
 pub struct KeyBuf(Vec<u8>);
-
-impl KeyBuf {
-    #[must_use]
-    pub fn as_key(&self) -> Key<'_> {
-        Key(&self.0[..])
-    }
-}
 
 impl std::fmt::Display for KeyBuf {
     fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
@@ -209,12 +199,12 @@ impl<T: std::error::Error + Send + Sync + 'static> std::convert::From<T> for Can
 }
 
 pub trait DataStore {
-    fn get<'a>(&'a self, key: Key) -> Fallible<Cow<'a, [u8]>>;
+    fn get<'a>(&'a self, key: &KeyBuf) -> Fallible<Cow<'a, [u8]>>;
     fn put(&mut self, data: Vec<u8>) -> Fallible<KeyBuf>;
 
     fn canonicalize(&self, search: Keyish) -> Result<KeyBuf, CanonicalizeError>;
 
-    fn get_obj(&self, key: Key) -> Fallible<Object> {
+    fn get_obj(&self, key: &KeyBuf) -> Fallible<Object> {
         let data = self.get(key)?;
 
         Ok(serde_cbor::from_slice(&data)?)
@@ -252,7 +242,7 @@ impl SqliteDS {
 }
 
 impl DataStore for SqliteDS {
-    fn get<'a>(&'a self, key: Key) -> Fallible<Cow<'a, [u8]>> {
+    fn get<'a>(&'a self, key: &KeyBuf) -> Fallible<Cow<'a, [u8]>> {
         let results: Vec<u8> = self.conn.query_row(
             "SELECT value FROM data WHERE key=?",
             params![key.0],
@@ -332,7 +322,7 @@ pub struct HashSetDS {
 }
 
 impl DataStore for HashSetDS {
-    fn get<'a>(&'a self, key: Key) -> Fallible<Cow<'a, [u8]>> {
+    fn get<'a>(&'a self, key: &KeyBuf) -> Fallible<Cow<'a, [u8]>> {
         Ok(Cow::Borrowed(
             &self
                 .data
@@ -359,7 +349,7 @@ impl DataStore for HashSetDS {
 pub struct NullB2DS {}
 
 impl DataStore for NullB2DS {
-    fn get<'a>(&'a self, _key: Key) -> Fallible<Cow<'a, [u8]>> {
+    fn get<'a>(&'a self, _key: &KeyBuf) -> Fallible<Cow<'a, [u8]>> {
         Ok(Cow::Borrowed(&[0; 0]))
     }
 

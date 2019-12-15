@@ -19,7 +19,7 @@ fn internal_test(size_upper_bound: usize, seed_lower_bound: u64, seed_upper_boun
 
         let mut to = Vec::new();
 
-        read_data(&data, hash.as_key(), &mut to);
+        read_data(&data, &hash, &mut to).unwrap();
 
         if to != test_vector {
             panic!("failed at seed {}", i);

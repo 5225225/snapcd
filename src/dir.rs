@@ -1,4 +1,4 @@
-use crate::{file, DataStore, Key, KeyBuf, Object};
+use crate::{file, DataStore, KeyBuf, Object};
 use std::borrow::Cow;
 use std::convert::TryInto;
 use std::ffi::OsString;
@@ -128,7 +128,7 @@ pub fn put_fs_item<DS: DataStore>(ds: &mut DS, path: &Path) -> Fallible<KeyBuf> 
     unimplemented!("meta is not a file or a directory?")
 }
 
-pub fn get_fs_item<DS: DataStore>(ds: &DS, key: Key, path: &Path) -> Fallible<()> {
+pub fn get_fs_item<DS: DataStore>(ds: &DS, key: &KeyBuf, path: &Path) -> Fallible<()> {
     let obj = ds.get_obj(key)?;
 
     let fsobj: FSItem = obj.try_into()?;
@@ -136,7 +136,7 @@ pub fn get_fs_item<DS: DataStore>(ds: &DS, key: Key, path: &Path) -> Fallible<()
     match fsobj.itemtype {
         FSItemType::Dir => {
             for child in fsobj.children {
-                get_fs_item(ds, child.as_key(), &path.join(&fsobj.name))?;
+                get_fs_item(ds, &child, &path.join(&fsobj.name))?;
             }
         }
         FSItemType::File => {
@@ -151,7 +151,7 @@ pub fn get_fs_item<DS: DataStore>(ds: &DS, key: Key, path: &Path) -> Fallible<()
                 .create_new(true)
                 .open(fpath)?;
 
-            file::read_data(ds, fsobj.children[0].as_key(), &mut f)?;
+            file::read_data(ds, &fsobj.children[0], &mut f)?;
         }
     }
 

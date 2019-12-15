@@ -19,7 +19,7 @@ fn inner_bench(bench: &mut test::Bencher, size: u64) {
     bench.bytes = size;
 
     bench.iter(|| {
-        test::black_box(put_data(&mut data, &buf[..]));
+        test::black_box(put_data(&mut data, &buf[..]).unwrap());
     });
 }
 

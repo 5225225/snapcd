@@ -1,4 +1,4 @@
-use crate::{DataStore, Key, KeyBuf, Object};
+use crate::{DataStore, KeyBuf, Object};
 use cdc::RollingHash64;
 use std::borrow::Cow;
 use std::io::prelude::*;
@@ -91,13 +91,13 @@ pub fn put_data<DS: DataStore, R: Read>(ds: &mut DS, data: R) -> Fallible<KeyBuf
     ))
 }
 
-pub fn read_data<DS: DataStore, W: Write>(ds: &DS, key: Key, to: &mut W) -> Fallible<()> {
+pub fn read_data<DS: DataStore, W: Write>(ds: &DS, key: &KeyBuf, to: &mut W) -> Fallible<()> {
     let obj = ds.get_obj(key)?;
 
     match &*obj.objtype {
         "file.blobtree" => {
             for key in obj.keys.iter() {
-                read_data(ds, key.as_key(), to)?;
+                read_data(ds, key, to)?;
             }
         }
         "file.blob" => {
