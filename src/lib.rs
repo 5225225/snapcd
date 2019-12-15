@@ -1,5 +1,6 @@
 use bitvec::prelude::*;
-use blake2::{Blake2b, Digest};
+use blake2::{VarBlake2b, Digest, digest::Input};
+use blake2::digest::VariableOutput;
 use failure_derive::Fail;
 use std::path::Path;
 
@@ -271,17 +272,32 @@ impl DataStore for SqliteDS {
     }
 
     fn put(&self, data: Vec<u8>) -> Fallible<KeyBuf> {
-        let mut b2 = Blake2b::new();
+        let mut b2 = VarBlake2b::new(60).unwrap();
         b2.input(&data);
-        let hash = b2.result().to_vec();
+        let hash = b2.vec_result();
 
-        let cursor = Cursor::new(data);
-        let compressed = zstd::encode_all(cursor, 6)?;
-
-        self.conn.execute(
-            "INSERT OR IGNORE INTO data VALUES (?, ?)",
-            params![hash, compressed],
+        let count: u32 = self.conn.query_row(
+            "SELECT COUNT(*) FROM data WHERE key=?",
+            params![hash],
+            |row| row.get(0),
         )?;
+
+        match count {
+            0 => {
+                let cursor = Cursor::new(data);
+
+                let compressed = zstd::encode_all(cursor, 6)?;
+
+                self.conn.execute(
+                    "INSERT OR IGNORE INTO data VALUES (?, ?)",
+                    params![hash, compressed],
+                )?;
+            }
+            1 => {}
+            2..=0xffffffff => {
+                failure::bail!("data error: multiple keys found for same value?");
+            }
+        }
 
         Ok(KeyBuf(hash))
     }
@@ -337,9 +353,9 @@ impl DataStore for NullB2DS {
     }
 
     fn put(&self, data: Vec<u8>) -> Fallible<KeyBuf> {
-        let mut b2 = Blake2b::new();
+        let mut b2 = VarBlake2b::new(60).unwrap();
         b2.input(&data);
-        let hash = b2.result().to_vec();
+        let hash = b2.vec_result();
         Ok(KeyBuf(hash))
     }
 
