@@ -5,11 +5,11 @@ extern crate test;
 use rand::prelude::*;
 use rand_chacha::ChaChaRng;
 use snapcd::file::put_data;
-use snapcd::NullB2DS;
+use snapcd::SqliteDS;
 use std::io::{self, Read};
 
 fn inner_bench(bench: &mut test::Bencher, size: u64) {
-    let mut data = NullB2DS::default();
+    let mut data = SqliteDS::new(":memory:").unwrap();
 
     let rng: Box<dyn RngCore> = Box::new(ChaChaRng::seed_from_u64(1));
     let mut sample_data = rng.take(size);

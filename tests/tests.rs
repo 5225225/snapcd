@@ -1,13 +1,13 @@
 use rand::prelude::*;
 use rand_chacha::ChaChaRng;
 use snapcd::file::{put_data, read_data};
-use snapcd::HashSetDS;
+use snapcd::SqliteDS;
 
 fn internal_test(size_upper_bound: usize, seed_lower_bound: u64, seed_upper_bound: u64) {
     for i in seed_lower_bound..seed_upper_bound {
         let mut rng = ChaChaRng::seed_from_u64(i);
 
-        let mut data = HashSetDS::default();
+        let mut data = SqliteDS::new(":memory:").unwrap();
 
         let mut test_vector = Vec::new();
 

@@ -1,5 +1,5 @@
 use bitvec::prelude::*;
-use blake2::{VarBlake2b, Digest, digest::Input};
+use blake2::{VarBlake2b, digest::Input};
 use blake2::digest::VariableOutput;
 use failure_derive::Fail;
 use std::path::Path;
@@ -341,25 +341,5 @@ impl DataStore for SqliteDS {
                 }
             }
         }
-    }
-}
-
-#[derive(Debug, Default)]
-pub struct NullB2DS {}
-
-impl DataStore for NullB2DS {
-    fn get<'a>(&'a self, _key: &KeyBuf) -> Fallible<Cow<'a, [u8]>> {
-        Ok(Cow::Borrowed(&[0; 0]))
-    }
-
-    fn put(&self, data: Vec<u8>) -> Fallible<KeyBuf> {
-        let mut b2 = VarBlake2b::new(60).unwrap();
-        b2.input(&data);
-        let hash = b2.vec_result();
-        Ok(KeyBuf(hash))
-    }
-
-    fn canonicalize(&self, _search: Keyish) -> Result<KeyBuf, CanonicalizeError> {
-        unimplemented!();
     }
 }
