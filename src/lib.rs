@@ -13,12 +13,67 @@ use failure::Fallible;
 pub mod dir;
 pub mod file;
 
-#[derive(Debug, Default, Clone, serde::Serialize, serde::Deserialize)]
-pub struct KeyBuf(Vec<u8>);
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub enum KeyBuf {
+    Blake2B(Vec<u8>),
+}
+
+impl KeyBuf {
+    fn hash_id(&self) -> u8 {
+        match self {
+            Self::Blake2B(_) => 1,
+        }
+    }
+
+    fn hash_bytes(&self) -> &[u8] {
+        match self {
+            Self::Blake2B(x) => &x,
+        }
+    }
+
+    fn as_db_key(&self) -> Vec<u8> {
+        let hash_id = self.hash_id();
+        let hash_bytes = self.hash_bytes();
+
+        let mut result = Vec::with_capacity(hash_bytes.len() + 1);
+
+        result.push(hash_id);
+        result.extend(hash_bytes);
+
+        result
+    }
+
+    fn from_db_key(x: &[u8]) -> Self {
+        let hash_id = x[0];
+        let hash_bytes = &x[1..];
+
+        match hash_id {
+            1 => Self::Blake2B(hash_bytes.to_vec()),
+            0 | 2..=255 => panic!("invalid key"),
+        }
+    }
+
+    fn as_user_key(&self) -> String {
+        let mut result = String::new();
+
+        let prefix = match self {
+            Self::Blake2B(_) => "b"
+        };
+
+        result.push_str(prefix);
+
+        let encoded = to_base32(self.hash_bytes());
+
+        result.push_str(&encoded);
+
+        result
+    }
+
+}
 
 impl std::fmt::Display for KeyBuf {
     fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
-        fmt.write_str(&to_base32(self.0.clone()))
+        fmt.write_str(&self.as_user_key())
     }
 }
 
@@ -92,7 +147,14 @@ impl std::str::FromStr for Keyish {
     type Err = KeyishParseError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let input = match from_base32(s) {
+        let (prefix, bytes) = (&s[0..1], &s[1..]);
+
+        let max_len = match prefix {
+            "b" => 64*8,
+            _ => return Err(KeyishParseError::Invalid(s.to_string())),
+        };
+
+        let input = match from_base32(bytes, max_len) {
             Ok(v) => v,
             Err(_) => return Err(KeyishParseError::Invalid(s.to_string())),
         };
@@ -140,7 +202,7 @@ pub enum FromBase32Error {
     UnknownByte(char),
 }
 
-fn from_base32(x: &str) -> Fallible<BitVec<BigEndian, u8>> {
+fn from_base32(x: &str, max_len: usize) -> Fallible<BitVec<BigEndian, u8>> {
     let mut result = BitVec::<BigEndian, u8>::new();
 
     for mut ch in x.bytes() {
@@ -160,13 +222,15 @@ fn from_base32(x: &str) -> Fallible<BitVec<BigEndian, u8>> {
         result.push(idx & 0b00001 != 0);
     }
 
+    result.truncate(max_len);
+
     Ok(result)
 }
 
 static TABLE: [u8; 32] = *b"abcdefghijklmnopqrstuvwxyz234567";
 
-fn to_base32(x: Vec<u8>) -> String {
-    let mut scratch = BitVec::<BigEndian, u8>::from_vec(x);
+fn to_base32(x: &[u8]) -> String {
+    let mut scratch = BitVec::<BigEndian, u8>::from_vec(x.to_vec());
     let mut ret = String::new();
     while !scratch.is_empty() {
         let v = pop_u5_from_bitvec(&mut scratch);
@@ -260,7 +324,7 @@ impl DataStore for SqliteDS {
     fn get<'a>(&'a self, key: &KeyBuf) -> Fallible<Cow<'a, [u8]>> {
         let results: Vec<u8> = self.conn.query_row(
             "SELECT value FROM data WHERE key=?",
-            params![key.0],
+            params![key.as_db_key()],
             |row| row.get(0),
         )?;
 
@@ -272,13 +336,15 @@ impl DataStore for SqliteDS {
     }
 
     fn put(&self, data: Vec<u8>) -> Fallible<KeyBuf> {
-        let mut b2 = VarBlake2b::new(60).unwrap();
+        let mut b2 = VarBlake2b::new(64).unwrap();
         b2.input(&data);
         let hash = b2.vec_result();
 
+        let keybuf = KeyBuf::Blake2B(hash);
+
         let count: u32 = self.conn.query_row(
             "SELECT COUNT(*) FROM data WHERE key=?",
-            params![hash],
+            params![keybuf.as_db_key()],
             |row| row.get(0),
         )?;
 
@@ -290,7 +356,7 @@ impl DataStore for SqliteDS {
 
                 self.conn.execute(
                     "INSERT OR IGNORE INTO data VALUES (?, ?)",
-                    params![hash, compressed],
+                    params![keybuf.as_db_key(), compressed],
                 )?;
             }
             1 => {}
@@ -299,7 +365,7 @@ impl DataStore for SqliteDS {
             }
         }
 
-        Ok(KeyBuf(hash))
+        Ok(keybuf)
     }
 
     fn canonicalize(&self, search: Keyish) -> Result<KeyBuf, CanonicalizeError> {
@@ -333,9 +399,9 @@ impl DataStore for SqliteDS {
                     0 => Err(CanonicalizeError::NotFound(s)),
                     // This is okay since we know it will have one item.
                     #[allow(clippy::option_unwrap_used)]
-                    1 => Ok(KeyBuf(results.pop().unwrap())),
+                    1 => Ok(KeyBuf::Blake2B(results.pop().unwrap())),
                     _ => {
-                        let strs = results.into_iter().map(KeyBuf).collect();
+                        let strs = results.into_iter().map(KeyBuf::Blake2B).collect();
                         Err(CanonicalizeError::Ambigious(s, strs))
                     }
                 }

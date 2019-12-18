@@ -1,0 +1,23 @@
+prefix hash with character(s) indicating the type of encoding and hash
+
+We don't want to use multihash/multibase because of space constraints.
+A git hash is 4 bits of entropy per character, regardless of where it is.
+
+Therefore, just 4 characters of a commit id is enough to uniquely identify a commit in a small
+project.
+
+Multihash has 4 bytes to indicate blake2b-256. That, combined with a multibase prefix, means the
+full prefix for a base32 blake2b-256 hash would be "budsaei". That's already 6 characters, which is
+a typical git hash length, and that's with base32. That's probably fine for binary storage, but not
+fine for a user friendly identifier.
+
+Therefore, let's use *one* character to indicate the hash and the encoding. This character is
+before encoding, so it doesn't take up 8 bits of entropy, it takes up 5 (assuming base32).
+
+We're starting out with blake2b and base32 (lowercase, no padding)
+
+let that be "b". All hashes will start with b. If we need to migrate to a new hash, we can change
+it. New encodings will likely only support the current hash (and maybe future hashes). Base32 is a
+good default because of that sweet sweet extra 1 bit over base16 at the cost of being a PITA to
+parse, and it's case insensitive, which is good because we want humans to be able to read it out
+without too much difficulty.
