@@ -112,7 +112,7 @@ fn main() -> CMDResult {
     };
 
     if let Err(e) = result {
-        println!("fatal: {}", e);
+        println!("fatal: {:?}", e);
         state.ds.rollback();
     } else {
         state.ds.commit();

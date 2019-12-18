@@ -31,6 +31,17 @@ impl KeyBuf {
         }
     }
 
+    fn from_db_key(x: &[u8]) -> Self {
+        let hash_id = x[0];
+        let hash_bytes = &x[1..];
+
+        match hash_id {
+            1 => Self::Blake2B(hash_bytes.to_vec()),
+            0 | 2..=255 => panic!("invalid key"),
+        }
+    }
+
+
     fn as_db_key(&self) -> Vec<u8> {
         let hash_id = self.hash_id();
         let hash_bytes = self.hash_bytes();
@@ -41,16 +52,6 @@ impl KeyBuf {
         result.extend(hash_bytes);
 
         result
-    }
-
-    fn from_db_key(x: &[u8]) -> Self {
-        let hash_id = x[0];
-        let hash_bytes = &x[1..];
-
-        match hash_id {
-            1 => Self::Blake2B(hash_bytes.to_vec()),
-            0 | 2..=255 => panic!("invalid key"),
-        }
     }
 
     fn as_user_key(&self) -> String {
@@ -163,7 +164,9 @@ impl std::str::FromStr for Keyish {
 
         let start = input.clone();
 
-        let ret_start = start.into_vec();
+        let mut ret_start = start.into_vec();
+
+        ret_start.insert(0_usize, 1);
 
         let ret_end = if did_overflow {
             None
@@ -172,10 +175,14 @@ impl std::str::FromStr for Keyish {
 
             end += bitvec![BigEndian, u8; 1];
 
-            Some(end.into_vec())
+            let mut v = end.into_vec();
+
+            v.insert(0_usize, 1);
+
+            Some(v)
         };
 
-        Ok(Keyish::Range(s.to_string(), ret_start, ret_end))
+        Ok(dbg!(Keyish::Range(s.to_string(), ret_start, ret_end)))
     }
 }
 
@@ -322,6 +329,7 @@ impl DataStore for SqliteDS {
     }
 
     fn get<'a>(&'a self, key: &KeyBuf) -> Fallible<Cow<'a, [u8]>> {
+        dbg!(key.as_db_key());
         let results: Vec<u8> = self.conn.query_row(
             "SELECT value FROM data WHERE key=?",
             params![key.as_db_key()],
@@ -377,6 +385,8 @@ impl DataStore for SqliteDS {
                     let mut statement = self
                         .conn
                         .prepare("SELECT key FROM data WHERE key >= ? AND key < ?")?;
+
+                    dbg!(&start, &e);
                     let rows = statement.query_map(params![start, e], |row| row.get(0))?;
 
                     results = Vec::new();
@@ -399,7 +409,7 @@ impl DataStore for SqliteDS {
                     0 => Err(CanonicalizeError::NotFound(s)),
                     // This is okay since we know it will have one item.
                     #[allow(clippy::option_unwrap_used)]
-                    1 => Ok(KeyBuf::Blake2B(results.pop().unwrap())),
+                    1 => Ok(KeyBuf::from_db_key(&results.pop().unwrap())),
                     _ => {
                         let strs = results.into_iter().map(KeyBuf::Blake2B).collect();
                         Err(CanonicalizeError::Ambigious(s, strs))
