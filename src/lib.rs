@@ -1,6 +1,5 @@
 use bitvec::prelude::*;
-use blake2::{VarBlake2b, digest::Input};
-use blake2::digest::VariableOutput;
+use blake2::{digest::Digest, Blake2b};
 use failure_derive::Fail;
 use std::path::Path;
 
@@ -41,7 +40,6 @@ impl KeyBuf {
         }
     }
 
-
     fn as_db_key(&self) -> Vec<u8> {
         let hash_id = self.hash_id();
         let hash_bytes = self.hash_bytes();
@@ -58,7 +56,7 @@ impl KeyBuf {
         let mut result = String::new();
 
         let prefix = match self {
-            Self::Blake2B(_) => "b"
+            Self::Blake2B(_) => "b",
         };
 
         result.push_str(prefix);
@@ -69,7 +67,6 @@ impl KeyBuf {
 
         result
     }
-
 }
 
 impl std::fmt::Display for KeyBuf {
@@ -151,7 +148,7 @@ impl std::str::FromStr for Keyish {
         let (prefix, bytes) = (&s[0..1], &s[1..]);
 
         let max_len = match prefix {
-            "b" => 64*8,
+            "b" => 64 * 8,
             _ => return Err(KeyishParseError::Invalid(s.to_string())),
         };
 
@@ -182,7 +179,7 @@ impl std::str::FromStr for Keyish {
             Some(v)
         };
 
-        Ok(dbg!(Keyish::Range(s.to_string(), ret_start, ret_end)))
+        Ok(Keyish::Range(s.to_string(), ret_start, ret_end))
     }
 }
 
@@ -286,9 +283,15 @@ pub trait DataStore {
         Ok(self.put(data)?)
     }
 
-    fn begin_trans(&mut self) {}
-    fn commit(&mut self) {}
-    fn rollback(&mut self) {}
+    fn begin_trans(&mut self) -> Fallible<()> {
+        Ok(())
+    }
+    fn commit(&mut self) -> Fallible<()> {
+        Ok(())
+    }
+    fn rollback(&mut self) -> Fallible<()> {
+        Ok(())
+    }
 }
 
 pub struct SqliteDS {
@@ -316,20 +319,22 @@ impl SqliteDS {
 }
 
 impl DataStore for SqliteDS {
-    fn begin_trans(&mut self) {
-        self.conn.execute("BEGIN TRANSACTION", params![]).unwrap();
+    fn begin_trans(&mut self) -> Fallible<()> {
+        self.conn.execute("BEGIN TRANSACTION", params![])?;
+        Ok(())
     }
 
-    fn commit(&mut self) {
-        self.conn.execute("COMMIT", params![]).unwrap();
+    fn commit(&mut self) -> Fallible<()> {
+        self.conn.execute("COMMIT", params![])?;
+        Ok(())
     }
 
-    fn rollback(&mut self) {
-        self.conn.execute("ROLLBACK", params![]).unwrap();
+    fn rollback(&mut self) -> Fallible<()> {
+        self.conn.execute("ROLLBACK", params![])?;
+        Ok(())
     }
 
     fn get<'a>(&'a self, key: &KeyBuf) -> Fallible<Cow<'a, [u8]>> {
-        dbg!(key.as_db_key());
         let results: Vec<u8> = self.conn.query_row(
             "SELECT value FROM data WHERE key=?",
             params![key.as_db_key()],
@@ -344,11 +349,11 @@ impl DataStore for SqliteDS {
     }
 
     fn put(&self, data: Vec<u8>) -> Fallible<KeyBuf> {
-        let mut b2 = VarBlake2b::new(64).unwrap();
+        let mut b2 = Blake2b::new();
         b2.input(&data);
-        let hash = b2.vec_result();
+        let hash = b2.result();
 
-        let keybuf = KeyBuf::Blake2B(hash);
+        let keybuf = KeyBuf::Blake2B(hash.to_vec());
 
         let count: u32 = self.conn.query_row(
             "SELECT COUNT(*) FROM data WHERE key=?",
@@ -368,7 +373,7 @@ impl DataStore for SqliteDS {
                 )?;
             }
             1 => {}
-            2..=0xffffffff => {
+            2..=0xffff_ffff => {
                 failure::bail!("data error: multiple keys found for same value?");
             }
         }
@@ -386,7 +391,6 @@ impl DataStore for SqliteDS {
                         .conn
                         .prepare("SELECT key FROM data WHERE key >= ? AND key < ?")?;
 
-                    dbg!(&start, &e);
                     let rows = statement.query_map(params![start, e], |row| row.get(0))?;
 
                     results = Vec::new();

@@ -1,6 +1,8 @@
 // StructOpt generated code triggers this lint.
 #![allow(clippy::option_unwrap_used)]
 #![allow(clippy::result_unwrap_used)]
+// I don't care.
+#![allow(clippy::needless_pass_by_value)]
 
 use snapcd::{dir, DataStore, Keyish, SqliteDS};
 use std::path::PathBuf;
@@ -101,7 +103,7 @@ fn main() -> CMDResult {
 
     let mut ds = SqliteDS::new(&opt.common.db_path)?;
 
-    ds.begin_trans();
+    ds.begin_trans()?;
 
     let mut state = State { ds };
 
@@ -113,9 +115,10 @@ fn main() -> CMDResult {
 
     if let Err(e) = result {
         println!("fatal: {:?}", e);
-        state.ds.rollback();
+
+        state.ds.rollback()?;
     } else {
-        state.ds.commit();
+        state.ds.commit()?;
     }
 
     Ok(())
