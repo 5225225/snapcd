@@ -4,12 +4,13 @@
 // I don't care.
 #![allow(clippy::needless_pass_by_value)]
 
-use snapcd::{dir, DataStore, Keyish, SqliteDS};
+use snapcd::{dir, DataStore, Keyish, SqliteDS, commit};
 use std::path::PathBuf;
 use structopt::StructOpt;
+use std::collections::HashMap;
 
 use slog;
-use slog::{Drain, o, info};
+use slog::{Drain, o};
 
 type CMDResult = failure::Fallible<()>;
 
@@ -63,11 +64,18 @@ struct FetchArgs {
 #[derive(StructOpt, Debug)]
 enum DebugCommand {
     PrettyPrint(PrettyPrintArgs),
+    CommitTree(CommitTreeArgs),
 }
 
 #[derive(StructOpt, Debug)]
 struct PrettyPrintArgs {
     key: Keyish,
+}
+
+#[derive(StructOpt, Debug)]
+struct CommitTreeArgs {
+    tree: Keyish,
+    parents: Vec<Keyish>,
 }
 
 fn insert(state: &mut State, args: InsertArgs) -> CMDResult {
@@ -89,6 +97,7 @@ fn fetch(state: &mut State, args: FetchArgs) -> CMDResult {
 fn debug(state: &mut State, args: DebugCommand) -> CMDResult {
     match args {
         DebugCommand::PrettyPrint(args) => debug_pretty_print(state, args),
+        DebugCommand::CommitTree(args) => debug_commit_tree(state, args),
     }
 }
 
@@ -98,6 +107,25 @@ fn debug_pretty_print(state: &mut State, args: PrettyPrintArgs) -> CMDResult {
     let item = state.ds.get_obj(&key)?;
 
     println!("{}", item);
+
+    Ok(())
+}
+
+fn debug_commit_tree(state: &mut State, args: CommitTreeArgs) -> CMDResult {
+    let tree = state.ds.canonicalize(args.tree)?;
+
+    let mut parents = Vec::with_capacity(args.parents.len());
+
+    for parent in args.parents.into_iter() {
+        let key = state.ds.canonicalize(parent)?;
+        parents.push(key);
+    }
+
+    let attrs = HashMap::new();
+
+    let commit = commit::commit_tree(&mut state.ds, tree, parents, attrs)?;
+
+    println!("{}", commit);
 
     Ok(())
 }

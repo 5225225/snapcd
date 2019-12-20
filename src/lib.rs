@@ -11,8 +11,9 @@ use failure::Fallible;
 
 pub mod dir;
 pub mod file;
+pub mod commit;
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub enum KeyBuf {
     Blake2B(Vec<u8>),
 }
