@@ -8,6 +8,9 @@ use snapcd::{dir, DataStore, Keyish, SqliteDS};
 use std::path::PathBuf;
 use structopt::StructOpt;
 
+use slog;
+use slog::{Drain, o, info};
+
 type CMDResult = failure::Fallible<()>;
 
 #[derive(StructOpt, Debug)]
@@ -27,6 +30,7 @@ struct Common {
 
 struct State {
     ds: SqliteDS,
+    logger: slog::Logger,
 }
 
 #[derive(StructOpt, Debug)]
@@ -69,7 +73,7 @@ struct PrettyPrintArgs {
 fn insert(state: &mut State, args: InsertArgs) -> CMDResult {
     let hash = dir::put_fs_item(&mut state.ds, &args.path)?;
 
-    println!("{}", hash);
+    println!("inserted hash {}", hash);
 
     Ok(())
 }
@@ -101,11 +105,18 @@ fn debug_pretty_print(state: &mut State, args: PrettyPrintArgs) -> CMDResult {
 fn main() -> CMDResult {
     let opt = Opt::from_args();
 
+    let plain = slog_term::PlainSyncDecorator::new(std::io::stdout());
+
+    let logger = slog::Logger::root(
+        slog_term::FullFormat::new(plain).build().fuse(),
+        o!()
+    );
+
     let mut ds = SqliteDS::new(&opt.common.db_path)?;
 
     ds.begin_trans()?;
 
-    let mut state = State { ds };
+    let mut state = State { ds, logger };
 
     let result = match opt.cmd {
         Command::Insert(args) => insert(&mut state, args),

@@ -20,6 +20,8 @@ failure_derive = "0.1.6"
 bitvec = "0.16.1"
 hex = "0.4.0"
 unsigned-varint = "0.2.3"
+slog = "2.5.2"
+slog-term = "2.4.2"
 
 [profile.release]
 debug = true

@@ -122,6 +122,19 @@ impl<'a> std::fmt::Display for Object<'a> {
         }
         writeln!(fmt, "-/data--")?;
 
+        writeln!(fmt, "--deserialised data--")?;
+
+        match serde_cbor::from_slice::<serde_cbor::Value>(&self.data) {
+            Ok(v) => {
+                println!("{:?}", v);
+            }
+            Err(e) => {
+                println!("error when deserialising!");
+                println!("{:?}", e);
+            }
+        };
+        writeln!(fmt, "--/deserialised data--")?;
+
         Ok(())
     }
 }
