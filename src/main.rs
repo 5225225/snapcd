@@ -4,13 +4,13 @@
 // I don't care.
 #![allow(clippy::needless_pass_by_value)]
 
-use snapcd::{dir, DataStore, Keyish, SqliteDS, commit};
+use snapcd::{commit, dir, DataStore, Keyish, SqliteDS};
+use std::collections::HashMap;
 use std::path::PathBuf;
 use structopt::StructOpt;
-use std::collections::HashMap;
 
 use slog;
-use slog::{Drain, o};
+use slog::{o, Drain};
 
 type CMDResult = failure::Fallible<()>;
 
@@ -136,10 +136,7 @@ fn main() -> CMDResult {
 
     let plain = slog_term::PlainSyncDecorator::new(std::io::stdout());
 
-    let logger = slog::Logger::root(
-        slog_term::FullFormat::new(plain).build().fuse(),
-        o!()
-    );
+    let logger = slog::Logger::root(slog_term::FullFormat::new(plain).build().fuse(), o!());
 
     let mut ds = SqliteDS::new(&opt.common.db_path)?;
 

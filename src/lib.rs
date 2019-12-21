@@ -9,9 +9,9 @@ use std::io::Cursor;
 
 use failure::Fallible;
 
+pub mod commit;
 pub mod dir;
 pub mod file;
-pub mod commit;
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub enum KeyBuf {
@@ -412,10 +412,8 @@ impl DataStore for SqliteDS {
         match search {
             Keyish::Key(s, key) => {
                 err_str = s;
-                
-                let mut statement = self
-                    .conn
-                    .prepare("SELECT key FROM data WHERE key == ?")?;
+
+                let mut statement = self.conn.prepare("SELECT key FROM data WHERE key == ?")?;
 
                 let rows = statement.query_map(params![key], |row| row.get(0))?;
 
@@ -444,7 +442,6 @@ impl DataStore for SqliteDS {
                         results.push(row?);
                     }
                 }
-
             }
         };
 

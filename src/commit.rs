@@ -1,6 +1,6 @@
+use std::borrow::Cow;
 use std::collections::HashMap;
 use std::convert::TryInto;
-use std::borrow::Cow;
 
 use failure::Fallible;
 
@@ -50,7 +50,12 @@ impl TryInto<Commit> for Object<'static> {
     }
 }
 
-pub fn commit_tree<DS: DataStore>(ds: &mut DS, tree: KeyBuf, mut parents: Vec<KeyBuf>, attrs: HashMap<String, String>) -> Fallible<KeyBuf> {
+pub fn commit_tree<DS: DataStore>(
+    ds: &mut DS,
+    tree: KeyBuf,
+    mut parents: Vec<KeyBuf>,
+    attrs: HashMap<String, String>,
+) -> Fallible<KeyBuf> {
     parents.sort();
 
     let commit = Commit {
