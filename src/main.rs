@@ -31,6 +31,7 @@ struct Common {
 
 struct State {
     ds: SqliteDS,
+    #[allow(dead_code)]
     logger: slog::Logger,
 }
 
@@ -116,7 +117,7 @@ fn debug_commit_tree(state: &mut State, args: CommitTreeArgs) -> CMDResult {
 
     let mut parents = Vec::with_capacity(args.parents.len());
 
-    for parent in args.parents.into_iter() {
+    for parent in args.parents {
         let key = state.ds.canonicalize(parent)?;
         parents.push(key);
     }

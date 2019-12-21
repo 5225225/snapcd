@@ -147,6 +147,9 @@ pub enum Keyish {
     /// .0 will be a value for which all keys that match the prefix will be lexographically ordered
     /// afterwards. For display, an encoded form of .0 should be used.
     Range(String, Vec<u8>, Option<Vec<u8>>),
+
+    /// An exact key.
+    Key(String, Vec<u8>),
 }
 
 #[derive(Debug, Fail)]
@@ -170,6 +173,12 @@ impl std::str::FromStr for Keyish {
             Ok(v) => v,
             Err(_) => return Err(KeyishParseError::Invalid(s.to_string())),
         };
+
+        if input.len() == max_len {
+            let mut v = input.into_vec();
+            v.insert(0_usize, 1);
+            return Ok(Keyish::Key(s.to_string(), v));
+        }
 
         let did_overflow = input.all();
 
@@ -396,9 +405,26 @@ impl DataStore for SqliteDS {
     }
 
     fn canonicalize(&self, search: Keyish) -> Result<KeyBuf, CanonicalizeError> {
+        let mut results: Vec<Vec<u8>> = Vec::new();
+        dbg!(&search);
+        let err_str;
+
         match search {
+            Keyish::Key(s, key) => {
+                err_str = s;
+                
+                let mut statement = self
+                    .conn
+                    .prepare("SELECT key FROM data WHERE key == ?")?;
+
+                let rows = statement.query_map(params![key], |row| row.get(0))?;
+
+                for row in rows {
+                    results.push(row?);
+                }
+            }
             Keyish::Range(s, start, end) => {
-                let mut results: Vec<Vec<u8>>;
+                err_str = s;
 
                 if let Some(e) = end {
                     let mut statement = self
@@ -407,8 +433,6 @@ impl DataStore for SqliteDS {
 
                     let rows = statement.query_map(params![start, e], |row| row.get(0))?;
 
-                    results = Vec::new();
-
                     for row in rows {
                         results.push(row?);
                     }
@@ -416,23 +440,22 @@ impl DataStore for SqliteDS {
                     let mut statement = self.conn.prepare("SELECT key FROM data WHERE key >= ?")?;
                     let rows = statement.query_map(params![start], |row| row.get(0))?;
 
-                    results = Vec::new();
-
                     for row in rows {
                         results.push(row?);
                     }
                 }
 
-                match results.len() {
-                    0 => Err(CanonicalizeError::NotFound(s)),
-                    // This is okay since we know it will have one item.
-                    #[allow(clippy::option_unwrap_used)]
-                    1 => Ok(KeyBuf::from_db_key(&results.pop().unwrap())),
-                    _ => {
-                        let strs = results.into_iter().map(KeyBuf::Blake2B).collect();
-                        Err(CanonicalizeError::Ambigious(s, strs))
-                    }
-                }
+            }
+        };
+
+        match results.len() {
+            0 => Err(CanonicalizeError::NotFound(err_str)),
+            // This is okay since we know it will have one item.
+            #[allow(clippy::option_unwrap_used)]
+            1 => Ok(KeyBuf::from_db_key(&results.pop().unwrap())),
+            _ => {
+                let strs = results.into_iter().map(KeyBuf::Blake2B).collect();
+                Err(CanonicalizeError::Ambigious(err_str, strs))
             }
         }
     }

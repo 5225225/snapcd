@@ -2,8 +2,6 @@ use std::collections::HashMap;
 use std::convert::TryInto;
 use std::borrow::Cow;
 
-use serde::{Serialize, Deserialize};
-use serde_cbor::Value;
 use failure::Fallible;
 
 use crate::{DataStore, KeyBuf, Object};
