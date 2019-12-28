@@ -288,9 +288,18 @@ impl<T: std::error::Error + Send + Sync + 'static> std::convert::From<T> for Can
     }
 }
 
+pub struct Reflog {
+    pub refname: String,
+    pub key: KeyBuf,
+    pub remote: Option<String>,
+}
+
 pub trait DataStore {
     fn get<'a>(&'a self, key: &KeyBuf) -> Fallible<Cow<'a, [u8]>>;
     fn put(&self, data: Vec<u8>) -> Fallible<KeyBuf>;
+
+    fn reflog_push(&self, data: &Reflog) -> Fallible<()>;
+    fn reflog_get(&self, refname: &str, remote: Option<&str>) -> Fallible<KeyBuf>;
 
     fn canonicalize(&self, search: Keyish) -> Result<KeyBuf, CanonicalizeError>;
 
@@ -327,14 +336,20 @@ impl SqliteDS {
 
         conn.pragma_update(None, &"journal_mode", &"WAL")?;
 
-        conn.execute(
+        conn.execute_batch(
             "
             CREATE TABLE IF NOT EXISTS data (
                 key BLOB NOT NULL UNIQUE PRIMARY KEY,
                 value BLOB NOT NULL
-            ) WITHOUT ROWID
+            ) WITHOUT ROWID;
+
+            CREATE TABLE IF NOT EXISTS reflog (
+                id INTEGER PRIMARY KEY,
+                refname TEXT NOT NULL,
+                remote TEXT,
+                key BLOB
+            );
         ",
-            params![],
         )?;
 
         Ok(Self { conn })
@@ -342,6 +357,26 @@ impl SqliteDS {
 }
 
 impl DataStore for SqliteDS {
+    fn reflog_get(&self, refname: &str, remote: Option<&str>) -> Fallible<KeyBuf> {
+        // We have to use `remote IS ?` here because we want NULL = NULL (it is not remote).
+        let key: Vec<u8> = self.conn.query_row(
+            "SELECT key FROM reflog WHERE refname=? AND remote IS ? ORDER BY id DESC LIMIT 1",
+            params![refname, remote],
+            |row| row.get(0),
+        )?;
+
+        Ok(KeyBuf::from_db_key(&key))
+    }
+
+    fn reflog_push(&self, data: &Reflog) -> Fallible<()> {
+        self.conn.execute(
+            "INSERT INTO reflog(refname, remote, key) VALUES (?, ?, ?)",
+            params![data.refname, data.remote, data.key.as_db_key(),],
+        )?;
+
+        Ok(())
+    }
+
     fn begin_trans(&mut self) -> Fallible<()> {
         self.conn.execute("BEGIN TRANSACTION", params![])?;
         Ok(())

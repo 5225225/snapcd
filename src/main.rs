@@ -4,7 +4,7 @@
 // I don't care.
 #![allow(clippy::needless_pass_by_value)]
 
-use snapcd::{commit, dir, DataStore, Keyish, SqliteDS};
+use snapcd::{commit, dir, DataStore, Keyish, Reflog, SqliteDS};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use structopt::StructOpt;
@@ -66,11 +66,26 @@ struct FetchArgs {
 enum DebugCommand {
     PrettyPrint(PrettyPrintArgs),
     CommitTree(CommitTreeArgs),
+    ReflogGet(ReflogGetArgs),
+    ReflogPush(ReflogPushArgs),
 }
 
 #[derive(StructOpt, Debug)]
 struct PrettyPrintArgs {
     key: Keyish,
+}
+
+#[derive(StructOpt, Debug)]
+struct ReflogGetArgs {
+    refname: String,
+    remote: Option<String>,
+}
+
+#[derive(StructOpt, Debug)]
+struct ReflogPushArgs {
+    key: Keyish,
+    refname: String,
+    remote: Option<String>,
 }
 
 #[derive(StructOpt, Debug)]
@@ -99,6 +114,8 @@ fn debug(state: &mut State, args: DebugCommand) -> CMDResult {
     match args {
         DebugCommand::PrettyPrint(args) => debug_pretty_print(state, args),
         DebugCommand::CommitTree(args) => debug_commit_tree(state, args),
+        DebugCommand::ReflogGet(args) => debug_reflog_get(state, args),
+        DebugCommand::ReflogPush(args) => debug_reflog_push(state, args),
     }
 }
 
@@ -127,6 +144,28 @@ fn debug_commit_tree(state: &mut State, args: CommitTreeArgs) -> CMDResult {
     let commit = commit::commit_tree(&mut state.ds, tree, parents, attrs)?;
 
     println!("{}", commit);
+
+    Ok(())
+}
+
+fn debug_reflog_get(state: &mut State, args: ReflogGetArgs) -> CMDResult {
+    let key = state.ds.reflog_get(&args.refname, args.remote.as_deref())?;
+
+    println!("{}", key);
+
+    Ok(())
+}
+
+fn debug_reflog_push(state: &mut State, args: ReflogPushArgs) -> CMDResult {
+    let key = state.ds.canonicalize(args.key)?;
+
+    let log = Reflog {
+        key,
+        refname: args.refname,
+        remote: args.remote,
+    };
+
+    state.ds.reflog_push(&log)?;
 
     Ok(())
 }
