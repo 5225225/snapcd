@@ -46,6 +46,9 @@ enum Command {
     /// Inserts a file into the database and prints its hash.
     Insert(InsertArgs),
 
+    /// Commits a file
+    Commit(CommitArgs),
+
     /// Fetches a file from the database by hash
     Fetch(FetchArgs),
 
@@ -54,6 +57,12 @@ enum Command {
 
     /// Initialises the database
     Init(InitArgs),
+}
+
+#[derive(StructOpt, Debug)]
+struct CommitArgs {
+    path: PathBuf,
+    refname: String,
 }
 
 #[derive(StructOpt, Debug)]
@@ -225,6 +234,22 @@ fn init(state: &mut State, args: InitArgs) -> CMDResult {
     Ok(())
 }
 
+fn commit_cmd(state: &mut State, args: CommitArgs) -> CMDResult {
+    let ds = state.ds.as_mut().ok_or(DatabaseNotFoundError)?;
+
+    let key = dir::put_fs_item(ds, &args.path)?;
+
+    let log = Reflog {
+        key,
+        refname: args.refname,
+        remote: None,
+    };
+
+    ds.reflog_push(&log)?;
+
+    Ok(())
+}
+
 fn sqlite_logging_callback(err_code: i32, err_msg: &str) {
     log::warn!("sqlite error {}: {}", err_code, err_msg);
 }
@@ -291,6 +316,7 @@ fn main() -> CMDResult {
         Command::Fetch(args) => fetch(&mut state, args),
         Command::Debug(args) => debug(&mut state, args),
         Command::Init(args) => init(&mut state, args),
+        Command::Commit(args) => commit_cmd(&mut state, args),
     };
 
     if let Err(e) = result {
