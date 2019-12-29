@@ -13,7 +13,7 @@ serde_cbor = "0.10"
 serde = { version = "1.0", features = ["derive"] }
 cdc = "0.1.0"
 structopt = "0.3.5"
-rusqlite = "0.20.0"
+rusqlite = { version = "0.20.0", features = ["trace"] }
 zstd = "0.5.1"
 failure = "0.1.6"
 failure_derive = "0.1.6"
@@ -22,6 +22,8 @@ hex = "0.4.0"
 unsigned-varint = "0.2.3"
 slog = "2.5.2"
 slog-term = "2.4.2"
+simplelog = "0.7.4"
+log = "0.4.8"
 
 [profile.release]
 debug = true

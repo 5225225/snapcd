@@ -10,8 +10,7 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use structopt::StructOpt;
 
-use slog;
-use slog::{o, Drain};
+use simplelog::{LevelFilter, TermLogError, TerminalMode};
 
 type CMDResult = Fallible<()>;
 
@@ -28,12 +27,17 @@ struct Common {
     /// Path to sqlite database
     #[structopt(short = "-d", long = "--db", default_value = "snapcd.db")]
     db_path: PathBuf,
+
+    /// Verbosity. Provide multiple times to increase (-vv, -vvv).
+    #[structopt(short = "-v", parse(from_occurrences))]
+    verbosity: u64,
+
+    #[structopt(short = "-q", long = "--quiet")]
+    quiet: bool,
 }
 
 struct State {
     ds: Option<SqliteDS>,
-    #[allow(dead_code)]
-    logger: slog::Logger,
     common: Common,
 }
 
@@ -221,22 +225,62 @@ fn init(state: &mut State, args: InitArgs) -> CMDResult {
     Ok(())
 }
 
+fn sqlite_logging_callback(err_code: i32, err_msg: &str) {
+    log::warn!("sqlite error {}: {}", err_code, err_msg);
+}
+
+fn setup_sqlite_callback() -> rusqlite::Result<()> {
+    unsafe {
+        // This is unsafe because it is not thread safe ("No other SQLite calls may be made while
+        // config_log is running, and multiple threads may not call config_log simultaneously.")
+        // as well sqlite_logging_callback having the requirements that they do not invoke SQLite,
+        // and must be thread safe itself.
+        rusqlite::trace::config_log(Some(sqlite_logging_callback))?;
+    }
+
+    Ok(())
+}
+
 fn main() -> CMDResult {
     let opt = Opt::from_args();
 
-    let plain = slog_term::PlainSyncDecorator::new(std::io::stdout());
+    let log_config = simplelog::ConfigBuilder::new()
+        .set_time_level(LevelFilter::Debug)
+        .set_time_to_local(true)
+        .build();
 
-    let logger = slog::Logger::root(slog_term::FullFormat::new(plain).build().fuse(), o!());
+    let filter = match opt.common.verbosity {
+        0 => LevelFilter::Warn,
+        1 => LevelFilter::Info,
+        2 => LevelFilter::Debug,
+        3..=std::u64::MAX => LevelFilter::Trace,
+    };
+
+    match simplelog::TermLogger::init(filter, log_config, TerminalMode::Stderr) {
+        Ok(()) => {}
+        Err(TermLogError::SetLogger(_)) => panic!("logger has been already set, this is a bug."),
+        Err(TermLogError::Term) => eprintln!("failed to open terminal for logging"),
+        // how are we printing this then?
+    }
+
+    setup_sqlite_callback()?;
+
+    log::debug!("parsed command line: {:?}", opt);
 
     let ds: Option<SqliteDS> = match find_db_file(&opt.common.db_path) {
-        Ok(Some(x)) => Some(SqliteDS::new(x)?),
-        Ok(None) => None,
+        Ok(Some(x)) => {
+            log::info!("using db path {}", x.display());
+            Some(SqliteDS::new(x)?)
+        }
+        Ok(None) => {
+            log::info!("found no db");
+            None
+        }
         Err(x) => return Err(x),
     };
 
     let mut state = State {
         ds,
-        logger,
         common: opt.common,
     };
 
@@ -250,7 +294,9 @@ fn main() -> CMDResult {
     };
 
     if let Err(e) = result {
-        println!("fatal: {:?}", e);
+        log::debug!("error debug: {:?}", e);
+
+        println!("fatal: {}", e);
 
         state.ds.as_mut().map(|x| x.rollback());
     } else {
