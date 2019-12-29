@@ -4,15 +4,16 @@
 // I don't care.
 #![allow(clippy::needless_pass_by_value)]
 
+use failure::Fallible;
 use snapcd::{commit, dir, DataStore, Keyish, Reflog, SqliteDS};
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use structopt::StructOpt;
 
 use slog;
 use slog::{o, Drain};
 
-type CMDResult = failure::Fallible<()>;
+type CMDResult = Fallible<()>;
 
 #[derive(StructOpt, Debug)]
 struct Opt {
@@ -30,9 +31,10 @@ struct Common {
 }
 
 struct State {
-    ds: SqliteDS,
+    ds: Option<SqliteDS>,
     #[allow(dead_code)]
     logger: slog::Logger,
+    common: Common,
 }
 
 #[derive(StructOpt, Debug)]
@@ -45,6 +47,9 @@ enum Command {
 
     /// Debugging tools
     Debug(DebugCommand),
+
+    /// Initialises the database
+    Init(InitArgs),
 }
 
 #[derive(StructOpt, Debug)]
@@ -76,6 +81,9 @@ struct PrettyPrintArgs {
 }
 
 #[derive(StructOpt, Debug)]
+struct InitArgs {}
+
+#[derive(StructOpt, Debug)]
 struct ReflogGetArgs {
     refname: String,
     remote: Option<String>,
@@ -94,8 +102,14 @@ struct CommitTreeArgs {
     parents: Vec<Keyish>,
 }
 
+#[derive(Debug, failure_derive::Fail)]
+#[fail(display = "database could not be found (maybe run snapcd init)")]
+struct DatabaseNotFoundError;
+
 fn insert(state: &mut State, args: InsertArgs) -> CMDResult {
-    let hash = dir::put_fs_item(&mut state.ds, &args.path)?;
+    let ds = state.ds.as_mut().ok_or(DatabaseNotFoundError)?;
+
+    let hash = dir::put_fs_item(ds, &args.path)?;
 
     println!("inserted hash {}", hash);
 
@@ -103,9 +117,11 @@ fn insert(state: &mut State, args: InsertArgs) -> CMDResult {
 }
 
 fn fetch(state: &mut State, args: FetchArgs) -> CMDResult {
-    let key = state.ds.canonicalize(args.key)?;
+    let ds = state.ds.as_ref().ok_or(DatabaseNotFoundError)?;
 
-    dir::get_fs_item(&state.ds, &key, &args.dest)?;
+    let key = ds.canonicalize(args.key)?;
+
+    dir::get_fs_item(ds, &key, &args.dest)?;
 
     Ok(())
 }
@@ -120,9 +136,11 @@ fn debug(state: &mut State, args: DebugCommand) -> CMDResult {
 }
 
 fn debug_pretty_print(state: &mut State, args: PrettyPrintArgs) -> CMDResult {
-    let key = state.ds.canonicalize(args.key)?;
+    let ds = state.ds.as_mut().ok_or(DatabaseNotFoundError)?;
 
-    let item = state.ds.get_obj(&key)?;
+    let key = ds.canonicalize(args.key)?;
+
+    let item = ds.get_obj(&key)?;
 
     println!("{}", item);
 
@@ -130,18 +148,20 @@ fn debug_pretty_print(state: &mut State, args: PrettyPrintArgs) -> CMDResult {
 }
 
 fn debug_commit_tree(state: &mut State, args: CommitTreeArgs) -> CMDResult {
-    let tree = state.ds.canonicalize(args.tree)?;
+    let ds = state.ds.as_mut().ok_or(DatabaseNotFoundError)?;
+
+    let tree = ds.canonicalize(args.tree)?;
 
     let mut parents = Vec::with_capacity(args.parents.len());
 
     for parent in args.parents {
-        let key = state.ds.canonicalize(parent)?;
+        let key = ds.canonicalize(parent)?;
         parents.push(key);
     }
 
     let attrs = HashMap::new();
 
-    let commit = commit::commit_tree(&mut state.ds, tree, parents, attrs)?;
+    let commit = commit::commit_tree(ds, tree, parents, attrs)?;
 
     println!("{}", commit);
 
@@ -149,7 +169,9 @@ fn debug_commit_tree(state: &mut State, args: CommitTreeArgs) -> CMDResult {
 }
 
 fn debug_reflog_get(state: &mut State, args: ReflogGetArgs) -> CMDResult {
-    let key = state.ds.reflog_get(&args.refname, args.remote.as_deref())?;
+    let ds = state.ds.as_mut().ok_or(DatabaseNotFoundError)?;
+
+    let key = ds.reflog_get(&args.refname, args.remote.as_deref())?;
 
     println!("{}", key);
 
@@ -157,7 +179,9 @@ fn debug_reflog_get(state: &mut State, args: ReflogGetArgs) -> CMDResult {
 }
 
 fn debug_reflog_push(state: &mut State, args: ReflogPushArgs) -> CMDResult {
-    let key = state.ds.canonicalize(args.key)?;
+    let ds = state.ds.as_mut().ok_or(DatabaseNotFoundError)?;
+
+    let key = ds.canonicalize(args.key)?;
 
     let log = Reflog {
         key,
@@ -165,7 +189,34 @@ fn debug_reflog_push(state: &mut State, args: ReflogPushArgs) -> CMDResult {
         remote: args.remote,
     };
 
-    state.ds.reflog_push(&log)?;
+    ds.reflog_push(&log)?;
+
+    Ok(())
+}
+
+fn find_db_file(name: &Path) -> Fallible<Option<PathBuf>> {
+    let cwd = std::env::current_dir()?;
+
+    let mut d = &*cwd;
+
+    loop {
+        let mut check = d.to_path_buf();
+
+        check.push(&name);
+
+        if check.exists() {
+            return Ok(Some(check));
+        }
+
+        d = match d.parent() {
+            Some(p) => p,
+            None => return Ok(None),
+        };
+    }
+}
+
+fn init(state: &mut State, args: InitArgs) -> CMDResult {
+    SqliteDS::new(&state.common.db_path)?;
 
     Ok(())
 }
@@ -177,24 +228,33 @@ fn main() -> CMDResult {
 
     let logger = slog::Logger::root(slog_term::FullFormat::new(plain).build().fuse(), o!());
 
-    let mut ds = SqliteDS::new(&opt.common.db_path)?;
+    let ds: Option<SqliteDS> = match find_db_file(&opt.common.db_path) {
+        Ok(Some(x)) => Some(SqliteDS::new(x)?),
+        Ok(None) => None,
+        Err(x) => return Err(x),
+    };
 
-    ds.begin_trans()?;
+    let mut state = State {
+        ds,
+        logger,
+        common: opt.common,
+    };
 
-    let mut state = State { ds, logger };
+    state.ds.as_mut().map(|x| x.begin_trans());
 
     let result = match opt.cmd {
         Command::Insert(args) => insert(&mut state, args),
         Command::Fetch(args) => fetch(&mut state, args),
         Command::Debug(args) => debug(&mut state, args),
+        Command::Init(args) => init(&mut state, args),
     };
 
     if let Err(e) = result {
         println!("fatal: {:?}", e);
 
-        state.ds.rollback()?;
+        state.ds.as_mut().map(|x| x.rollback());
     } else {
-        state.ds.commit()?;
+        state.ds.as_mut().map(|x| x.commit());
     }
 
     Ok(())
