@@ -150,6 +150,11 @@ pub enum Keyish {
 
     /// An exact key.
     Key(String, Vec<u8>),
+
+    Reflog {
+        remote: Option<String>,
+        keyname: String,
+    }
 }
 
 #[derive(Debug, Fail)]
@@ -162,47 +167,75 @@ impl std::str::FromStr for Keyish {
     type Err = KeyishParseError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let (prefix, bytes) = (&s[0..1], &s[1..]);
-
-        let max_len = match prefix {
-            "b" => 64 * 8,
-            _ => return Err(KeyishParseError::Invalid(s.to_string())),
-        };
-
-        let input = match from_base32(bytes, max_len) {
-            Ok(v) => v,
-            Err(_) => return Err(KeyishParseError::Invalid(s.to_string())),
-        };
-
-        if input.len() == max_len {
-            let mut v = input.into_vec();
-            v.insert(0_usize, 1);
-            return Ok(Keyish::Key(s.to_string(), v));
+        if s.contains("/") {
+            return parse_from_ref(s);
+        } else {
+            return parse_from_base32(s);
         }
 
-        let did_overflow = input.all();
+        fn parse_from_ref(s: &str) -> Result<Keyish, KeyishParseError> {
+            let idx = s.find("/").expect("should only be called if s contains a /");
 
-        let start = input.clone();
+            if idx == 0 {
+                return Ok(Keyish::Reflog {
+                    keyname: s.to_string(),
+                    remote: None,
+                });
+            } else {
+                let remote = &s[0..idx];
+                let keyname = &s[idx+1..];
 
-        let mut ret_start = start.into_vec();
+                return Ok(Keyish::Reflog {
+                    keyname: keyname.to_string(),
+                    remote: Some(remote.to_string()),
+                });
+            }
 
-        ret_start.insert(0_usize, 1);
+        }
 
-        let ret_end = if did_overflow {
-            None
-        } else {
-            let mut end = input;
+        fn parse_from_base32(s: &str) -> Result<Keyish, KeyishParseError> {
+            let (prefix, bytes) = (&s[0..1], &s[1..]);
 
-            end += bitvec![BigEndian, u8; 1];
+            let max_len = match prefix {
+                "b" => 64 * 8,
+                _ => return Err(KeyishParseError::Invalid(s.to_string())),
+            };
 
-            let mut v = end.into_vec();
+            let input = match from_base32(bytes, max_len) {
+                Ok(v) => v,
+                Err(_) => return Err(KeyishParseError::Invalid(s.to_string())),
+            };
 
-            v.insert(0_usize, 1);
+            if input.len() == max_len {
+                let mut v = input.into_vec();
+                v.insert(0_usize, 1);
+                return Ok(Keyish::Key(s.to_string(), v));
+            }
 
-            Some(v)
-        };
+            let did_overflow = input.all();
 
-        Ok(Keyish::Range(s.to_string(), ret_start, ret_end))
+            let start = input.clone();
+
+            let mut ret_start = start.into_vec();
+
+            ret_start.insert(0_usize, 1);
+
+            let ret_end = if did_overflow {
+                None
+            } else {
+                let mut end = input;
+
+                end += bitvec![BigEndian, u8; 1];
+
+                let mut v = end.into_vec();
+
+                v.insert(0_usize, 1);
+
+                Some(v)
+            };
+
+            Ok(Keyish::Range(s.to_string(), ret_start, ret_end))
+        }
     }
 }
 
@@ -477,6 +510,11 @@ impl DataStore for SqliteDS {
                         results.push(row?);
                     }
                 }
+            }
+            Keyish::Reflog{remote, keyname} => {
+                let key = self.reflog_get(&keyname, remote.as_deref()).unwrap();
+
+                return Ok(key);
             }
         };
 
