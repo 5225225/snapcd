@@ -4,6 +4,7 @@ use failure_derive::Fail;
 use std::path::Path;
 
 use rusqlite::params;
+use rusqlite::OptionalExtension;
 use std::borrow::Cow;
 use std::io::Cursor;
 
@@ -152,9 +153,10 @@ pub enum Keyish {
     Key(String, Vec<u8>),
 
     Reflog {
+        orig: String,
         remote: Option<String>,
         keyname: String,
-    }
+    },
 }
 
 #[derive(Debug, Fail)]
@@ -174,23 +176,26 @@ impl std::str::FromStr for Keyish {
         }
 
         fn parse_from_ref(s: &str) -> Result<Keyish, KeyishParseError> {
-            let idx = s.find("/").expect("should only be called if s contains a /");
+            let idx = s
+                .find("/")
+                .expect("should only be called if s contains a /");
 
             if idx == 0 {
                 return Ok(Keyish::Reflog {
-                    keyname: s.to_string(),
+                    orig: s.to_string(),
+                    keyname: s[1..].to_string(),
                     remote: None,
                 });
             } else {
                 let remote = &s[0..idx];
-                let keyname = &s[idx+1..];
+                let keyname = &s[idx + 1..];
 
                 return Ok(Keyish::Reflog {
+                    orig: s.to_string(),
                     keyname: keyname.to_string(),
                     remote: Some(remote.to_string()),
                 });
             }
-
         }
 
         fn parse_from_base32(s: &str) -> Result<Keyish, KeyishParseError> {
@@ -302,13 +307,13 @@ fn to_base32(x: &[u8]) -> String {
 
 #[derive(Debug, Fail)]
 pub enum CanonicalizeError {
-    #[fail(display = "Invalid object id {}", _0)]
+    #[fail(display = "Invalid object id '{}'", _0)]
     InvalidHex(String),
 
-    #[fail(display = "Object id {} not found", _0)]
+    #[fail(display = "Object '{}' not found", _0)]
     NotFound(String),
 
-    #[fail(display = "Object id {} is ambiguous", _0)]
+    #[fail(display = "Object '{}' is ambiguous", _0)]
     Ambigious(String, Vec<KeyBuf>),
 
     #[fail(display = "{}", _0)]
@@ -327,12 +332,21 @@ pub struct Reflog {
     pub remote: Option<String>,
 }
 
+#[derive(Debug, Fail)]
+pub enum GetReflogError {
+    #[fail(display = "Ref not found")]
+    NotFound,
+
+    #[fail(display = "sqlite error: {}", _0)]
+    SqliteError(rusqlite::Error),
+}
+
 pub trait DataStore {
     fn get<'a>(&'a self, key: &KeyBuf) -> Fallible<Cow<'a, [u8]>>;
     fn put(&self, data: Vec<u8>) -> Fallible<KeyBuf>;
 
     fn reflog_push(&self, data: &Reflog) -> Fallible<()>;
-    fn reflog_get(&self, refname: &str, remote: Option<&str>) -> Fallible<KeyBuf>;
+    fn reflog_get(&self, refname: &str, remote: Option<&str>) -> Result<KeyBuf, GetReflogError>;
 
     fn canonicalize(&self, search: Keyish) -> Result<KeyBuf, CanonicalizeError>;
 
@@ -390,13 +404,22 @@ impl SqliteDS {
 }
 
 impl DataStore for SqliteDS {
-    fn reflog_get(&self, refname: &str, remote: Option<&str>) -> Fallible<KeyBuf> {
+    fn reflog_get(&self, refname: &str, remote: Option<&str>) -> Result<KeyBuf, GetReflogError> {
+        log::trace!("reflog_get({:?}, {:?})", refname, remote);
+
         // We have to use `remote IS ?` here because we want NULL = NULL (it is not remote).
-        let key: Vec<u8> = self.conn.query_row(
-            "SELECT key FROM reflog WHERE refname=? AND remote IS ? ORDER BY id DESC LIMIT 1",
-            params![refname, remote],
-            |row| row.get(0),
-        )?;
+        let query: Result<Option<Vec<u8>>, rusqlite::Error> = self
+            .conn
+            .query_row(
+                "SELECT key FROM reflog WHERE refname=? AND remote IS ? ORDER BY id DESC LIMIT 1",
+                params![refname, remote],
+                |row| row.get(0),
+            )
+            .optional();
+
+        let row = query.map_err(GetReflogError::SqliteError)?;
+
+        let key = row.ok_or(GetReflogError::NotFound)?;
 
         Ok(KeyBuf::from_db_key(&key))
     }
@@ -511,11 +534,15 @@ impl DataStore for SqliteDS {
                     }
                 }
             }
-            Keyish::Reflog{remote, keyname} => {
-                let key = self.reflog_get(&keyname, remote.as_deref()).unwrap();
-
-                return Ok(key);
-            }
+            Keyish::Reflog {
+                orig,
+                remote,
+                keyname,
+            } => match self.reflog_get(&keyname, remote.as_deref()) {
+                Ok(key) => return Ok(key),
+                Err(GetReflogError::NotFound) => return Err(CanonicalizeError::NotFound(orig)),
+                Err(GetReflogError::SqliteError(e)) => return Err(e.into()),
+            },
         };
 
         match results.len() {

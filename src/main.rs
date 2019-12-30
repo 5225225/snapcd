@@ -270,7 +270,7 @@ fn find_db_file(name: &Path) -> Fallible<Option<PathBuf>> {
     }
 }
 
-fn init(state: &mut State, args: InitArgs) -> CMDResult {
+fn init(state: &mut State, _args: InitArgs) -> CMDResult {
     SqliteDS::new(&state.common.db_path)?;
 
     Ok(())
