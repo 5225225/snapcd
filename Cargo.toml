@@ -24,6 +24,7 @@ slog = "2.5.2"
 slog-term = "2.4.2"
 simplelog = "0.7.4"
 log = "0.4.8"
+globset = "0.4.4"
 
 [profile.release]
 debug = true

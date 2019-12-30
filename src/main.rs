@@ -7,6 +7,7 @@
 use failure::Fallible;
 use snapcd::{commit, dir, DataStore, Keyish, Reflog, SqliteDS};
 use std::collections::HashMap;
+use std::fs::DirEntry;
 use std::path::{Path, PathBuf};
 use structopt::StructOpt;
 
@@ -25,14 +26,19 @@ struct Opt {
 #[derive(StructOpt, Debug)]
 struct Common {
     /// Path to sqlite database
-    #[structopt(short = "-d", long = "--db", default_value = "snapcd.db")]
+    #[structopt(
+        short = "-d",
+        long = "--db",
+        default_value = "snapcd.db",
+        global = true
+    )]
     db_path: PathBuf,
 
     /// Verbosity. Provide multiple times to increase (-vv, -vvv).
-    #[structopt(short = "-v", parse(from_occurrences))]
+    #[structopt(short = "-v", parse(from_occurrences), global = true)]
     verbosity: u64,
 
-    #[structopt(short = "-q", long = "--quiet")]
+    #[structopt(short = "-q", long = "--quiet", global = true)]
     quiet: bool,
 }
 
@@ -63,12 +69,19 @@ enum Command {
 struct CommitArgs {
     path: PathBuf,
     refname: String,
+
+    #[structopt(short = "-e", long = "--exclude")]
+    exclude: Vec<String>,
 }
 
 #[derive(StructOpt, Debug)]
 struct InsertArgs {
     /// Path of the file to insert
     path: PathBuf,
+
+    /// Files to exclude. Similar syntax as in gitignore.
+    #[structopt(short = "-e", long = "--exclude")]
+    exclude: Vec<String>,
 }
 
 #[derive(StructOpt, Debug)]
@@ -78,6 +91,9 @@ struct FetchArgs {
 
     /// Destination path to write to
     dest: PathBuf,
+
+    #[structopt(short = "-e", long = "--exclude")]
+    exclude: Vec<PathBuf>,
 }
 
 #[derive(StructOpt, Debug)]
@@ -119,10 +135,36 @@ struct CommitTreeArgs {
 #[fail(display = "database could not be found (maybe run snapcd init)")]
 struct DatabaseNotFoundError;
 
+fn make_filter_fn<T: AsRef<str>>(excludes: &[T]) -> Box<dyn Fn(&DirEntry) -> bool> {
+    let mut excl_globs = globset::GlobSetBuilder::new();
+
+    for exclude in excludes {
+        excl_globs.add(globset::Glob::new(exclude.as_ref()).unwrap());
+    }
+
+    let excl_globset = excl_globs.build().unwrap();
+
+    Box::new(move |direntry: &DirEntry| -> bool {
+        let path = direntry.path();
+
+        let normalised_path;
+
+        if path.starts_with("./") {
+            normalised_path = path.strip_prefix("./").unwrap();
+        } else {
+            normalised_path = &path;
+        }
+
+        !excl_globset.is_match(normalised_path)
+    })
+}
+
 fn insert(state: &mut State, args: InsertArgs) -> CMDResult {
     let ds = state.ds.as_mut().ok_or(DatabaseNotFoundError)?;
 
-    let hash = dir::put_fs_item(ds, &args.path)?;
+    let filter = make_filter_fn(&args.exclude);
+
+    let hash = dir::put_fs_item(ds, &args.path, &filter)?;
 
     println!("inserted hash {}", hash);
 
@@ -237,7 +279,9 @@ fn init(state: &mut State, args: InitArgs) -> CMDResult {
 fn commit_cmd(state: &mut State, args: CommitArgs) -> CMDResult {
     let ds = state.ds.as_mut().ok_or(DatabaseNotFoundError)?;
 
-    let key = dir::put_fs_item(ds, &args.path)?;
+    let filter = make_filter_fn(&args.exclude);
+
+    let key = dir::put_fs_item(ds, &args.path, &filter)?;
 
     let log = Reflog {
         key,

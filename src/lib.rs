@@ -441,7 +441,7 @@ impl DataStore for SqliteDS {
 
     fn canonicalize(&self, search: Keyish) -> Result<KeyBuf, CanonicalizeError> {
         let mut results: Vec<Vec<u8>> = Vec::new();
-        dbg!(&search);
+
         let err_str;
 
         match search {

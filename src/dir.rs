@@ -2,6 +2,7 @@ use crate::{file, DataStore, KeyBuf, Object};
 use std::borrow::Cow;
 use std::convert::TryInto;
 use std::ffi::OsString;
+use std::fs::DirEntry;
 use std::path::Path;
 
 use failure::Fallible;
@@ -56,7 +57,11 @@ impl<'a> TryInto<FSItem> for Object<'a> {
     }
 }
 
-pub fn put_fs_item<DS: DataStore>(ds: &mut DS, path: &Path) -> Fallible<KeyBuf> {
+pub fn put_fs_item<DS: DataStore>(
+    ds: &mut DS,
+    path: &Path,
+    filter: &dyn Fn(&DirEntry) -> bool,
+) -> Fallible<KeyBuf> {
     let meta = std::fs::metadata(path)?;
 
     if meta.is_dir() {
@@ -65,7 +70,14 @@ pub fn put_fs_item<DS: DataStore>(ds: &mut DS, path: &Path) -> Fallible<KeyBuf> 
         let entries = std::fs::read_dir(path)?;
 
         for entry in entries {
-            result.push(put_fs_item(ds, &entry?.path())?);
+            match entry {
+                Ok(direntry) => {
+                    if filter(&direntry) {
+                        result.push(put_fs_item(ds, &direntry.path(), filter)?);
+                    }
+                }
+                Err(e) => Err(e)?,
+            }
         }
 
         let size = result.len() as u64;
