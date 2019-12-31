@@ -62,6 +62,15 @@ pub fn put_fs_item<DS: DataStore>(
     path: &Path,
     filter: &dyn Fn(&DirEntry) -> bool,
 ) -> Fallible<KeyBuf> {
+    internal_put_fs_item(ds, path, filter, true)
+}
+
+pub fn internal_put_fs_item<DS: DataStore>(
+    ds: &mut DS,
+    path: &Path,
+    filter: &dyn Fn(&DirEntry) -> bool,
+    is_root: bool,
+) -> Fallible<KeyBuf> {
     let meta = std::fs::metadata(path)?;
 
     if meta.is_dir() {
@@ -73,7 +82,7 @@ pub fn put_fs_item<DS: DataStore>(
             match entry {
                 Ok(direntry) => {
                     if filter(&direntry) {
-                        result.push(put_fs_item(ds, &direntry.path(), filter)?);
+                        result.push(internal_put_fs_item(ds, &direntry.path(), filter, false)?);
                     }
                 }
                 Err(e) => Err(e)?,
@@ -84,15 +93,19 @@ pub fn put_fs_item<DS: DataStore>(
 
         let name;
 
-        if let Some(f) = path.file_name() {
-            name = f.to_os_string();
+        if is_root {
+            name = OsString::new();
         } else {
-            let canon = path.canonicalize()?;
+            if let Some(f) = path.file_name() {
+                name = f.to_os_string();
+            } else {
+                let canon = path.canonicalize()?;
 
-            name = canon
-                .file_name()
-                .expect("we tried to canonicalize the filename and it still has no name")
-                .to_os_string();
+                name = canon
+                    .file_name()
+                    .expect("we tried to canonicalize the filename and it still has no name")
+                    .to_os_string();
+            }
         }
 
         let obj = FSItem {
