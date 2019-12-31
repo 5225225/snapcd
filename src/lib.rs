@@ -272,7 +272,7 @@ fn from_base32(x: &str, max_len: usize) -> Fallible<BitVec<BigEndian, u8>> {
 
     for mut ch in x.bytes() {
         if (b'A'..=b'Z').contains(&ch) {
-            ch |= 0b0010_0000; // Convert to uppercase
+            ch |= 0b0010_0000; // Convert to lowercase
         }
 
         let idx = TABLE
