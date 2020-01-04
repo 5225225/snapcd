@@ -63,6 +63,9 @@ enum Command {
 
     /// Initialises the database
     Init(InitArgs),
+
+    /// Shows an object
+    Show(ShowArgs),
 }
 
 #[derive(StructOpt, Debug)]
@@ -72,6 +75,12 @@ struct CommitArgs {
 
     #[structopt(short = "-e", long = "--exclude")]
     exclude: Vec<String>,
+}
+
+#[derive(StructOpt, Debug)]
+struct ShowArgs {
+    /// Object to show
+    key: Keyish,
 }
 
 #[derive(StructOpt, Debug)]
@@ -197,7 +206,7 @@ fn debug_pretty_print(state: &mut State, args: PrettyPrintArgs) -> CMDResult {
 
     let item = ds.get_obj(&key)?;
 
-    println!("{}", item);
+    println!("{}", item.debug_pretty_print());
 
     Ok(())
 }
@@ -294,6 +303,19 @@ fn commit_cmd(state: &mut State, args: CommitArgs) -> CMDResult {
     Ok(())
 }
 
+fn show(state: &mut State, args: ShowArgs) -> CMDResult {
+    let ds = state.ds.as_mut().ok_or(DatabaseNotFoundError)?;
+
+    let key = ds.canonicalize(args.key)?;
+
+    let value = ds.get_obj(&key)?;
+
+    println!("{}", value.show());
+
+    Ok(())
+}
+
+
 fn sqlite_logging_callback(err_code: i32, err_msg: &str) {
     log::warn!("sqlite error {}: {}", err_code, err_msg);
 }
@@ -361,6 +383,7 @@ fn main() -> CMDResult {
         Command::Debug(args) => debug(&mut state, args),
         Command::Init(args) => init(&mut state, args),
         Command::Commit(args) => commit_cmd(&mut state, args),
+        Command::Show(args) => show(&mut state, args),
     };
 
     if let Err(e) = result {

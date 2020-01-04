@@ -100,24 +100,34 @@ impl<'a> Object<'a> {
             objtype,
         }
     }
+
+    pub fn debug_pretty_print(&self) -> impl std::fmt::Display + '_ {
+        ObjectPrettyPrinter(self)
+    }
+
+    pub fn show(&self) -> impl std::fmt::Display + '_ {
+        ObjectShowPrinter(self)
+    }
 }
 
+struct ObjectPrettyPrinter<'a>(&'a Object<'a>);
+
 const DISPLAY_CHUNK_SIZE: usize = 20;
-impl<'a> std::fmt::Display for Object<'a> {
+impl<'a> std::fmt::Display for ObjectPrettyPrinter<'a> {
     fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
-        writeln!(fmt, "--type: {:?}--", self.objtype)?;
+        writeln!(fmt, "--type: {:?}--", self.0.objtype)?;
 
         writeln!(fmt, "--keys--")?;
-        if !self.keys.is_empty() {
-            for key in self.keys.iter() {
+        if !self.0.keys.is_empty() {
+            for key in self.0.keys.iter() {
                 writeln!(fmt, "{}", key)?;
             }
         }
         writeln!(fmt, "-/keys--")?;
 
         writeln!(fmt, "--data--")?;
-        if !self.data.is_empty() {
-            for chunk in self.data.chunks(DISPLAY_CHUNK_SIZE) {
+        if !self.0.data.is_empty() {
+            for chunk in self.0.data.chunks(DISPLAY_CHUNK_SIZE) {
                 let ashex = hex::encode(chunk);
                 writeln!(fmt, "{}", ashex)?;
             }
@@ -126,7 +136,7 @@ impl<'a> std::fmt::Display for Object<'a> {
 
         writeln!(fmt, "--deserialised data--")?;
 
-        match serde_cbor::from_slice::<serde_cbor::Value>(&self.data) {
+        match serde_cbor::from_slice::<serde_cbor::Value>(&self.0.data) {
             Ok(v) => {
                 println!("{:?}", v);
             }
@@ -136,6 +146,21 @@ impl<'a> std::fmt::Display for Object<'a> {
             }
         };
         writeln!(fmt, "--/deserialised data--")?;
+
+        Ok(())
+    }
+}
+
+struct ObjectShowPrinter<'a>(&'a Object<'a>);
+
+impl<'a> std::fmt::Display for ObjectShowPrinter<'a> {
+    fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
+        match self.0.objtype {
+            _ => { 
+                debug_assert!(false, "unable to format {}", self.0.objtype);
+                return Err(std::fmt::Error)
+            },
+        }
 
         Ok(())
     }
