@@ -1,17 +1,16 @@
 use crate::{file, DataStore, KeyBuf, Object};
 use std::borrow::Cow;
 use std::convert::TryInto;
-use std::ffi::OsString;
 use std::fs::DirEntry;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use failure::Fallible;
 
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
 struct FSItem {
-    name: OsString,
     size: u64,
     itemtype: FSItemType,
+    children_names: Vec<PathBuf>,
     #[serde(skip)]
     children: Vec<KeyBuf>,
 }
@@ -75,6 +74,7 @@ pub fn internal_put_fs_item<DS: DataStore>(
 
     if meta.is_dir() {
         let mut result = Vec::new();
+        let mut result_names = Vec::new();
 
         let entries = std::fs::read_dir(path)?;
 
@@ -83,6 +83,7 @@ pub fn internal_put_fs_item<DS: DataStore>(
                 Ok(direntry) => {
                     if filter(&direntry) {
                         result.push(internal_put_fs_item(ds, &direntry.path(), filter, false)?);
+                        result_names.push(direntry.file_name().into());
                     }
                 }
                 Err(e) => Err(e)?,
@@ -91,26 +92,9 @@ pub fn internal_put_fs_item<DS: DataStore>(
 
         let size = result.len() as u64;
 
-        let name;
-
-        if is_root {
-            name = OsString::new();
-        } else {
-            if let Some(f) = path.file_name() {
-                name = f.to_os_string();
-            } else {
-                let canon = path.canonicalize()?;
-
-                name = canon
-                    .file_name()
-                    .expect("we tried to canonicalize the filename and it still has no name")
-                    .to_os_string();
-            }
-        }
-
         let obj = FSItem {
-            name,
             children: result,
+            children_names: result_names,
             itemtype: FSItemType::Dir,
             size,
         };
@@ -127,14 +111,9 @@ pub fn internal_put_fs_item<DS: DataStore>(
 
         let hash = file::put_data(ds, reader)?;
 
-        #[allow(clippy::option_unwrap_used)]
-        // From the docs: "Returns None if the path terminates in `..`."
-        // Therefore, this can never fail since we will only execute this if it's a valid filename.
-        let fname = path.file_name().unwrap();
-
         let obj = FSItem {
-            name: fname.to_os_string(),
             children: vec![hash],
+            children_names: vec![],
             itemtype: FSItemType::File,
             size: meta.len(),
         };
@@ -154,21 +133,19 @@ pub fn get_fs_item<DS: DataStore>(ds: &DS, key: &KeyBuf, path: &Path) -> Fallibl
 
     match fsobj.itemtype {
         FSItemType::Dir => {
-            for child in fsobj.children {
-                get_fs_item(ds, &child, &path.join(&fsobj.name))?;
+            for (child, name) in fsobj.children.iter().zip(fsobj.children_names.iter()) {
+                get_fs_item(ds, &child, &path.join(&name))?;
             }
         }
         FSItemType::File => {
-            let fpath = &path.join(&fsobj.name);
-
-            if let Some(parent) = fpath.parent() {
+            if let Some(parent) = path.parent() {
                 std::fs::create_dir_all(parent)?;
             }
 
             let mut f = std::fs::OpenOptions::new()
                 .write(true)
                 .create_new(true)
-                .open(fpath)?;
+                .open(path)?;
 
             file::read_data(ds, &fsobj.children[0], &mut f)?;
         }
