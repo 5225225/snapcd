@@ -111,6 +111,18 @@ enum DebugCommand {
     CommitTree(CommitTreeArgs),
     ReflogGet(ReflogGetArgs),
     ReflogPush(ReflogPushArgs),
+    WalkTree(WalkTreeArgs),
+    WalkFsTree(WalkFsTreeArgs),
+}
+
+#[derive(StructOpt, Debug)]
+pub struct WalkTreeArgs {
+    key: Keyish,
+}
+
+#[derive(StructOpt, Debug)]
+struct WalkFsTreeArgs {
+    path: PathBuf,
 }
 
 #[derive(StructOpt, Debug)]
@@ -196,7 +208,34 @@ fn debug(state: &mut State, args: DebugCommand) -> CMDResult {
         DebugCommand::CommitTree(args) => debug_commit_tree(state, args),
         DebugCommand::ReflogGet(args) => debug_reflog_get(state, args),
         DebugCommand::ReflogPush(args) => debug_reflog_push(state, args),
+        DebugCommand::WalkTree(args) => debug_walk_tree(state, args),
+        DebugCommand::WalkFsTree(args) => debug_walk_fs_tree(state, args),
     }
+}
+
+fn debug_walk_tree(state: &mut State, args: WalkTreeArgs) -> CMDResult {
+    let ds = state.ds.as_mut().ok_or(DatabaseNotFoundError)?;
+
+    let key = ds.canonicalize(args.key)?;
+
+    let fs_items = dir::walk_fs_items(ds, &key, &PathBuf::new())?;
+
+    for item in fs_items {
+        println!("{:?}, {}", item.0, item.1)
+    }
+
+    Ok(())
+}
+
+fn debug_walk_fs_tree(state: &mut State, args: WalkFsTreeArgs) -> CMDResult {
+    let fs_items = dir::walk_real_fs_items(&args.path, &|_| true)?;
+
+    for item in fs_items {
+        println!("{:?}, {}", item.0, item.1)
+    }
+
+    Ok(())
+
 }
 
 fn debug_pretty_print(state: &mut State, args: PrettyPrintArgs) -> CMDResult {

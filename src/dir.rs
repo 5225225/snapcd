@@ -7,7 +7,7 @@ use std::path::{Path, PathBuf};
 use failure::Fallible;
 
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
-struct FSItem {
+pub struct FSItem {
     size: u64,
     itemtype: FSItemType,
     children_names: Vec<PathBuf>,
@@ -61,15 +61,6 @@ pub fn put_fs_item<DS: DataStore>(
     path: &Path,
     filter: &dyn Fn(&DirEntry) -> bool,
 ) -> Fallible<KeyBuf> {
-    internal_put_fs_item(ds, path, filter, true)
-}
-
-pub fn internal_put_fs_item<DS: DataStore>(
-    ds: &mut DS,
-    path: &Path,
-    filter: &dyn Fn(&DirEntry) -> bool,
-    is_root: bool,
-) -> Fallible<KeyBuf> {
     let meta = std::fs::metadata(path)?;
 
     if meta.is_dir() {
@@ -82,7 +73,7 @@ pub fn internal_put_fs_item<DS: DataStore>(
             match entry {
                 Ok(direntry) => {
                     if filter(&direntry) {
-                        result.push(internal_put_fs_item(ds, &direntry.path(), filter, false)?);
+                        result.push(put_fs_item(ds, &direntry.path(), filter)?);
                         result_names.push(direntry.file_name().into());
                     }
                 }
@@ -152,4 +143,69 @@ pub fn get_fs_item<DS: DataStore>(ds: &DS, key: &KeyBuf, path: &Path) -> Fallibl
     }
 
     Ok(())
+}
+
+pub fn walk_fs_items<DS: DataStore>(ds: &DS, key: &KeyBuf, path: &Path) -> Fallible<Vec<(PathBuf, bool)>> {
+    let mut results = Vec::new();
+    
+    let obj = ds.get_obj(key)?;
+
+    let fsobj: FSItem = obj.try_into()?;
+
+    match fsobj.itemtype {
+        FSItemType::Dir => {
+            results.push((path.to_path_buf(), true));
+
+            for (child, name) in fsobj.children.iter().zip(fsobj.children_names.iter()) {
+                results.extend(walk_fs_items(ds, &child, &path.join(&name))?);
+            }
+        }
+        FSItemType::File => {
+            results.push((path.to_path_buf(), false));
+        }
+    }
+
+    Ok(results)
+}
+
+pub fn walk_real_fs_items(base_path: &Path, filter: &dyn Fn(&DirEntry) -> bool) -> Fallible<Vec<(PathBuf, bool)>> {
+    internal_walk_real_fs_items(base_path, &PathBuf::new(), filter)
+}
+
+pub fn internal_walk_real_fs_items(
+    base_path: &Path,
+    path: &Path,
+    filter: &dyn Fn(&DirEntry) -> bool,
+) -> Fallible<Vec<(PathBuf, bool)>> {
+    let mut results = Vec::new();
+
+    let curr_path = base_path.join(path);
+
+    let meta = std::fs::metadata(&curr_path)?;
+
+    if meta.is_dir() {
+        let entries = std::fs::read_dir(&curr_path)?;
+
+        results.push((path.to_path_buf(), true));
+
+        for entry in entries {
+            match entry {
+                Ok(direntry) => {
+                    if filter(&direntry) {
+                        let p = path.join(direntry.file_name());
+                        results.extend(internal_walk_real_fs_items(base_path, &p, filter)?);
+                    }
+                }
+                Err(e) => Err(e)?,
+            }
+        }
+
+        return Ok(results);
+    }
+
+    if meta.is_file() {
+        return Ok(vec![(path.to_path_buf(), false)]);
+    }
+
+    unimplemented!("meta is not a file or a directory?")
 }
