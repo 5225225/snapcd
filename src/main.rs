@@ -66,6 +66,15 @@ enum Command {
 
     /// Shows an object
     Show(ShowArgs),
+
+    /// Compares a path with an object tree
+    Compare(CompareArgs),
+}
+
+#[derive(StructOpt, Debug)]
+struct CompareArgs {
+    path: PathBuf,
+    key: Keyish,
 }
 
 #[derive(StructOpt, Debug)]
@@ -218,7 +227,7 @@ fn debug_walk_tree(state: &mut State, args: WalkTreeArgs) -> CMDResult {
 
     let key = ds.canonicalize(args.key)?;
 
-    let fs_items = dir::walk_fs_items(ds, &key, &PathBuf::new())?;
+    let fs_items = dir::walk_fs_items(ds, &key)?;
 
     for item in fs_items {
         println!("{:?}, {}", item.0, item.1)
@@ -371,6 +380,29 @@ fn setup_sqlite_callback() -> rusqlite::Result<()> {
     Ok(())
 }
 
+fn compare(state: &mut State, args: CompareArgs) -> CMDResult {
+    let ds = state.ds.as_mut().ok_or(DatabaseNotFoundError)?;
+
+    let key = ds.canonicalize(args.key)?;
+
+    let db_items = dir::walk_fs_items(ds, &key)?;
+
+    let fs_items = dir::walk_real_fs_items(&args.path, &|_| true)?;
+
+    let in_db_only = db_items.difference(&fs_items);
+    let in_fs_only = fs_items.difference(&db_items);
+    
+    for item in in_db_only {
+        println!("deleted: {}", item.0.display());
+    }
+
+    for item in in_fs_only {
+        println!("added:   {}", item.0.display());
+    }
+
+    Ok(())
+}
+
 fn main() -> CMDResult {
     let opt = Opt::from_args();
 
@@ -423,6 +455,7 @@ fn main() -> CMDResult {
         Command::Init(args) => init(&mut state, args),
         Command::Commit(args) => commit_cmd(&mut state, args),
         Command::Show(args) => show(&mut state, args),
+        Command::Compare(args) => compare(&mut state, args),
     };
 
     if let Err(e) = result {

@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use crate::{file, DataStore, KeyBuf, Object};
 use std::borrow::Cow;
 use std::convert::TryInto;
@@ -145,8 +146,12 @@ pub fn get_fs_item<DS: DataStore>(ds: &DS, key: &KeyBuf, path: &Path) -> Fallibl
     Ok(())
 }
 
-pub fn walk_fs_items<DS: DataStore>(ds: &DS, key: &KeyBuf, path: &Path) -> Fallible<Vec<(PathBuf, bool)>> {
-    let mut results = Vec::new();
+pub fn walk_fs_items<DS: DataStore>(ds: &DS, key: &KeyBuf) -> Fallible<HashSet<(PathBuf, bool)>> {
+    internal_walk_fs_items(ds, key, &PathBuf::new())
+}
+
+pub fn internal_walk_fs_items<DS: DataStore>(ds: &DS, key: &KeyBuf, path: &Path) -> Fallible<HashSet<(PathBuf, bool)>> {
+    let mut results = HashSet::new();
     
     let obj = ds.get_obj(key)?;
 
@@ -154,21 +159,21 @@ pub fn walk_fs_items<DS: DataStore>(ds: &DS, key: &KeyBuf, path: &Path) -> Falli
 
     match fsobj.itemtype {
         FSItemType::Dir => {
-            results.push((path.to_path_buf(), true));
+            results.insert((path.to_path_buf(), true));
 
             for (child, name) in fsobj.children.iter().zip(fsobj.children_names.iter()) {
-                results.extend(walk_fs_items(ds, &child, &path.join(&name))?);
+                results.extend(internal_walk_fs_items(ds, &child, &path.join(&name))?);
             }
         }
         FSItemType::File => {
-            results.push((path.to_path_buf(), false));
+            results.insert((path.to_path_buf(), false));
         }
     }
 
     Ok(results)
 }
 
-pub fn walk_real_fs_items(base_path: &Path, filter: &dyn Fn(&DirEntry) -> bool) -> Fallible<Vec<(PathBuf, bool)>> {
+pub fn walk_real_fs_items(base_path: &Path, filter: &dyn Fn(&DirEntry) -> bool) -> Fallible<HashSet<(PathBuf, bool)>> {
     internal_walk_real_fs_items(base_path, &PathBuf::new(), filter)
 }
 
@@ -176,8 +181,8 @@ pub fn internal_walk_real_fs_items(
     base_path: &Path,
     path: &Path,
     filter: &dyn Fn(&DirEntry) -> bool,
-) -> Fallible<Vec<(PathBuf, bool)>> {
-    let mut results = Vec::new();
+) -> Fallible<HashSet<(PathBuf, bool)>> {
+    let mut results = HashSet::new();
 
     let curr_path = base_path.join(path);
 
@@ -186,13 +191,14 @@ pub fn internal_walk_real_fs_items(
     if meta.is_dir() {
         let entries = std::fs::read_dir(&curr_path)?;
 
-        results.push((path.to_path_buf(), true));
+        results.insert((path.to_path_buf(), true));
 
         for entry in entries {
             match entry {
                 Ok(direntry) => {
                     if filter(&direntry) {
                         let p = path.join(direntry.file_name());
+
                         results.extend(internal_walk_real_fs_items(base_path, &p, filter)?);
                     }
                 }
@@ -204,7 +210,8 @@ pub fn internal_walk_real_fs_items(
     }
 
     if meta.is_file() {
-        return Ok(vec![(path.to_path_buf(), false)]);
+        results.insert((path.to_path_buf(), false));
+        return Ok(results);
     }
 
     unimplemented!("meta is not a file or a directory?")
