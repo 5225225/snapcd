@@ -6,7 +6,7 @@
 
 use failure::Fallible;
 use snapcd::{commit, dir, DataStore, Keyish, Reflog, SqliteDS};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs::DirEntry;
 use std::path::{Path, PathBuf};
 use structopt::StructOpt;
@@ -230,7 +230,7 @@ fn debug_walk_tree(state: &mut State, args: WalkTreeArgs) -> CMDResult {
     let fs_items = dir::walk_fs_items(ds, &key)?;
 
     for item in fs_items {
-        println!("{:?}, {}", item.0, item.1)
+        println!("{:?}", item)
     }
 
     Ok(())
@@ -386,19 +386,37 @@ fn compare(state: &mut State, args: CompareArgs) -> CMDResult {
     let key = ds.canonicalize(args.key)?;
 
     let db_items = dir::walk_fs_items(ds, &key)?;
+    let db_items_keys: HashSet<_> = db_items.keys().collect();
 
     let fs_items = dir::walk_real_fs_items(&args.path, &|_| true)?;
+    let fs_items_keys: HashSet<_> = fs_items.keys().collect();
 
-    let in_db_only = db_items.difference(&fs_items);
-    let in_fs_only = fs_items.difference(&db_items);
+    let in_db_only = db_items_keys.difference(&fs_items_keys);
+    let in_fs_only = fs_items_keys.difference(&db_items_keys);
+    let in_both = fs_items_keys.intersection(&db_items_keys);
     
     for item in in_db_only {
-        println!("deleted: {}", item.0.display());
+        println!("deleted: {}", item.display());
     }
 
     for item in in_fs_only {
-        println!("added:   {}", item.0.display());
+        println!("added:   {}", item.display());
     }
+
+    for item in in_both {
+        let db_key = &db_items[*item];
+
+        if fs_items[*item] {
+            continue;
+        }
+
+        let fs_item_key = dir::hash_fs_item(ds, &args.path.join(item))?;
+
+        if db_key.0 != fs_item_key {
+            println!("modified: {}", item.display());
+        }
+    }
+
 
     Ok(())
 }

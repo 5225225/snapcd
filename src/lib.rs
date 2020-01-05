@@ -14,7 +14,7 @@ pub mod commit;
 pub mod dir;
 pub mod file;
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum KeyBuf {
     Blake2B(Vec<u8>),
 }
@@ -367,8 +367,44 @@ pub enum GetReflogError {
 }
 
 pub trait DataStore {
-    fn get<'a>(&'a self, key: &KeyBuf) -> Fallible<Cow<'a, [u8]>>;
-    fn put(&self, data: Vec<u8>) -> Fallible<KeyBuf>;
+    fn raw_get<'a>(&'a self, key: &[u8]) -> Fallible<Cow<'a, [u8]>>;
+    fn raw_put<'a>(&'a self, key: &[u8], data: &[u8]) -> Fallible<()>;
+    fn raw_exists(&self, key: &[u8]) -> Fallible<bool>;
+
+    fn get<'a>(&'a self, key: &KeyBuf) -> Fallible<Cow<'a, [u8]>> {
+        let results = self.raw_get(&key.as_db_key())?;
+
+        let cursor = Cursor::new(results);
+
+        let decompressed = zstd::decode_all(cursor)?;
+
+        Ok(Cow::Owned(decompressed))
+    }
+
+    fn hash(&self, data: &[u8]) -> KeyBuf {
+        let mut b2 = Blake2b::new();
+        b2.input(&data);
+        let hash = b2.result();
+        KeyBuf::Blake2B(hash.to_vec())
+    }
+
+    fn put(&self, data: Vec<u8>) -> Fallible<KeyBuf> {
+        let mut b2 = Blake2b::new();
+        b2.input(&data);
+        let hash = b2.result();
+
+        let keybuf = KeyBuf::Blake2B(hash.to_vec());
+
+        if !self.raw_exists(&keybuf.as_db_key())? {
+            let cursor = Cursor::new(data);
+
+            let compressed = zstd::encode_all(cursor, 6)?;
+
+            self.raw_put(&keybuf.as_db_key(), &compressed)?;
+        }
+
+        Ok(keybuf)
+    }
 
     fn reflog_push(&self, data: &Reflog) -> Fallible<()>;
     fn reflog_get(&self, refname: &str, remote: Option<&str>) -> Result<KeyBuf, GetReflogError>;
@@ -473,51 +509,35 @@ impl DataStore for SqliteDS {
         Ok(())
     }
 
-    fn get<'a>(&'a self, key: &KeyBuf) -> Fallible<Cow<'a, [u8]>> {
+    fn raw_get<'a>(&'a self, key: &[u8]) -> Fallible<Cow<'a, [u8]>> {
         let results: Vec<u8> = self.conn.query_row(
             "SELECT value FROM data WHERE key=?",
-            params![key.as_db_key()],
+            params![key],
             |row| row.get(0),
         )?;
 
-        let cursor = Cursor::new(results);
-
-        let decompressed = zstd::decode_all(cursor)?;
-
-        Ok(Cow::Owned(decompressed))
+        Ok(Cow::Owned(results))
     }
 
-    fn put(&self, data: Vec<u8>) -> Fallible<KeyBuf> {
-        let mut b2 = Blake2b::new();
-        b2.input(&data);
-        let hash = b2.result();
-
-        let keybuf = KeyBuf::Blake2B(hash.to_vec());
-
-        let count: u32 = self.conn.query_row(
-            "SELECT COUNT(*) FROM data WHERE key=?",
-            params![keybuf.as_db_key()],
-            |row| row.get(0),
+    fn raw_put<'a>(&'a self, key: &[u8], data: &[u8]) -> Fallible<()> {
+        self.conn.execute(
+            "INSERT OR IGNORE INTO data VALUES (?, ?)",
+            params![key, data],
         )?;
 
-        match count {
-            0 => {
-                let cursor = Cursor::new(data);
+        Ok(())
+    }
 
-                let compressed = zstd::encode_all(cursor, 6)?;
+    fn raw_exists(&self, key: &[u8]) -> Fallible<bool> {
+        let count: u32 = self.conn.query_row(
+            "SELECT COUNT(*) FROM data WHERE key=?",
+            params![key],
+            |row| row.get(0),
+        )?;
+        
+        assert!(count == 0 || count == 1);
 
-                self.conn.execute(
-                    "INSERT OR IGNORE INTO data VALUES (?, ?)",
-                    params![keybuf.as_db_key(), compressed],
-                )?;
-            }
-            1 => {}
-            2..=0xffff_ffff => {
-                failure::bail!("data error: multiple keys found for same value?");
-            }
-        }
-
-        Ok(keybuf)
+        Ok(count == 1)
     }
 
     fn canonicalize(&self, search: Keyish) -> Result<KeyBuf, CanonicalizeError> {
