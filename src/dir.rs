@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use crate::{file, DataStore, KeyBuf, Object};
+use crate::{file, DataStore, KeyBuf, Object, cache::Cache, cache::CacheKey};
 use std::borrow::Cow;
 use std::convert::TryInto;
 use std::fs::DirEntry;
@@ -118,18 +118,33 @@ pub fn put_fs_item<DS: DataStore>(
     unimplemented!("meta is not a file or a directory?")
 }
 
-pub fn hash_fs_item<DS: DataStore>(
+pub fn hash_fs_item<DS: DataStore, C: Cache>(
     ds: &mut DS,
     path: &Path,
+    cache: &C,
 ) -> Fallible<KeyBuf> {
     let meta = std::fs::metadata(path)?;
 
     if meta.is_file() {
+        use std::os::unix::fs::MetadataExt;
+
         let f = std::fs::File::open(path)?;
+
+        let ext_metadata = f.metadata()?;
+        let cache_key = CacheKey {
+                    mtime: ext_metadata.mtime(),
+                    inode: ext_metadata.ino(),
+                    size: ext_metadata.size(),
+                };
+
+        if let Some(h) = cache.get(cache_key)? {
+            return Ok(h);
+        }
 
         let reader = std::io::BufReader::new(f);
 
         let hash = file::put_data(ds, reader)?;
+
 
         let obj = FSItem {
             children: vec![hash],
@@ -140,7 +155,11 @@ pub fn hash_fs_item<DS: DataStore>(
 
         let object = obj.try_into()?;
 
-        return Ok(ds.put_obj(&object)?);
+        let obj_hash = ds.put_obj(&object)?;
+
+        cache.put(cache_key, &obj_hash);
+
+        return Ok(obj_hash);
     }
 
     unimplemented!("cannot hash non-files")

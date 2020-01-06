@@ -5,7 +5,7 @@
 #![allow(clippy::needless_pass_by_value)]
 
 use failure::Fallible;
-use snapcd::{commit, dir, DataStore, Keyish, Reflog, SqliteDS};
+use snapcd::{commit, dir, DataStore, Keyish, Reflog, SqliteDS, cache::SqliteCache};
 use std::collections::{HashMap, HashSet};
 use std::fs::DirEntry;
 use std::path::{Path, PathBuf};
@@ -44,6 +44,7 @@ struct Common {
 
 struct State {
     ds: Option<SqliteDS>,
+    cache: SqliteCache,
     common: Common,
 }
 
@@ -363,7 +364,6 @@ fn show(state: &mut State, args: ShowArgs) -> CMDResult {
     Ok(())
 }
 
-
 fn sqlite_logging_callback(err_code: i32, err_msg: &str) {
     log::warn!("sqlite error {}: {}", err_code, err_msg);
 }
@@ -410,7 +410,7 @@ fn compare(state: &mut State, args: CompareArgs) -> CMDResult {
             continue;
         }
 
-        let fs_item_key = dir::hash_fs_item(ds, &args.path.join(item))?;
+        let fs_item_key = dir::hash_fs_item(ds, &args.path.join(item), &state.cache)?;
 
         if db_key.0 != fs_item_key {
             println!("modified: {}", item.display());
@@ -459,8 +459,11 @@ fn main() -> CMDResult {
         Err(x) => return Err(x),
     };
 
+    let cache = SqliteCache::new("cache.db")?;
+
     let mut state = State {
         ds,
+        cache,
         common: opt.common,
     };
 

@@ -13,6 +13,7 @@ use failure::Fallible;
 pub mod commit;
 pub mod dir;
 pub mod file;
+pub mod cache;
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum KeyBuf {
