@@ -5,7 +5,7 @@
 #![allow(clippy::needless_pass_by_value)]
 
 use failure::Fallible;
-use snapcd::{commit, dir, DataStore, Keyish, Reflog, SqliteDS, cache::SqliteCache};
+use snapcd::{cache::SqliteCache, commit, dir, DataStore, Keyish, Reflog, SqliteDS};
 use std::collections::{HashMap, HashSet};
 use std::fs::DirEntry;
 use std::path::{Path, PathBuf};
@@ -245,7 +245,6 @@ fn debug_walk_fs_tree(state: &mut State, args: WalkFsTreeArgs) -> CMDResult {
     }
 
     Ok(())
-
 }
 
 fn debug_pretty_print(state: &mut State, args: PrettyPrintArgs) -> CMDResult {
@@ -394,7 +393,7 @@ fn compare(state: &mut State, args: CompareArgs) -> CMDResult {
     let in_db_only = db_items_keys.difference(&fs_items_keys);
     let in_fs_only = fs_items_keys.difference(&db_items_keys);
     let in_both = fs_items_keys.intersection(&db_items_keys);
-    
+
     for item in in_db_only {
         println!("deleted: {}", item.display());
     }
@@ -416,7 +415,6 @@ fn compare(state: &mut State, args: CompareArgs) -> CMDResult {
             println!("modified: {}", item.display());
         }
     }
-
 
     Ok(())
 }

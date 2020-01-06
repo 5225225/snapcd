@@ -10,12 +10,14 @@ use std::io::Cursor;
 
 use failure::Fallible;
 
+pub mod cache;
 pub mod commit;
 pub mod dir;
 pub mod file;
-pub mod cache;
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(
+    Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq, Eq, PartialOrd, Ord, Hash,
+)]
 pub enum KeyBuf {
     Blake2B(Vec<u8>),
 }
@@ -157,10 +159,10 @@ struct ObjectShowPrinter<'a>(&'a Object<'a>);
 impl<'a> std::fmt::Display for ObjectShowPrinter<'a> {
     fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
         match self.0.objtype {
-            _ => { 
+            _ => {
                 debug_assert!(false, "unable to format {}", self.0.objtype);
-                return Err(std::fmt::Error)
-            },
+                return Err(std::fmt::Error);
+            }
         }
 
         Ok(())
@@ -511,11 +513,11 @@ impl DataStore for SqliteDS {
     }
 
     fn raw_get<'a>(&'a self, key: &[u8]) -> Fallible<Cow<'a, [u8]>> {
-        let results: Vec<u8> = self.conn.query_row(
-            "SELECT value FROM data WHERE key=?",
-            params![key],
-            |row| row.get(0),
-        )?;
+        let results: Vec<u8> =
+            self.conn
+                .query_row("SELECT value FROM data WHERE key=?", params![key], |row| {
+                    row.get(0)
+                })?;
 
         Ok(Cow::Owned(results))
     }
@@ -535,7 +537,7 @@ impl DataStore for SqliteDS {
             params![key],
             |row| row.get(0),
         )?;
-        
+
         assert!(count == 0 || count == 1);
 
         Ok(count == 1)

@@ -1,6 +1,6 @@
-use std::collections::HashMap;
-use crate::{file, DataStore, KeyBuf, Object, cache::Cache, cache::CacheKey};
+use crate::{cache::Cache, cache::CacheKey, file, DataStore, KeyBuf, Object};
 use std::borrow::Cow;
+use std::collections::HashMap;
 use std::convert::TryInto;
 use std::fs::DirEntry;
 use std::path::{Path, PathBuf};
@@ -132,10 +132,10 @@ pub fn hash_fs_item<DS: DataStore, C: Cache>(
 
         let ext_metadata = f.metadata()?;
         let cache_key = CacheKey {
-                    mtime: ext_metadata.mtime(),
-                    inode: ext_metadata.ino(),
-                    size: ext_metadata.size(),
-                };
+            mtime: ext_metadata.mtime(),
+            inode: ext_metadata.ino(),
+            size: ext_metadata.size(),
+        };
 
         if let Some(h) = cache.get(cache_key)? {
             return Ok(h);
@@ -144,7 +144,6 @@ pub fn hash_fs_item<DS: DataStore, C: Cache>(
         let reader = std::io::BufReader::new(f);
 
         let hash = file::put_data(ds, reader)?;
-
 
         let obj = FSItem {
             children: vec![hash],
@@ -193,13 +192,20 @@ pub fn get_fs_item<DS: DataStore>(ds: &DS, key: &KeyBuf, path: &Path) -> Fallibl
     Ok(())
 }
 
-pub fn walk_fs_items<DS: DataStore>(ds: &DS, key: &KeyBuf) -> Fallible<HashMap<PathBuf, (KeyBuf, bool)>> {
+pub fn walk_fs_items<DS: DataStore>(
+    ds: &DS,
+    key: &KeyBuf,
+) -> Fallible<HashMap<PathBuf, (KeyBuf, bool)>> {
     internal_walk_fs_items(ds, key, &PathBuf::new())
 }
 
-pub fn internal_walk_fs_items<DS: DataStore>(ds: &DS, key: &KeyBuf, path: &Path) -> Fallible<HashMap<PathBuf, (KeyBuf, bool)>> {
+pub fn internal_walk_fs_items<DS: DataStore>(
+    ds: &DS,
+    key: &KeyBuf,
+    path: &Path,
+) -> Fallible<HashMap<PathBuf, (KeyBuf, bool)>> {
     let mut results = HashMap::new();
-    
+
     let obj = ds.get_obj(key)?;
 
     let fsobj: FSItem = obj.try_into()?;
@@ -220,7 +226,10 @@ pub fn internal_walk_fs_items<DS: DataStore>(ds: &DS, key: &KeyBuf, path: &Path)
     Ok(results)
 }
 
-pub fn walk_real_fs_items(base_path: &Path, filter: &dyn Fn(&DirEntry) -> bool) -> Fallible<HashMap<PathBuf, bool>> {
+pub fn walk_real_fs_items(
+    base_path: &Path,
+    filter: &dyn Fn(&DirEntry) -> bool,
+) -> Fallible<HashMap<PathBuf, bool>> {
     internal_walk_real_fs_items(base_path, &PathBuf::new(), filter)
 }
 
