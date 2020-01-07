@@ -5,7 +5,10 @@
 #![allow(clippy::needless_pass_by_value)]
 
 use failure::Fallible;
-use snapcd::{cache::SqliteCache, commit, dir, DataStore, Keyish, Reflog, SqliteDS};
+use snapcd::{
+    cache::{Cache, SqliteCache},
+    commit, dir, DataStore, Keyish, Reflog, SqliteDS,
+};
 use std::collections::{HashMap, HashSet};
 use std::fs::DirEntry;
 use std::path::{Path, PathBuf};
@@ -466,6 +469,7 @@ fn main() -> CMDResult {
     };
 
     state.ds.as_mut().map(|x| x.begin_trans());
+    state.cache.begin_trans();
 
     let result = match opt.cmd {
         Command::Insert(args) => insert(&mut state, args),
@@ -483,8 +487,10 @@ fn main() -> CMDResult {
         println!("fatal: {}", e);
 
         state.ds.as_mut().map(|x| x.rollback());
+        state.cache.rollback();
     } else {
         state.ds.as_mut().map(|x| x.commit());
+        state.cache.commit();
     }
 
     Ok(())

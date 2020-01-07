@@ -36,6 +36,16 @@ pub trait Cache {
 
         self.raw_put(&data, &value.as_db_key());
     }
+
+    fn begin_trans(&mut self) -> Fallible<()> {
+        Ok(())
+    }
+    fn commit(&mut self) -> Fallible<()> {
+        Ok(())
+    }
+    fn rollback(&mut self) -> Fallible<()> {
+        Ok(())
+    }
 }
 
 pub struct SqliteCache {
@@ -82,6 +92,21 @@ impl Cache for SqliteCache {
             params![key, data],
         )?;
 
+        Ok(())
+    }
+
+    fn begin_trans(&mut self) -> Fallible<()> {
+        self.conn.execute("BEGIN TRANSACTION", params![])?;
+        Ok(())
+    }
+
+    fn commit(&mut self) -> Fallible<()> {
+        self.conn.execute("COMMIT", params![])?;
+        Ok(())
+    }
+
+    fn rollback(&mut self) -> Fallible<()> {
+        self.conn.execute("ROLLBACK", params![])?;
         Ok(())
     }
 }
