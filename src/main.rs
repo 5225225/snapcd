@@ -28,12 +28,11 @@ struct Opt {
 
 #[derive(StructOpt, Debug)]
 struct Common {
-    /// Path to sqlite database
+    /// Path to database folder
     #[structopt(
         short = "-d",
         long = "--db",
-        default_value = "snapcd.db",
-        global = true
+        default_value = ".snapcd",
     )]
     db_path: PathBuf,
 
@@ -47,6 +46,7 @@ struct Common {
 
 struct State {
     ds: Option<SqliteDS>,
+    db_folder_path: Option<PathBuf>,
     cache: SqliteCache,
     common: Common,
 }
@@ -77,17 +77,20 @@ enum Command {
 
 #[derive(StructOpt, Debug)]
 struct CompareArgs {
+    #[structopt(short = "-e", long = "--exclude", required(false))]
+    exclude: Vec<String>,
+
     path: PathBuf,
     key: Keyish,
 }
 
 #[derive(StructOpt, Debug)]
 struct CommitArgs {
+    #[structopt(short = "-e", long = "--exclude", required(false))]
+    exclude: Vec<String>,
+
     path: PathBuf,
     refname: String,
-
-    #[structopt(short = "-e", long = "--exclude")]
-    exclude: Vec<String>,
 }
 
 #[derive(StructOpt, Debug)]
@@ -169,7 +172,7 @@ struct CommitTreeArgs {
 #[fail(display = "database could not be found (maybe run snapcd init)")]
 struct DatabaseNotFoundError;
 
-fn make_filter_fn<T: AsRef<str>>(excludes: &[T]) -> Box<dyn Fn(&DirEntry) -> bool> {
+fn make_filter_fn<T: AsRef<str>>(excludes: &[T], db_path: &Option<PathBuf>) -> Box<dyn Fn(&DirEntry) -> bool> {
     let mut excl_globs = globset::GlobSetBuilder::new();
 
     for exclude in excludes {
@@ -178,8 +181,19 @@ fn make_filter_fn<T: AsRef<str>>(excludes: &[T]) -> Box<dyn Fn(&DirEntry) -> boo
 
     let excl_globset = excl_globs.build().unwrap();
 
+    let cloned_db_path: Option<PathBuf> = db_path.clone();
+
     Box::new(move |direntry: &DirEntry| -> bool {
         let path = direntry.path();
+
+        if let Some(p) = &cloned_db_path {
+            let canon_path = std::fs::canonicalize(&path).unwrap();
+            let canon_p = std::fs::canonicalize(&p).unwrap();
+
+            if canon_path.starts_with(canon_p) {
+                return false;
+            }
+        }
 
         let normalised_path;
 
@@ -196,7 +210,7 @@ fn make_filter_fn<T: AsRef<str>>(excludes: &[T]) -> Box<dyn Fn(&DirEntry) -> boo
 fn insert(state: &mut State, args: InsertArgs) -> CMDResult {
     let ds = state.ds.as_mut().ok_or(DatabaseNotFoundError)?;
 
-    let filter = make_filter_fn(&args.exclude);
+    let filter = make_filter_fn(&args.exclude, &state.db_folder_path);
 
     let hash = dir::put_fs_item(ds, &args.path, &filter)?;
 
@@ -309,7 +323,7 @@ fn debug_reflog_push(state: &mut State, args: ReflogPushArgs) -> CMDResult {
     Ok(())
 }
 
-fn find_db_file(name: &Path) -> Fallible<Option<PathBuf>> {
+fn find_db_folder(name: &Path) -> Fallible<Option<PathBuf>> {
     let cwd = std::env::current_dir()?;
 
     let mut d = &*cwd;
@@ -331,7 +345,8 @@ fn find_db_file(name: &Path) -> Fallible<Option<PathBuf>> {
 }
 
 fn init(state: &mut State, _args: InitArgs) -> CMDResult {
-    SqliteDS::new(&state.common.db_path)?;
+    std::fs::create_dir_all(&state.common.db_path)?;
+    SqliteDS::new(&state.common.db_path.join("snapcd.db"))?;
 
     Ok(())
 }
@@ -339,7 +354,7 @@ fn init(state: &mut State, _args: InitArgs) -> CMDResult {
 fn commit_cmd(state: &mut State, args: CommitArgs) -> CMDResult {
     let ds = state.ds.as_mut().ok_or(DatabaseNotFoundError)?;
 
-    let filter = make_filter_fn(&args.exclude);
+    let filter = make_filter_fn(&args.exclude, &state.db_folder_path);
 
     let key = dir::put_fs_item(ds, &args.path, &filter)?;
 
@@ -390,7 +405,9 @@ fn compare(state: &mut State, args: CompareArgs) -> CMDResult {
     let db_items = dir::walk_fs_items(ds, &key)?;
     let db_items_keys: HashSet<_> = db_items.keys().collect();
 
-    let fs_items = dir::walk_real_fs_items(&args.path, &|_| true)?;
+    let exclude = make_filter_fn(&args.exclude, &state.db_folder_path);
+
+    let fs_items = dir::walk_real_fs_items(&args.path, &exclude)?;
     let fs_items_keys: HashSet<_> = fs_items.keys().collect();
 
     let in_db_only = db_items_keys.difference(&fs_items_keys);
@@ -448,24 +465,41 @@ fn main() -> CMDResult {
 
     log::debug!("parsed command line: {:?}", opt);
 
-    let ds: Option<SqliteDS> = match find_db_file(&opt.common.db_path) {
+    let db_folder_path;
+
+    let ds: Option<SqliteDS> = match find_db_folder(&opt.common.db_path) {
         Ok(Some(x)) => {
             log::info!("using db path {}", x.display());
-            Some(SqliteDS::new(x)?)
+            db_folder_path = Some(x.clone());
+            Some(SqliteDS::new(x.join("snapcd.db"))?)
         }
         Ok(None) => {
             log::info!("found no db");
+            db_folder_path = None;
             None
         }
         Err(x) => return Err(x),
     };
 
-    let cache = SqliteCache::new("cache.db")?;
 
+    let cache = match dirs::cache_dir() {
+        Some(mut d) => {
+            d.push("snapcd");
+            std::fs::create_dir_all(&d)?;
+            d.push("cache.db");
+            SqliteCache::new(d)?
+        }
+        None => {
+            log::warn!("cache not found, using in memory cache");
+            SqliteCache::new(":memory:")?
+        }
+    };
+    
     let mut state = State {
         ds,
         cache,
         common: opt.common,
+        db_folder_path,
     };
 
     state.ds.as_mut().map(|x| x.begin_trans());
