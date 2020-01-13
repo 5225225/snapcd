@@ -26,6 +26,7 @@ simplelog = "0.7.4"
 log = "0.4.8"
 globset = "0.4.4"
 dirs = "2.0.2"
+term = "0.6.1"
 
 [profile.release]
 debug = true

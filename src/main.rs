@@ -18,7 +18,10 @@ use simplelog::{LevelFilter, TermLogError, TerminalMode};
 
 type CMDResult = Fallible<()>;
 
+use structopt::clap::AppSettings;
+
 #[derive(StructOpt, Debug)]
+#[structopt(global_setting=AppSettings::ColoredHelp)]
 struct Opt {
     #[structopt(flatten)]
     common: Common,
@@ -42,6 +45,10 @@ struct Common {
 
     #[structopt(short = "-q", long = "--quiet", global = true)]
     quiet: bool,
+
+    /// Paths to exclude
+    #[structopt(short = "-e", long = "--exclude", number_of_values(1), global = true)]
+    exclude: Vec<String>,
 }
 
 struct State {
@@ -77,17 +84,12 @@ enum Command {
 
 #[derive(StructOpt, Debug)]
 struct CompareArgs {
-    #[structopt(short = "-e", long = "--exclude", required(false))]
-    exclude: Vec<String>,
-
     path: PathBuf,
     key: Keyish,
 }
 
 #[derive(StructOpt, Debug)]
 struct CommitArgs {
-    #[structopt(short = "-e", long = "--exclude", required(false))]
-    exclude: Vec<String>,
 
     path: PathBuf,
     refname: String,
@@ -103,10 +105,6 @@ struct ShowArgs {
 struct InsertArgs {
     /// Path of the file to insert
     path: PathBuf,
-
-    /// Files to exclude. Similar syntax as in gitignore.
-    #[structopt(short = "-e", long = "--exclude")]
-    exclude: Vec<String>,
 }
 
 #[derive(StructOpt, Debug)]
@@ -116,9 +114,6 @@ struct FetchArgs {
 
     /// Destination path to write to
     dest: PathBuf,
-
-    #[structopt(short = "-e", long = "--exclude")]
-    exclude: Vec<PathBuf>,
 }
 
 #[derive(StructOpt, Debug)]
@@ -210,7 +205,7 @@ fn make_filter_fn<T: AsRef<str>>(excludes: &[T], db_path: &Option<PathBuf>) -> B
 fn insert(state: &mut State, args: InsertArgs) -> CMDResult {
     let ds = state.ds.as_mut().ok_or(DatabaseNotFoundError)?;
 
-    let filter = make_filter_fn(&args.exclude, &state.db_folder_path);
+    let filter = make_filter_fn(&state.common.exclude, &state.db_folder_path);
 
     let hash = dir::put_fs_item(ds, &args.path, &filter)?;
 
@@ -354,7 +349,7 @@ fn init(state: &mut State, _args: InitArgs) -> CMDResult {
 fn commit_cmd(state: &mut State, args: CommitArgs) -> CMDResult {
     let ds = state.ds.as_mut().ok_or(DatabaseNotFoundError)?;
 
-    let filter = make_filter_fn(&args.exclude, &state.db_folder_path);
+    let filter = make_filter_fn(&state.common.exclude, &state.db_folder_path);
 
     let key = dir::put_fs_item(ds, &args.path, &filter)?;
 
@@ -405,7 +400,7 @@ fn compare(state: &mut State, args: CompareArgs) -> CMDResult {
     let db_items = dir::walk_fs_items(ds, &key)?;
     let db_items_keys: HashSet<_> = db_items.keys().collect();
 
-    let exclude = make_filter_fn(&args.exclude, &state.db_folder_path);
+    let exclude = make_filter_fn(&state.common.exclude, &state.db_folder_path);
 
     let fs_items = dir::walk_real_fs_items(&args.path, &exclude)?;
     let fs_items_keys: HashSet<_> = fs_items.keys().collect();
