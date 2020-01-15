@@ -258,7 +258,7 @@ impl std::str::FromStr for Keyish {
             } else {
                 let mut end = input;
 
-                end += bitvec![BigEndian, u8; 1];
+                end += bitvec![Msb0, u8; 1];
 
                 let mut v = end.into_vec();
 
@@ -272,7 +272,7 @@ impl std::str::FromStr for Keyish {
     }
 }
 
-fn pop_u5_from_bitvec(x: &mut BitVec<BigEndian, u8>) -> u8 {
+fn pop_u5_from_bitvec(x: &mut BitVec<Msb0, u8>) -> u8 {
     let mut v = 0;
     for to_shift in (0..5).rev() {
         if x.is_empty() {
@@ -295,8 +295,8 @@ pub enum FromBase32Error {
     UnknownByte(char),
 }
 
-fn from_base32(x: &str, max_len: usize) -> Fallible<BitVec<BigEndian, u8>> {
-    let mut result = BitVec::<BigEndian, u8>::new();
+fn from_base32(x: &str, max_len: usize) -> Fallible<BitVec<Msb0, u8>> {
+    let mut result = BitVec::<Msb0, u8>::new();
 
     for mut ch in x.bytes() {
         if (b'A'..=b'Z').contains(&ch) {
@@ -323,7 +323,7 @@ fn from_base32(x: &str, max_len: usize) -> Fallible<BitVec<BigEndian, u8>> {
 static TABLE: [u8; 32] = *b"abcdefghijklmnopqrstuvwxyz234567";
 
 fn to_base32(x: &[u8]) -> String {
-    let mut scratch = BitVec::<BigEndian, u8>::from_vec(x.to_vec());
+    let mut scratch = BitVec::<Msb0, u8>::from_vec(x.to_vec());
     let mut ret = String::new();
     while !scratch.is_empty() {
         let v = pop_u5_from_bitvec(&mut scratch);
