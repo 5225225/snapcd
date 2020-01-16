@@ -406,11 +406,11 @@ fn compare(state: &mut State, args: CompareArgs) -> CMDResult {
     let in_both = fs_items_keys.intersection(&db_items_keys);
 
     for item in in_db_only {
-        println!("deleted: {}", item.display());
+        println!("deleted:  {}", item.display());
     }
 
     for item in in_fs_only {
-        println!("added:   {}", item.display());
+        println!("added:    {}", item.display());
     }
 
     for item in in_both {
