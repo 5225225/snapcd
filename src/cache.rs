@@ -2,10 +2,9 @@ use crate::KeyBuf;
 
 use failure::Fallible;
 use rusqlite::{params, OptionalExtension};
-use std::borrow::Cow;
 use std::path::Path;
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct CacheKey {
     pub inode: u64,
     pub mtime: i64,
@@ -27,14 +26,16 @@ pub trait Cache {
         Ok(cache_result.map(|x| KeyBuf::from_db_key(&x)))
     }
 
-    fn put(&self, cachekey: CacheKey, value: &KeyBuf) {
+    fn put(&self, cachekey: CacheKey, value: &KeyBuf) -> Fallible<()> {
         let mut data = Vec::with_capacity(8 * 3);
 
         data.extend(cachekey.inode.to_le_bytes().iter());
         data.extend(cachekey.mtime.to_le_bytes().iter());
         data.extend(cachekey.size.to_le_bytes().iter());
 
-        self.raw_put(&data, &value.as_db_key());
+        self.raw_put(&data, &value.as_db_key())?;
+
+        Ok(())
     }
 
     fn begin_trans(&mut self) -> Fallible<()> {

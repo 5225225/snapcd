@@ -32,11 +32,7 @@ struct Opt {
 #[derive(StructOpt, Debug)]
 struct Common {
     /// Path to database folder
-    #[structopt(
-        short = "-d",
-        long = "--db",
-        default_value = ".snapcd",
-    )]
+    #[structopt(short = "-d", long = "--db", default_value = ".snapcd")]
     db_path: PathBuf,
 
     /// Verbosity. Provide multiple times to increase (-vv, -vvv).
@@ -90,7 +86,6 @@ struct CompareArgs {
 
 #[derive(StructOpt, Debug)]
 struct CommitArgs {
-
     path: PathBuf,
     refname: String,
 }
@@ -167,7 +162,10 @@ struct CommitTreeArgs {
 #[fail(display = "database could not be found (maybe run snapcd init)")]
 struct DatabaseNotFoundError;
 
-fn make_filter_fn<T: AsRef<str>>(excludes: &[T], db_path: &Option<PathBuf>) -> Box<dyn Fn(&DirEntry) -> bool> {
+fn make_filter_fn<T: AsRef<str>>(
+    excludes: &[T],
+    db_path: &Option<PathBuf>,
+) -> Box<dyn Fn(&DirEntry) -> bool> {
     let mut excl_globs = globset::GlobSetBuilder::new();
 
     for exclude in excludes {
@@ -190,13 +188,11 @@ fn make_filter_fn<T: AsRef<str>>(excludes: &[T], db_path: &Option<PathBuf>) -> B
             }
         }
 
-        let normalised_path;
-
-        if path.starts_with("./") {
-            normalised_path = path.strip_prefix("./").unwrap();
+        let normalised_path = if path.starts_with("./") {
+            path.strip_prefix("./").unwrap()
         } else {
-            normalised_path = &path;
-        }
+            &path
+        };
 
         !excl_globset.is_match(normalised_path)
     })
@@ -249,7 +245,7 @@ fn debug_walk_tree(state: &mut State, args: WalkTreeArgs) -> CMDResult {
     Ok(())
 }
 
-fn debug_walk_fs_tree(state: &mut State, args: WalkFsTreeArgs) -> CMDResult {
+fn debug_walk_fs_tree(_state: &mut State, args: WalkFsTreeArgs) -> CMDResult {
     let fs_items = dir::walk_real_fs_items(&args.path, &|_| true)?;
 
     for item in fs_items {
@@ -476,7 +472,6 @@ fn main() -> CMDResult {
         Err(x) => return Err(x),
     };
 
-
     let cache = match dirs::cache_dir() {
         Some(mut d) => {
             d.push("snapcd");
@@ -489,7 +484,7 @@ fn main() -> CMDResult {
             SqliteCache::new(":memory:")?
         }
     };
-    
+
     let mut state = State {
         ds,
         cache,
@@ -498,7 +493,7 @@ fn main() -> CMDResult {
     };
 
     state.ds.as_mut().map(|x| x.begin_trans());
-    state.cache.begin_trans();
+    state.cache.begin_trans()?;
 
     let result = match opt.cmd {
         Command::Insert(args) => insert(&mut state, args),
@@ -516,10 +511,10 @@ fn main() -> CMDResult {
         println!("fatal: {}", e);
 
         state.ds.as_mut().map(|x| x.rollback());
-        state.cache.rollback();
+        state.cache.rollback()?;
     } else {
         state.ds.as_mut().map(|x| x.commit());
-        state.cache.commit();
+        state.cache.commit()?;
     }
 
     Ok(())

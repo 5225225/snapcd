@@ -50,6 +50,7 @@ impl TryInto<Commit> for Object<'static> {
     }
 }
 
+#[allow(clippy::implicit_hasher)]
 pub fn commit_tree<DS: DataStore>(
     ds: &mut DS,
     tree: KeyBuf,

@@ -157,15 +157,13 @@ impl<'a> std::fmt::Display for ObjectPrettyPrinter<'a> {
 struct ObjectShowPrinter<'a>(&'a Object<'a>);
 
 impl<'a> std::fmt::Display for ObjectShowPrinter<'a> {
-    fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
+    fn fmt(&self, _fmt: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
         match self.0.objtype {
             _ => {
                 debug_assert!(false, "unable to format {}", self.0.objtype);
-                return Err(std::fmt::Error);
+                Err(std::fmt::Error)
             }
         }
-
-        Ok(())
     }
 }
 
@@ -197,7 +195,7 @@ impl std::str::FromStr for Keyish {
     type Err = KeyishParseError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        if s.contains("/") {
+        if s.contains('/') {
             return parse_from_ref(s);
         } else {
             return parse_from_base32(s);
@@ -205,24 +203,24 @@ impl std::str::FromStr for Keyish {
 
         fn parse_from_ref(s: &str) -> Result<Keyish, KeyishParseError> {
             let idx = s
-                .find("/")
+                .find('/')
                 .expect("should only be called if s contains a /");
 
             if idx == 0 {
-                return Ok(Keyish::Reflog {
+                Ok(Keyish::Reflog {
                     orig: s.to_string(),
                     keyname: s[1..].to_string(),
                     remote: None,
-                });
+                })
             } else {
                 let remote = &s[0..idx];
                 let keyname = &s[idx + 1..];
 
-                return Ok(Keyish::Reflog {
+                Ok(Keyish::Reflog {
                     orig: s.to_string(),
                     keyname: keyname.to_string(),
                     remote: Some(remote.to_string()),
-                });
+                })
             }
         }
 

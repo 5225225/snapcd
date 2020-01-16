@@ -78,7 +78,7 @@ pub fn put_fs_item<DS: DataStore>(
                         result_names.push(direntry.file_name().into());
                     }
                 }
-                Err(e) => Err(e)?,
+                Err(e) => return Err(e.into()),
             }
         }
 
@@ -156,7 +156,15 @@ pub fn hash_fs_item<DS: DataStore, C: Cache>(
 
         let obj_hash = ds.put_obj(&object)?;
 
-        cache.put(cache_key, &obj_hash);
+        match cache.put(cache_key, &obj_hash) {
+            Ok(()) => {}
+            Err(e) => log::warn!(
+                "Error {:?} putting cache entry {:?} as {}",
+                e,
+                cache_key,
+                &obj_hash
+            ),
+        }
 
         return Ok(obj_hash);
     }
@@ -258,7 +266,7 @@ pub fn internal_walk_real_fs_items(
                         results.extend(internal_walk_real_fs_items(base_path, &p, filter)?);
                     }
                 }
-                Err(e) => Err(e)?,
+                Err(e) => return Err(e.into()),
             }
         }
 
