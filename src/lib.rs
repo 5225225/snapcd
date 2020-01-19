@@ -14,6 +14,8 @@ pub mod cache;
 pub mod commit;
 pub mod dir;
 pub mod file;
+pub mod diff;
+pub mod filter;
 
 #[derive(
     Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq, Eq, PartialOrd, Ord, Hash,
@@ -57,7 +59,7 @@ impl KeyBuf {
         result
     }
 
-    fn as_user_key(&self) -> String {
+    pub fn as_user_key(&self) -> String {
         let mut result = String::new();
 
         let prefix = match self {
@@ -372,6 +374,9 @@ pub trait DataStore {
     fn raw_put<'a>(&'a self, key: &[u8], data: &[u8]) -> Fallible<()>;
     fn raw_exists(&self, key: &[u8]) -> Fallible<bool>;
 
+    fn raw_get_state<'a>(&'a self, key: &[u8]) -> Fallible<Option<Vec<u8>>>;
+    fn raw_put_state<'a>(&'a self, key: &[u8], data: &[u8]) -> Fallible<()>;
+
     fn get<'a>(&'a self, key: &KeyBuf) -> Fallible<Cow<'a, [u8]>> {
         let results = self.raw_get(&key.as_db_key())?;
 
@@ -405,6 +410,20 @@ pub trait DataStore {
         }
 
         Ok(keybuf)
+    }
+
+    fn get_head(&self) -> Fallible<Option<String>> {
+        let bytes = self.raw_get_state(b"HEAD")?;
+
+        Ok(match bytes {
+            Some(b) => Some(String::from_utf8(b)?),
+            None => None,
+        })
+    }
+
+    fn put_head(&self, head: &str) -> Fallible<()> {
+        self.raw_put_state(b"HEAD", head.as_bytes())?;
+        Ok(())
     }
 
     fn reflog_push(&self, data: &Reflog) -> Fallible<()>;
@@ -448,6 +467,11 @@ impl SqliteDS {
         conn.execute_batch(
             "
             CREATE TABLE IF NOT EXISTS data (
+                key BLOB NOT NULL UNIQUE PRIMARY KEY,
+                value BLOB NOT NULL
+            ) WITHOUT ROWID;
+
+            CREATE TABLE IF NOT EXISTS state (
                 key BLOB NOT NULL UNIQUE PRIMARY KEY,
                 value BLOB NOT NULL
             ) WITHOUT ROWID;
@@ -523,6 +547,25 @@ impl DataStore for SqliteDS {
     fn raw_put<'a>(&'a self, key: &[u8], data: &[u8]) -> Fallible<()> {
         self.conn.execute(
             "INSERT OR IGNORE INTO data VALUES (?, ?)",
+            params![key, data],
+        )?;
+
+        Ok(())
+    }
+
+    fn raw_get_state<'a>(&'a self, key: &[u8]) -> Fallible<Option<Vec<u8>>> {
+        let results: Result<Option<Vec<u8>>, _> =
+            self.conn
+                .query_row("SELECT value FROM state WHERE key=?", params![key], |row| {
+                    row.get(0)
+                }).optional();
+
+        Ok(results?)
+    }
+
+    fn raw_put_state<'a>(&'a self, key: &[u8], data: &[u8]) -> Fallible<()> {
+        self.conn.execute(
+            "INSERT INTO state VALUES (?, ?)",
             params![key, data],
         )?;
 

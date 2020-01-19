@@ -7,7 +7,7 @@
 use failure::Fallible;
 use snapcd::{
     cache::{Cache, SqliteCache},
-    commit, dir, DataStore, Keyish, Reflog, SqliteDS,
+    commit, dir, DataStore, Keyish, Reflog, SqliteDS, filter, diff,
 };
 use std::collections::{HashMap, HashSet};
 use std::fs::DirEntry;
@@ -50,6 +50,7 @@ struct Common {
 struct State {
     ds: Option<SqliteDS>,
     db_folder_path: Option<PathBuf>,
+    repo_path: Option<PathBuf>,
     cache: SqliteCache,
     common: Common,
 }
@@ -76,18 +77,26 @@ enum Command {
 
     /// Compares a path with an object tree
     Compare(CompareArgs),
+
+    /// Gets status
+    Status(StatusArgs),
 }
 
 #[derive(StructOpt, Debug)]
+struct StatusArgs {}
+
+#[derive(StructOpt, Debug)]
 struct CompareArgs {
-    path: PathBuf,
-    key: Keyish,
+    #[structopt(short = "-p", long = "--path")]
+    path: Option<PathBuf>,
+    key: Option<Keyish>,
 }
 
 #[derive(StructOpt, Debug)]
 struct CommitArgs {
-    path: PathBuf,
-    refname: String,
+    #[structopt(short = "-p", long = "--path")]
+    path: Option<PathBuf>,
+    refname: Option<String>,
 }
 
 #[derive(StructOpt, Debug)]
@@ -119,6 +128,16 @@ enum DebugCommand {
     ReflogPush(ReflogPushArgs),
     WalkTree(WalkTreeArgs),
     WalkFsTree(WalkFsTreeArgs),
+    SetHead(SetHeadArgs),
+    GetHead(GetHeadArgs),
+}
+
+#[derive(StructOpt, Debug)]
+pub struct GetHeadArgs {}
+
+#[derive(StructOpt, Debug)]
+pub struct SetHeadArgs {
+    refname: String,
 }
 
 #[derive(StructOpt, Debug)]
@@ -162,46 +181,14 @@ struct CommitTreeArgs {
 #[fail(display = "database could not be found (maybe run snapcd init)")]
 struct DatabaseNotFoundError;
 
-fn make_filter_fn<T: AsRef<str>>(
-    excludes: &[T],
-    db_path: &Option<PathBuf>,
-) -> Box<dyn Fn(&DirEntry) -> bool> {
-    let mut excl_globs = globset::GlobSetBuilder::new();
-
-    for exclude in excludes {
-        excl_globs.add(globset::Glob::new(exclude.as_ref()).unwrap());
-    }
-
-    let excl_globset = excl_globs.build().unwrap();
-
-    let cloned_db_path: Option<PathBuf> = db_path.clone();
-
-    Box::new(move |direntry: &DirEntry| -> bool {
-        let path = direntry.path();
-
-        if let Some(p) = &cloned_db_path {
-            let canon_path = std::fs::canonicalize(&path).unwrap();
-            let canon_p = std::fs::canonicalize(&p).unwrap();
-
-            if canon_path.starts_with(canon_p) {
-                return false;
-            }
-        }
-
-        let normalised_path = if path.starts_with("./") {
-            path.strip_prefix("./").unwrap()
-        } else {
-            &path
-        };
-
-        !excl_globset.is_match(normalised_path)
-    })
-}
+#[derive(Debug, failure_derive::Fail)]
+#[fail(display = "an operation that requires a HEAD was run, without being given one, and no head has been set")]
+struct NoHeadError;
 
 fn insert(state: &mut State, args: InsertArgs) -> CMDResult {
     let ds = state.ds.as_mut().ok_or(DatabaseNotFoundError)?;
 
-    let filter = make_filter_fn(&state.common.exclude, &state.db_folder_path);
+    let filter = filter::make_filter_fn(&state.common.exclude, &state.db_folder_path);
 
     let hash = dir::put_fs_item(ds, &args.path, &filter)?;
 
@@ -228,7 +215,26 @@ fn debug(state: &mut State, args: DebugCommand) -> CMDResult {
         DebugCommand::ReflogPush(args) => debug_reflog_push(state, args),
         DebugCommand::WalkTree(args) => debug_walk_tree(state, args),
         DebugCommand::WalkFsTree(args) => debug_walk_fs_tree(state, args),
+        DebugCommand::SetHead(args) => debug_set_head(state, args),
+        DebugCommand::GetHead(args) => debug_get_head(state, args),
     }
+}
+
+fn debug_set_head(state: &mut State, args: SetHeadArgs) -> CMDResult {
+    let ds = state.ds.as_mut().ok_or(DatabaseNotFoundError)?;
+
+    ds.put_head(&args.refname)?;
+
+    Ok(())
+}
+
+fn debug_get_head(state: &mut State, _args: GetHeadArgs) -> CMDResult {
+    let ds = state.ds.as_mut().ok_or(DatabaseNotFoundError)?;
+
+    let head = ds.get_head()?;
+    println!("head: {:?}", head);
+
+    Ok(())
 }
 
 fn debug_walk_tree(state: &mut State, args: WalkTreeArgs) -> CMDResult {
@@ -345,13 +351,23 @@ fn init(state: &mut State, _args: InitArgs) -> CMDResult {
 fn commit_cmd(state: &mut State, args: CommitArgs) -> CMDResult {
     let ds = state.ds.as_mut().ok_or(DatabaseNotFoundError)?;
 
-    let filter = make_filter_fn(&state.common.exclude, &state.db_folder_path);
+    let filter = filter::make_filter_fn(&state.common.exclude, &state.db_folder_path);
 
-    let key = dir::put_fs_item(ds, &args.path, &filter)?;
+    let commit_path = match &args.path {
+        Some(p) => p,
+        None => &state.repo_path.as_ref().expect("repo path must be set if database is set"),
+    };
+
+    let key = dir::put_fs_item(ds, &commit_path, &filter)?;
+
+    let refname = match args.refname {
+        Some(name) => name,
+        None => ds.get_head()?.ok_or(NoHeadError)?,
+    };
 
     let log = Reflog {
         key,
-        refname: args.refname,
+        refname: refname,
         remote: None,
     };
 
@@ -391,14 +407,43 @@ fn setup_sqlite_callback() -> rusqlite::Result<()> {
 fn compare(state: &mut State, args: CompareArgs) -> CMDResult {
     let ds = state.ds.as_mut().ok_or(DatabaseNotFoundError)?;
 
-    let key = ds.canonicalize(args.key)?;
+    let key = match args.key {
+        Some(k) => ds.canonicalize(k)?,
+        None => {
+            let reflog = ds.get_head()?.ok_or(NoHeadError)?;
+            let ref_key = ds.reflog_get(&reflog, None)?;
+            ref_key
+        }
+    };
 
-    let db_items = dir::walk_fs_items(ds, &key)?;
+    let path = match &args.path {
+        Some(p) => p,
+        None => &state.repo_path.as_ref().expect(""),
+    };
+
+    let result = diff::compare(ds, diff::DiffTarget::FileSystem(path.clone(), state.common.exclude.clone(), state.db_folder_path.as_ref().expect("needs db folder").clone()), key, &mut state.cache)?;
+
+    diff::print_diff_result(result);
+
+    Ok(())
+}
+
+fn status(state: &mut State, args: StatusArgs) -> CMDResult {
+    let ds = state.ds.as_mut().ok_or(DatabaseNotFoundError)?;
+
+    let reflog = ds.get_head()?.ok_or(NoHeadError)?;
+
+    let ref_key = ds.reflog_get(&reflog, None)?;
+    let path = &state.repo_path.as_ref().expect("status needs a path");
+
+    println!("HEAD: {} [{}]", reflog, &ref_key.as_user_key()[0..8]);
+
+    let db_items = dir::walk_fs_items(ds, &ref_key)?;
     let db_items_keys: HashSet<_> = db_items.keys().collect();
 
-    let exclude = make_filter_fn(&state.common.exclude, &state.db_folder_path);
+    let exclude = filter::make_filter_fn(&state.common.exclude, &state.db_folder_path);
 
-    let fs_items = dir::walk_real_fs_items(&args.path, &exclude)?;
+    let fs_items = dir::walk_real_fs_items(&path, &exclude)?;
     let fs_items_keys: HashSet<_> = fs_items.keys().collect();
 
     let in_db_only = db_items_keys.difference(&fs_items_keys);
@@ -420,7 +465,8 @@ fn compare(state: &mut State, args: CompareArgs) -> CMDResult {
             continue;
         }
 
-        let fs_item_key = dir::hash_fs_item(ds, &args.path.join(item), &state.cache)?;
+
+        let fs_item_key = dir::hash_fs_item(ds, &path.join(item), &state.cache)?;
 
         if db_key.0 != fs_item_key {
             println!("modified: {}", item.display());
@@ -457,23 +503,28 @@ fn main() -> CMDResult {
     log::debug!("parsed command line: {:?}", opt);
 
     let db_folder_path;
+    let repo_path;
 
     let ds: Option<SqliteDS> = match find_db_folder(&opt.common.db_path) {
         Ok(Some(x)) => {
-            log::info!("using db path {}", x.display());
             db_folder_path = Some(x.clone());
+            repo_path = Some(x.parent().expect("failed to get parent of db folder?").into());
             Some(SqliteDS::new(x.join("snapcd.db"))?)
         }
         Ok(None) => {
-            log::info!("found no db");
             db_folder_path = None;
+            repo_path = None;
             None
         }
         Err(x) => return Err(x),
     };
 
+    log::info!("using db folder path {:?}", db_folder_path);
+    log::info!("using repo path {:?}", repo_path);
+
     let cache = match dirs::cache_dir() {
         Some(mut d) => {
+            log::info!("using cache dir {}", d.display());
             d.push("snapcd");
             std::fs::create_dir_all(&d)?;
             d.push("cache.db");
@@ -490,6 +541,7 @@ fn main() -> CMDResult {
         cache,
         common: opt.common,
         db_folder_path,
+        repo_path,
     };
 
     state.ds.as_mut().map(|x| x.begin_trans());
@@ -503,6 +555,7 @@ fn main() -> CMDResult {
         Command::Commit(args) => commit_cmd(&mut state, args),
         Command::Show(args) => show(&mut state, args),
         Command::Compare(args) => compare(&mut state, args),
+        Command::Status(args) => status(&mut state, args),
     };
 
     if let Err(e) = result {

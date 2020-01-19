@@ -23,6 +23,8 @@ dirs = "2.0.2"
 rand = "0.7.3"
 rand_chacha = "0.2.1"
 criterion = "0.3.0"
+either = "1.5.3"
+colored = "1.9.2"
 
 [dev-dependencies]
 
