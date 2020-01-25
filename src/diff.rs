@@ -44,8 +44,8 @@ pub fn compare<DS: DataStore>(
     );
     let to_keys: HashSet<PathBuf> = to_map.keys().cloned().collect();
 
-    let in_from_only = to_keys.difference(&from_keys).cloned().collect();
-    let in_to_only = from_keys.difference(&to_keys).cloned().collect();
+    let mut in_from_only: Vec<_> = to_keys.difference(&from_keys).cloned().collect();
+    let mut in_to_only: Vec<_> = from_keys.difference(&to_keys).cloned().collect();
     let in_both: Vec<_> = from_keys.intersection(&to_keys).collect();
 
     let mut modified = Vec::new();
@@ -75,24 +75,11 @@ pub fn compare<DS: DataStore>(
         if f != t.0 {
             modified.push(path.clone());
         }
-
-        //        from.either(|x| x[path], |x| x[path]);
-        //        let x: () = path;
-        //        let db_key = &from.either(|x| dir::hash_fs_item(ds, item, cache), |x| x[item].0);
-
-        //        if to[*item] {
-        //            continue;
-        //        }
-
-        /*
-
-        let fs_item_key = dir::hash_fs_item(ds, &path.join(item), &state.cache)?;
-
-        if db_key.0 != fs_item_key {
-            println!("modified: {}", item.display());
-        }
-        */
     }
+
+    in_from_only.sort_unstable();
+    in_to_only.sort_unstable();
+    modified.sort_unstable();
 
     Ok(DiffResult {
         deleted: in_from_only,
@@ -105,17 +92,27 @@ pub fn print_diff_result(r: DiffResult) {
     use colored::*;
 
     if !r.added.is_empty() {
+        let mut already_added: HashSet<PathBuf> = HashSet::new();
         println!("{}", "added:".green());
         for p in r.added {
-            println!("  {}", p.display());
+            if !already_added.iter().any(|x| p.starts_with(x)) {
+                println!("  {}", p.display());
+                already_added.insert(p);
+            }
         }
     }
     if !r.deleted.is_empty() {
+        let mut already_added: HashSet<PathBuf> = HashSet::new();
         println!("{}", "deleted:".red());
         for p in r.deleted {
-            println!("  {}", p.display());
+            if !already_added.iter().any(|x| p.starts_with(x)) {
+                println!("  {}", p.display());
+                already_added.insert(p);
+            }
         }
     }
+
+    // Directories can't be modified, so we don't need to simplify here
     if !r.modified.is_empty() {
         println!("{}", "modified:".blue());
         for p in r.modified {

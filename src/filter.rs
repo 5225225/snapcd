@@ -1,11 +1,8 @@
-use crate::{
-    cache::{Cache, SqliteCache},
-    commit, dir, DataStore, Keyish, Reflog, SqliteDS,
-};
-use failure::Fallible;
-use std::collections::{HashMap, HashSet};
+
+
+
 use std::fs::DirEntry;
-use std::path::{Path, PathBuf};
+use std::path::{PathBuf};
 
 pub fn make_filter_fn<T: AsRef<str>>(
     excludes: &[T],

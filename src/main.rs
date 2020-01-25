@@ -10,7 +10,7 @@ use snapcd::{
     commit, diff, dir, filter, DataStore, Keyish, Reflog, SqliteDS,
 };
 use std::collections::{HashMap, HashSet};
-use std::fs::DirEntry;
+
 use std::path::{Path, PathBuf};
 use structopt::StructOpt;
 
@@ -452,7 +452,7 @@ fn compare(state: &mut State, args: CompareArgs) -> CMDResult {
     Ok(())
 }
 
-fn status(state: &mut State, args: StatusArgs) -> CMDResult {
+fn status(state: &mut State, _args: StatusArgs) -> CMDResult {
     let ds = state.ds.as_mut().ok_or(DatabaseNotFoundError)?;
 
     let reflog = ds.get_head()?.ok_or(NoHeadError)?;
@@ -499,7 +499,7 @@ fn status(state: &mut State, args: StatusArgs) -> CMDResult {
     Ok(())
 }
 
-fn checkout(state: &mut State, args: CheckoutArgs) -> CMDResult {
+fn checkout(state: &mut State, _args: CheckoutArgs) -> CMDResult {
     let ds = state.ds.as_ref().ok_or(DatabaseNotFoundError)?;
 
     let reflog = ds.get_head()?.ok_or(NoHeadError)?;
