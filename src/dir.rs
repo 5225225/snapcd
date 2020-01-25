@@ -1,6 +1,6 @@
 use crate::{cache::Cache, cache::CacheKey, file, DataStore, KeyBuf, Object};
 use std::borrow::Cow;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::convert::TryInto;
 use std::fs::DirEntry;
 use std::path::{Path, PathBuf};
@@ -192,6 +192,64 @@ pub fn get_fs_item<DS: DataStore>(ds: &DS, key: &KeyBuf, path: &Path) -> Fallibl
                 .write(true)
                 .create_new(true)
                 .open(path)?;
+
+            file::read_data(ds, &fsobj.children[0], &mut f)?;
+        }
+    }
+
+    Ok(())
+}
+
+pub fn checkout_fs_item<DS: DataStore>(
+    ds: &DS,
+    key: &KeyBuf,
+    path: &Path,
+    filter: &dyn Fn(&DirEntry) -> bool,
+) -> Fallible<()> {
+    let obj = ds.get_obj(key)?;
+
+    let fsobj: FSItem = obj.try_into()?;
+
+    match fsobj.itemtype {
+        FSItemType::Dir => {
+            let db_items: HashSet<PathBuf> = fsobj.children_names.iter().cloned().collect();
+
+            let mut fs_items = HashSet::new();
+
+            for item in std::fs::read_dir(&path)? {
+                let ok_item = item?;
+
+                if filter(&ok_item) {
+                    fs_items.insert(ok_item.file_name().into());
+                }
+            }
+
+            let extra: Vec<_> = fs_items.difference(&db_items).collect();
+
+            for item in extra.iter() {
+                assert!(path.starts_with("/home/jess/src/snapcd/repo"));
+                let p = path.join(item);
+                let ft = std::fs::metadata(&p)?.file_type();
+
+                if ft.is_dir() {
+                    std::fs::remove_dir_all(p)?;
+                } else if ft.is_file() {
+                    std::fs::remove_file(p)?;
+                } else if ft.is_symlink() {
+                    unimplemented!("not handing symlinks at the moment, bailing");
+                }
+            }
+
+            for (child, name) in fsobj.children.iter().zip(fsobj.children_names.iter()) {
+                std::fs::create_dir_all(&path)?;
+
+                checkout_fs_item(ds, &child, &path.join(&name), filter)?;
+            }
+        }
+        FSItemType::File => {
+            let mut f = std::fs::File::create(path)?;
+
+            assert!(path.starts_with("/home/jess/src/snapcd/repo"));
 
             file::read_data(ds, &fsobj.children[0], &mut f)?;
         }

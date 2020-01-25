@@ -1,8 +1,8 @@
-use failure::Fallible;
+use crate::{cache, dir, filter};
 use crate::{DataStore, KeyBuf};
-use crate::{dir, filter, cache};
-use std::path::PathBuf;
+use failure::Fallible;
 use std::collections::HashSet;
+use std::path::PathBuf;
 
 pub enum DiffTarget {
     FileSystem(PathBuf, Vec<String>, PathBuf),
@@ -15,7 +15,12 @@ pub struct DiffResult {
     modified: Vec<PathBuf>,
 }
 
-pub fn compare<DS: DataStore>(ds: &mut DS, from: DiffTarget, to: KeyBuf, cache: &mut cache::SqliteCache) -> Fallible<DiffResult> {
+pub fn compare<DS: DataStore>(
+    ds: &mut DS,
+    from: DiffTarget,
+    to: KeyBuf,
+    cache: &mut cache::SqliteCache,
+) -> Fallible<DiffResult> {
     let from_path;
     let from_map = match from {
         DiffTarget::FileSystem(path, filters, folder_path) => {
@@ -33,7 +38,10 @@ pub fn compare<DS: DataStore>(ds: &mut DS, from: DiffTarget, to: KeyBuf, cache: 
 
     let to_map = dir::walk_fs_items(ds, &to)?;
 
-    let from_keys: HashSet<PathBuf> = from_map.clone().either(|x| x.keys().cloned().collect(), |x| x.keys().cloned().collect());
+    let from_keys: HashSet<PathBuf> = from_map.clone().either(
+        |x| x.keys().cloned().collect(),
+        |x| x.keys().cloned().collect(),
+    );
     let to_keys: HashSet<PathBuf> = to_map.keys().cloned().collect();
 
     let in_from_only = to_keys.difference(&from_keys).cloned().collect();
@@ -49,12 +57,17 @@ pub fn compare<DS: DataStore>(ds: &mut DS, from: DiffTarget, to: KeyBuf, cache: 
                 if fs_items[path] {
                     continue;
                 }
-                
-                f = dir::hash_fs_item(ds, &from_path.as_ref().expect("should have been populated").join(path), cache)?;
+
+                f = dir::hash_fs_item(
+                    ds,
+                    &from_path
+                        .as_ref()
+                        .expect("should have been populated")
+                        .join(path),
+                    cache,
+                )?;
             }
-            either::Right(db_items) => {
-                f = db_items[path].0.clone()
-            }
+            either::Right(db_items) => f = db_items[path].0.clone(),
         }
 
         let t = to_map[path].clone();
@@ -63,13 +76,13 @@ pub fn compare<DS: DataStore>(ds: &mut DS, from: DiffTarget, to: KeyBuf, cache: 
             modified.push(path.clone());
         }
 
-//        from.either(|x| x[path], |x| x[path]);
-//        let x: () = path;
-//        let db_key = &from.either(|x| dir::hash_fs_item(ds, item, cache), |x| x[item].0);
+        //        from.either(|x| x[path], |x| x[path]);
+        //        let x: () = path;
+        //        let db_key = &from.either(|x| dir::hash_fs_item(ds, item, cache), |x| x[item].0);
 
-//        if to[*item] {
-//            continue;
-//        }
+        //        if to[*item] {
+        //            continue;
+        //        }
 
         /*
 
@@ -79,7 +92,6 @@ pub fn compare<DS: DataStore>(ds: &mut DS, from: DiffTarget, to: KeyBuf, cache: 
             println!("modified: {}", item.display());
         }
         */
-
     }
 
     Ok(DiffResult {

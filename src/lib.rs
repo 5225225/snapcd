@@ -12,9 +12,9 @@ use failure::Fallible;
 
 pub mod cache;
 pub mod commit;
+pub mod diff;
 pub mod dir;
 pub mod file;
-pub mod diff;
 pub mod filter;
 
 #[derive(
@@ -554,20 +554,19 @@ impl DataStore for SqliteDS {
     }
 
     fn raw_get_state<'a>(&'a self, key: &[u8]) -> Fallible<Option<Vec<u8>>> {
-        let results: Result<Option<Vec<u8>>, _> =
-            self.conn
-                .query_row("SELECT value FROM state WHERE key=?", params![key], |row| {
-                    row.get(0)
-                }).optional();
+        let results: Result<Option<Vec<u8>>, _> = self
+            .conn
+            .query_row("SELECT value FROM state WHERE key=?", params![key], |row| {
+                row.get(0)
+            })
+            .optional();
 
         Ok(results?)
     }
 
     fn raw_put_state<'a>(&'a self, key: &[u8], data: &[u8]) -> Fallible<()> {
-        self.conn.execute(
-            "INSERT INTO state VALUES (?, ?)",
-            params![key, data],
-        )?;
+        self.conn
+            .execute("INSERT INTO state VALUES (?, ?)", params![key, data])?;
 
         Ok(())
     }

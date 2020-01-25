@@ -7,7 +7,7 @@
 use failure::Fallible;
 use snapcd::{
     cache::{Cache, SqliteCache},
-    commit, dir, DataStore, Keyish, Reflog, SqliteDS, filter, diff,
+    commit, diff, dir, filter, DataStore, Keyish, Reflog, SqliteDS,
 };
 use std::collections::{HashMap, HashSet};
 use std::fs::DirEntry;
@@ -80,7 +80,13 @@ enum Command {
 
     /// Gets status
     Status(StatusArgs),
+
+    /// Checks out
+    Checkout(CheckoutArgs),
 }
+
+#[derive(StructOpt, Debug)]
+struct CheckoutArgs {}
 
 #[derive(StructOpt, Debug)]
 struct StatusArgs {}
@@ -182,7 +188,9 @@ struct CommitTreeArgs {
 struct DatabaseNotFoundError;
 
 #[derive(Debug, failure_derive::Fail)]
-#[fail(display = "an operation that requires a HEAD was run, without being given one, and no head has been set")]
+#[fail(
+    display = "an operation that requires a HEAD was run, without being given one, and no head has been set"
+)]
 struct NoHeadError;
 
 fn insert(state: &mut State, args: InsertArgs) -> CMDResult {
@@ -355,7 +363,10 @@ fn commit_cmd(state: &mut State, args: CommitArgs) -> CMDResult {
 
     let commit_path = match &args.path {
         Some(p) => p,
-        None => &state.repo_path.as_ref().expect("repo path must be set if database is set"),
+        None => &state
+            .repo_path
+            .as_ref()
+            .expect("repo path must be set if database is set"),
     };
 
     let key = dir::put_fs_item(ds, &commit_path, &filter)?;
@@ -421,7 +432,20 @@ fn compare(state: &mut State, args: CompareArgs) -> CMDResult {
         None => &state.repo_path.as_ref().expect(""),
     };
 
-    let result = diff::compare(ds, diff::DiffTarget::FileSystem(path.clone(), state.common.exclude.clone(), state.db_folder_path.as_ref().expect("needs db folder").clone()), key, &mut state.cache)?;
+    let result = diff::compare(
+        ds,
+        diff::DiffTarget::FileSystem(
+            path.clone(),
+            state.common.exclude.clone(),
+            state
+                .db_folder_path
+                .as_ref()
+                .expect("needs db folder")
+                .clone(),
+        ),
+        key,
+        &mut state.cache,
+    )?;
 
     diff::print_diff_result(result);
 
@@ -465,7 +489,6 @@ fn status(state: &mut State, args: StatusArgs) -> CMDResult {
             continue;
         }
 
-
         let fs_item_key = dir::hash_fs_item(ds, &path.join(item), &state.cache)?;
 
         if db_key.0 != fs_item_key {
@@ -473,6 +496,18 @@ fn status(state: &mut State, args: StatusArgs) -> CMDResult {
         }
     }
 
+    Ok(())
+}
+
+fn checkout(state: &mut State, args: CheckoutArgs) -> CMDResult {
+    let ds = state.ds.as_ref().ok_or(DatabaseNotFoundError)?;
+
+    let reflog = ds.get_head()?.ok_or(NoHeadError)?;
+    let key = ds.reflog_get(&reflog, None)?;
+
+    let filter = filter::make_filter_fn(&state.common.exclude, &state.db_folder_path);
+
+    dir::checkout_fs_item(ds, &key, &state.repo_path.as_ref().unwrap(), &filter)?;
     Ok(())
 }
 
@@ -508,7 +543,11 @@ fn main() -> CMDResult {
     let ds: Option<SqliteDS> = match find_db_folder(&opt.common.db_path) {
         Ok(Some(x)) => {
             db_folder_path = Some(x.clone());
-            repo_path = Some(x.parent().expect("failed to get parent of db folder?").into());
+            repo_path = Some(
+                x.parent()
+                    .expect("failed to get parent of db folder?")
+                    .into(),
+            );
             Some(SqliteDS::new(x.join("snapcd.db"))?)
         }
         Ok(None) => {
@@ -556,6 +595,7 @@ fn main() -> CMDResult {
         Command::Show(args) => show(&mut state, args),
         Command::Compare(args) => compare(&mut state, args),
         Command::Status(args) => status(&mut state, args),
+        Command::Checkout(args) => checkout(&mut state, args),
     };
 
     if let Err(e) = result {
