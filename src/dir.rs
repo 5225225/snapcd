@@ -278,7 +278,11 @@ pub fn internal_walk_fs_items<DS: DataStore>(
 
     match fsobj.itemtype {
         FSItemType::Dir => {
-            results.insert(path.to_path_buf(), (key.clone(), true));
+            // Same as internal_walk_real_fs_items, we don't want to add an empty entry for the
+            // root.
+            if path.as_os_str().len() > 0 {
+                results.insert(path.to_path_buf(), (key.clone(), true));
+            }
 
             for (child, name) in fsobj.children.iter().zip(fsobj.children_names.iter()) {
                 results.extend(internal_walk_fs_items(ds, &child, &path.join(&name))?);
@@ -313,7 +317,10 @@ pub fn internal_walk_real_fs_items(
     if meta.is_dir() {
         let entries = std::fs::read_dir(&curr_path)?;
 
-        results.insert(path.to_path_buf(), true);
+        // We don't want to add an empty entry for the root
+        if path.as_os_str().len() > 0 {
+            results.insert(path.to_path_buf(), true);
+        }
 
         for entry in entries {
             match entry {

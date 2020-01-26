@@ -9,12 +9,12 @@ blake2 = "0.8.1"
 serde_cbor = "0.11.1"
 serde = { version = "1.0.104", features = ["derive"] }
 cdc = "0.1.0"
-structopt = "0.3.7"
+structopt = "0.3.8"
 rusqlite = { version = "0.21.0", features = ["trace"] }
 zstd = "0.5.1"
 failure = "0.1.6"
 failure_derive = "0.1.6"
-bitvec = "0.17.1"
+bitvec = "0.17.2"
 hex = "0.4.0"
 simplelog = "0.7.4"
 log = "0.4.8"
@@ -24,7 +24,7 @@ either = "1.5.3"
 colored = "1.9.2"
 
 [dev-dependencies]
-criterion = "0.3.0"
+criterion = "0.3.1"
 rand = "0.7.3"
 rand_chacha = "0.2.1"
 

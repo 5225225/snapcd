@@ -1,8 +1,5 @@
-
-
-
 use std::fs::DirEntry;
-use std::path::{PathBuf};
+use std::path::PathBuf;
 
 pub fn make_filter_fn<T: AsRef<str>>(
     excludes: &[T],

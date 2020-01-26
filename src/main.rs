@@ -351,7 +351,9 @@ fn find_db_folder(name: &Path) -> Fallible<Option<PathBuf>> {
 
 fn init(state: &mut State, _args: InitArgs) -> CMDResult {
     std::fs::create_dir_all(&state.common.db_path)?;
-    SqliteDS::new(&state.common.db_path.join("snapcd.db"))?;
+    let ds = SqliteDS::new(&state.common.db_path.join("snapcd.db"))?;
+
+    ds.put_head("master")?;
 
     Ok(())
 }
@@ -457,12 +459,24 @@ fn status(state: &mut State, _args: StatusArgs) -> CMDResult {
 
     let reflog = ds.get_head()?.ok_or(NoHeadError)?;
 
-    let ref_key = ds.reflog_get(&reflog, None)?;
     let path = &state.repo_path.as_ref().expect("status needs a path");
 
-    println!("HEAD: {} [{}]", reflog, &ref_key.as_user_key()[0..8]);
+    let ref_key = ds.reflog_get(&reflog, None).ok();
 
-    let db_items = dir::walk_fs_items(ds, &ref_key)?;
+    match &ref_key {
+        Some(k) => {
+            println!("HEAD: {} [{}]", reflog, &k.as_user_key()[0..8]);
+        }
+        None => {
+            println!("HEAD: {} (no commits on {})", reflog, reflog);
+        }
+    }
+
+    let db_items = match &ref_key {
+        Some(k) => dir::walk_fs_items(ds, &k)?,
+        None => HashMap::new(),
+    };
+
     let db_items_keys: HashSet<_> = db_items.keys().collect();
 
     let exclude = filter::make_filter_fn(&state.common.exclude, &state.db_folder_path);
