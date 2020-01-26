@@ -3,7 +3,7 @@ use std::path::PathBuf;
 
 pub fn make_filter_fn<T: AsRef<str>>(
     excludes: &[T],
-    db_path: &Option<PathBuf>,
+    db_path: PathBuf,
 ) -> Box<dyn Fn(&DirEntry) -> bool> {
     let mut excl_globs = globset::GlobSetBuilder::new();
 
@@ -13,18 +13,14 @@ pub fn make_filter_fn<T: AsRef<str>>(
 
     let excl_globset = excl_globs.build().unwrap();
 
-    let cloned_db_path: Option<PathBuf> = db_path.clone();
-
     Box::new(move |direntry: &DirEntry| -> bool {
         let path = direntry.path();
 
-        if let Some(p) = &cloned_db_path {
-            let canon_path = std::fs::canonicalize(&path).unwrap();
-            let canon_p = std::fs::canonicalize(&p).unwrap();
+        let canon_path = std::fs::canonicalize(&path).unwrap();
+        let canon_db_path = std::fs::canonicalize(&db_path).unwrap();
 
-            if canon_path.starts_with(canon_p) {
-                return false;
-            }
+        if canon_path.starts_with(canon_db_path) {
+            return false;
         }
 
         let normalised_path = if path.starts_with("./") {

@@ -1,7 +1,7 @@
 use crate::{cache, dir, filter};
 use crate::{DataStore, KeyBuf};
 use failure::Fallible;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 
 pub enum DiffTarget {
@@ -18,13 +18,13 @@ pub struct DiffResult {
 pub fn compare<DS: DataStore>(
     ds: &mut DS,
     from: DiffTarget,
-    to: KeyBuf,
+    to: Option<KeyBuf>,
     cache: &mut cache::SqliteCache,
 ) -> Fallible<DiffResult> {
     let from_path;
     let from_map = match from {
         DiffTarget::FileSystem(path, filters, folder_path) => {
-            let exclude = filter::make_filter_fn(&filters, &Some(folder_path));
+            let exclude = filter::make_filter_fn(&filters, folder_path);
             let fs_items = dir::walk_real_fs_items(&path, &exclude)?;
             from_path = Some(path.clone());
             either::Left(fs_items)
@@ -36,7 +36,10 @@ pub fn compare<DS: DataStore>(
         }
     };
 
-    let to_map = dir::walk_fs_items(ds, &to)?;
+    let to_map = match &to {
+        Some(t) => dir::walk_fs_items(ds, &t)?,
+        None => HashMap::new(),
+    };
 
     let from_keys: HashSet<PathBuf> = from_map.clone().either(
         |x| x.keys().cloned().collect(),
