@@ -123,3 +123,7 @@ pub fn print_diff_result(r: DiffResult) {
         }
     }
 }
+
+pub fn diff_result_empty(r: &DiffResult) -> bool {
+    r.added.is_empty() && r.deleted.is_empty() && r.modified.is_empty()
+}

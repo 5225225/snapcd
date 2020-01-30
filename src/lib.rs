@@ -428,6 +428,7 @@ pub trait DataStore {
 
     fn reflog_push(&self, data: &Reflog) -> Fallible<()>;
     fn reflog_get(&self, refname: &str, remote: Option<&str>) -> Result<KeyBuf, GetReflogError>;
+    fn reflog_walk(&self, refname: &str, remote: Option<&str>) -> Result<Vec<KeyBuf>, WalkReflogError>;
 
     fn canonicalize(&self, search: Keyish) -> Result<KeyBuf, CanonicalizeError>;
 
@@ -456,6 +457,12 @@ pub trait DataStore {
 
 pub struct SqliteDS {
     conn: rusqlite::Connection,
+}
+
+#[derive(Debug, Fail)]
+pub enum WalkReflogError {
+    #[fail(display = "sqlite error: {}", _0)]
+    SqliteError(rusqlite::Error),
 }
 
 impl SqliteDS {
@@ -519,6 +526,21 @@ impl DataStore for SqliteDS {
         Ok(())
     }
 
+    fn reflog_walk(&self, refname: &str, remote: Option<&str>) -> Result<Vec<KeyBuf>, WalkReflogError> {
+        let mut statement = self.conn.prepare("SELECT key FROM reflog WHERE refname=? AND remote IS ? ORDER BY id DESC").unwrap();
+
+        let mut rows = statement.query(params![refname, remote]).unwrap();
+
+        let mut keys = Vec::new();
+
+        while let Some(row) = rows.next().unwrap() {
+            let buf: Vec<u8> = row.get(0).unwrap();
+            keys.push(KeyBuf::from_db_key(&buf));
+        }
+
+        Ok(keys)
+    }
+
     fn begin_trans(&mut self) -> Fallible<()> {
         self.conn.execute("BEGIN TRANSACTION", params![])?;
         Ok(())
@@ -566,7 +588,7 @@ impl DataStore for SqliteDS {
 
     fn raw_put_state<'a>(&'a self, key: &[u8], data: &[u8]) -> Fallible<()> {
         self.conn
-            .execute("INSERT INTO state VALUES (?, ?)", params![key, data])?;
+            .execute("INSERT OR REPLACE INTO state VALUES (?, ?)", params![key, data])?;
 
         Ok(())
     }

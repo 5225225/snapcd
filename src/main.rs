@@ -87,6 +87,33 @@ enum Command {
 
     /// Checks out
     Checkout(CheckoutArgs),
+
+    CheckoutHead(CheckoutHeadArgs),
+
+    Ref(RefCommand),
+}
+
+#[derive(StructOpt, Debug)]
+enum RefCommand {
+    Log(RefLogArgs),
+    Update(RefUpdateArgs),
+}
+
+#[derive(StructOpt, Debug)]
+struct RefLogArgs {
+    refname: String,
+    remote: Option<String>,
+}
+
+#[derive(StructOpt, Debug)]
+struct RefUpdateArgs {
+    key: Keyish,
+    refname: Option<String>,
+}
+
+#[derive(StructOpt, Debug)]
+struct CheckoutHeadArgs {
+    refname: String,
 }
 
 #[derive(StructOpt, Debug)]
@@ -229,6 +256,48 @@ fn debug(state: &mut State, args: DebugCommand) -> CMDResult {
         DebugCommand::WalkFsTree(args) => debug_walk_fs_tree(state, args),
         DebugCommand::SetHead(args) => debug_set_head(state, args),
         DebugCommand::GetHead(args) => debug_get_head(state, args),
+    }
+}
+
+fn ref_log(state: &mut State, args: RefLogArgs) -> CMDResult {
+    let ds_state = state.ds_state.as_ref().ok_or(DatabaseNotFoundError)?;
+
+    let keys = ds_state
+        .ds
+        .reflog_walk(&args.refname, args.remote.as_deref())?;
+
+    for key in keys {
+        println!("{}", key);
+    }
+
+    Ok(())
+}
+
+fn ref_update(state: &mut State, args: RefUpdateArgs) -> CMDResult {
+    let ds_state = state.ds_state.as_mut().ok_or(DatabaseNotFoundError)?;
+
+    let key = ds_state.ds.canonicalize(args.key)?;
+
+    let refname = match args.refname {
+        Some(s) => s,
+        None => ds_state.ds.get_head()?.ok_or(NoHeadError)?,
+    };
+
+    let log = Reflog {
+        key,
+        refname,
+        remote: None,
+    };
+
+    ds_state.ds.reflog_push(&log)?;
+
+    Ok(())
+}
+
+fn ref_cmd(state: &mut State, args: RefCommand) -> CMDResult {
+    match args {
+        RefCommand::Log(args) => ref_log(state, args),
+        RefCommand::Update(args) => ref_update(state, args),
     }
 }
 
@@ -499,6 +568,40 @@ fn checkout(state: &mut State, _args: CheckoutArgs) -> CMDResult {
     Ok(())
 }
 
+fn checkout_head(state: &mut State, args: CheckoutHeadArgs) -> CMDResult {
+    let ds_state = state.ds_state.as_mut().ok_or(DatabaseNotFoundError)?;
+
+    let reflog = ds_state.ds.get_head()?.ok_or(NoHeadError)?;
+
+    let path = &ds_state.repo_path;
+
+    let ref_key = ds_state.ds.reflog_get(&reflog, None).ok();
+
+    let result = diff::compare(
+        &mut ds_state.ds,
+        diff::DiffTarget::FileSystem(
+            path.to_path_buf(),
+            state.common.exclude.clone(),
+            ds_state.db_folder_path.clone(),
+        ),
+        ref_key,
+        &mut state.cache,
+    )?;
+
+    if !diff::diff_result_empty(&result) {
+        println!("Cannot checkout: working directory is not clean");
+
+        diff::print_diff_result(result);
+        return Ok(());
+    }
+
+    ds_state.ds.put_head(&args.refname)?;
+
+    println!("Ok, new head.");
+
+    Ok(())
+}
+
 fn main() -> CMDResult {
     let opt = Opt::from_args();
 
@@ -587,6 +690,8 @@ fn main() -> CMDResult {
         Command::Compare(args) => compare(&mut state, args),
         Command::Status(args) => status(&mut state, args),
         Command::Checkout(args) => checkout(&mut state, args),
+        Command::CheckoutHead(args) => checkout_head(&mut state, args),
+        Command::Ref(args) => ref_cmd(&mut state, args),
     };
 
     if let Err(e) = result {
