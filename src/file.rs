@@ -31,8 +31,8 @@ pub fn put_data<DS: DataStore, R: Read>(ds: &mut DS, mut data: R) -> Fallible<Ke
             chunk_buffer.drain(0..boundry);
 
             let zeros = hasher.get_hash().leading_zeros();
-
-            debug_assert!(zeros >= BLOB_ZERO_COUNT);
+            
+            debug_assert!(zeros >= BLOB_ZERO_COUNT || boundry == (1<<BLOB_ZERO_COUNT_MAX));
 
             if current_chunk.len() >= 1 << (BLOB_ZERO_COUNT_MAX) {
                 let key = ds.put_obj(&Object::only_data(
