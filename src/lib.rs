@@ -404,7 +404,7 @@ pub trait DataStore {
         if !self.raw_exists(&keybuf.as_db_key())? {
             let cursor = Cursor::new(data);
 
-            let compressed = zstd::encode_all(cursor, 6)?;
+            let compressed = zstd::encode_all(cursor, 1)?;
 
             self.raw_put(&keybuf.as_db_key(), &compressed)?;
         }

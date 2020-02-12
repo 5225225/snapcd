@@ -22,6 +22,7 @@ fn internal_test(size_upper_bound: usize, seed_lower_bound: u64, seed_upper_boun
         read_data(&data, &hash, &mut to).unwrap();
 
         if to != test_vector {
+            dbg!(to.len(), test_vector.len());
             panic!("failed at seed {}", i);
         }
     }
