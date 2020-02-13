@@ -6,7 +6,6 @@ use std::path::Path;
 use rusqlite::params;
 use rusqlite::OptionalExtension;
 use std::borrow::Cow;
-use std::io::Cursor;
 
 use failure::Fallible;
 
@@ -14,6 +13,7 @@ pub mod cache;
 pub mod commit;
 pub mod diff;
 pub mod dir;
+pub mod ds;
 pub mod file;
 pub mod filter;
 
@@ -372,6 +372,15 @@ pub enum GetReflogError {
 pub trait DataStore {
     fn raw_get<'a>(&'a self, key: &[u8]) -> Fallible<Cow<'a, [u8]>>;
     fn raw_put<'a>(&'a self, key: &[u8], data: &[u8]) -> Fallible<()>;
+
+    fn raw_put_many(&self, keys: &[(&[u8], &[u8])]) -> Fallible<()> {
+        for (key, data) in keys {
+            self.raw_put(key, data)?;
+        }
+
+        Ok(())
+    }
+
     fn raw_exists(&self, key: &[u8]) -> Fallible<bool>;
 
     fn raw_get_state<'a>(&'a self, key: &[u8]) -> Fallible<Option<Vec<u8>>>;
@@ -380,11 +389,7 @@ pub trait DataStore {
     fn get<'a>(&'a self, key: &KeyBuf) -> Fallible<Cow<'a, [u8]>> {
         let results = self.raw_get(&key.as_db_key())?;
 
-        let cursor = Cursor::new(results);
-
-        let decompressed = zstd::decode_all(cursor)?;
-
-        Ok(Cow::Owned(decompressed))
+        Ok(results)
     }
 
     fn hash(&self, data: &[u8]) -> KeyBuf {
@@ -402,11 +407,7 @@ pub trait DataStore {
         let keybuf = KeyBuf::Blake2B(hash.to_vec());
 
         if !self.raw_exists(&keybuf.as_db_key())? {
-            let cursor = Cursor::new(data);
-
-            let compressed = zstd::encode_all(cursor, 1)?;
-
-            self.raw_put(&keybuf.as_db_key(), &compressed)?;
+            self.raw_put(&keybuf.as_db_key(), &data)?;
         }
 
         Ok(keybuf)
@@ -428,9 +429,53 @@ pub trait DataStore {
 
     fn reflog_push(&self, data: &Reflog) -> Fallible<()>;
     fn reflog_get(&self, refname: &str, remote: Option<&str>) -> Result<KeyBuf, GetReflogError>;
-    fn reflog_walk(&self, refname: &str, remote: Option<&str>) -> Result<Vec<KeyBuf>, WalkReflogError>;
+    fn reflog_walk(
+        &self,
+        refname: &str,
+        remote: Option<&str>,
+    ) -> Result<Vec<KeyBuf>, WalkReflogError>;
 
-    fn canonicalize(&self, search: Keyish) -> Result<KeyBuf, CanonicalizeError>;
+    fn raw_between(&self, start: &[u8], end: Option<&[u8]>) -> Fallible<Vec<Vec<u8>>>;
+
+    fn canonicalize(&self, search: Keyish) -> Result<KeyBuf, CanonicalizeError> {
+        let mut results: Vec<Vec<u8>> = Vec::new();
+
+        let err_str;
+
+        match search {
+            Keyish::Key(s, key) => {
+                err_str = s;
+
+                let k = self.raw_get(&key).unwrap();
+                results.push(k.to_vec());
+            }
+            Keyish::Range(s, start, end) => {
+                err_str = s;
+
+                results = self.raw_between(&start, end.as_deref()).unwrap();
+            }
+            Keyish::Reflog {
+                orig,
+                remote,
+                keyname,
+            } => match self.reflog_get(&keyname, remote.as_deref()) {
+                Ok(key) => return Ok(key),
+                Err(GetReflogError::NotFound) => return Err(CanonicalizeError::NotFound(orig)),
+                Err(GetReflogError::SqliteError(e)) => return Err(e.into()),
+            },
+        };
+
+        match results.len() {
+            0 => Err(CanonicalizeError::NotFound(err_str)),
+            // This is okay since we know it will have one item.
+            #[allow(clippy::option_unwrap_used)]
+            1 => Ok(KeyBuf::from_db_key(&results.pop().unwrap())),
+            _ => {
+                let strs = results.into_iter().map(KeyBuf::Blake2B).collect();
+                Err(CanonicalizeError::Ambigious(err_str, strs))
+            }
+        }
+    }
 
     fn get_obj(&self, key: &KeyBuf) -> Fallible<Object> {
         let data = self.get(key)?;
@@ -526,8 +571,15 @@ impl DataStore for SqliteDS {
         Ok(())
     }
 
-    fn reflog_walk(&self, refname: &str, remote: Option<&str>) -> Result<Vec<KeyBuf>, WalkReflogError> {
-        let mut statement = self.conn.prepare("SELECT key FROM reflog WHERE refname=? AND remote IS ? ORDER BY id DESC").unwrap();
+    fn reflog_walk(
+        &self,
+        refname: &str,
+        remote: Option<&str>,
+    ) -> Result<Vec<KeyBuf>, WalkReflogError> {
+        let mut statement = self
+            .conn
+            .prepare("SELECT key FROM reflog WHERE refname=? AND remote IS ? ORDER BY id DESC")
+            .unwrap();
 
         let mut rows = statement.query(params![refname, remote]).unwrap();
 
@@ -587,8 +639,10 @@ impl DataStore for SqliteDS {
     }
 
     fn raw_put_state<'a>(&'a self, key: &[u8], data: &[u8]) -> Fallible<()> {
-        self.conn
-            .execute("INSERT OR REPLACE INTO state VALUES (?, ?)", params![key, data])?;
+        self.conn.execute(
+            "INSERT OR REPLACE INTO state VALUES (?, ?)",
+            params![key, data],
+        )?;
 
         Ok(())
     }
@@ -605,65 +659,27 @@ impl DataStore for SqliteDS {
         Ok(count == 1)
     }
 
-    fn canonicalize(&self, search: Keyish) -> Result<KeyBuf, CanonicalizeError> {
-        let mut results: Vec<Vec<u8>> = Vec::new();
+    fn raw_between(&self, start: &[u8], end: Option<&[u8]>) -> Fallible<Vec<Vec<u8>>> {
+        let mut results = Vec::new();
+        if let Some(e) = end {
+            let mut statement = self
+                .conn
+                .prepare("SELECT key FROM data WHERE key >= ? AND key < ?")?;
 
-        let err_str;
+            let rows = statement.query_map(params![start, e], |row| row.get(0))?;
 
-        match search {
-            Keyish::Key(s, key) => {
-                err_str = s;
-
-                let mut statement = self.conn.prepare("SELECT key FROM data WHERE key == ?")?;
-
-                let rows = statement.query_map(params![key], |row| row.get(0))?;
-
-                for row in rows {
-                    results.push(row?);
-                }
+            for row in rows {
+                results.push(row?);
             }
-            Keyish::Range(s, start, end) => {
-                err_str = s;
+        } else {
+            let mut statement = self.conn.prepare("SELECT key FROM data WHERE key >= ?")?;
+            let rows = statement.query_map(params![start], |row| row.get(0))?;
 
-                if let Some(e) = end {
-                    let mut statement = self
-                        .conn
-                        .prepare("SELECT key FROM data WHERE key >= ? AND key < ?")?;
-
-                    let rows = statement.query_map(params![start, e], |row| row.get(0))?;
-
-                    for row in rows {
-                        results.push(row?);
-                    }
-                } else {
-                    let mut statement = self.conn.prepare("SELECT key FROM data WHERE key >= ?")?;
-                    let rows = statement.query_map(params![start], |row| row.get(0))?;
-
-                    for row in rows {
-                        results.push(row?);
-                    }
-                }
-            }
-            Keyish::Reflog {
-                orig,
-                remote,
-                keyname,
-            } => match self.reflog_get(&keyname, remote.as_deref()) {
-                Ok(key) => return Ok(key),
-                Err(GetReflogError::NotFound) => return Err(CanonicalizeError::NotFound(orig)),
-                Err(GetReflogError::SqliteError(e)) => return Err(e.into()),
-            },
-        };
-
-        match results.len() {
-            0 => Err(CanonicalizeError::NotFound(err_str)),
-            // This is okay since we know it will have one item.
-            #[allow(clippy::option_unwrap_used)]
-            1 => Ok(KeyBuf::from_db_key(&results.pop().unwrap())),
-            _ => {
-                let strs = results.into_iter().map(KeyBuf::Blake2B).collect();
-                Err(CanonicalizeError::Ambigious(err_str, strs))
+            for row in rows {
+                results.push(row?);
             }
         }
+
+        Ok(results)
     }
 }

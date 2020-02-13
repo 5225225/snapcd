@@ -14,25 +14,24 @@ pub fn put_data<DS: DataStore, R: Read>(ds: &mut DS, mut data: R) -> Fallible<Ke
     let mut hasher = gearhash::Hasher::new(&gearhash::DEFAULT_TABLE);
 
     loop {
-        let m = { 
+        let m = {
             let hasher_match = hasher.next_match(&chunk_buffer, BLOB_ZERO_COUNT_BITMASK);
 
-            if chunk_buffer.len() > 1<<BLOB_ZERO_COUNT_MAX {
+            if chunk_buffer.len() > 1 << BLOB_ZERO_COUNT_MAX {
                 // We've gone on too long, force a cut here.
-                Some(1<<BLOB_ZERO_COUNT_MAX)
-            } else { 
+                Some(1 << BLOB_ZERO_COUNT_MAX)
+            } else {
                 hasher_match
             }
         };
-
 
         if let Some(boundry) = m {
             current_chunk.extend_from_slice(&chunk_buffer[0..boundry]);
             chunk_buffer.drain(0..boundry);
 
             let zeros = hasher.get_hash().leading_zeros();
-            
-            debug_assert!(zeros >= BLOB_ZERO_COUNT || boundry == (1<<BLOB_ZERO_COUNT_MAX));
+
+            debug_assert!(zeros >= BLOB_ZERO_COUNT || boundry == (1 << BLOB_ZERO_COUNT_MAX));
 
             if current_chunk.len() >= 1 << (BLOB_ZERO_COUNT_MAX) {
                 let key = ds.put_obj(&Object::only_data(
@@ -60,16 +59,17 @@ pub fn put_data<DS: DataStore, R: Read>(ds: &mut DS, mut data: R) -> Fallible<Ke
             }
         } else {
             use std::io::ErrorKind;
+            current_chunk.extend_from_slice(&chunk_buffer);
+            chunk_buffer.clear();
 
             match data.read(&mut read_buffer) {
                 Ok(len) => {
                     if len == 0 {
                         break;
                     }
-                   chunk_buffer.extend_from_slice(&read_buffer[0..len]);
+                    chunk_buffer.extend_from_slice(&read_buffer[0..len]);
                 }
-                Err(e) if e.kind() == ErrorKind::Interrupted => {
-                }
+                Err(e) if e.kind() == ErrorKind::Interrupted => {}
                 Err(e) => {
                     return Err(e.into());
                 }
@@ -142,7 +142,7 @@ pub fn read_data<DS: DataStore, W: Write>(ds: &DS, key: &KeyBuf, to: &mut W) -> 
 const BLOB_ZERO_COUNT: u32 = 12;
 const BLOB_ZERO_COUNT_MAX: u32 = BLOB_ZERO_COUNT + 2;
 
-const BLOB_ZERO_COUNT_BITMASK: u64 = !((1<<(64-BLOB_ZERO_COUNT))-1);
+const BLOB_ZERO_COUNT_BITMASK: u64 = !((1 << (64 - BLOB_ZERO_COUNT)) - 1);
 
 const PER_LEVEL_COUNT: u32 = 5;
 const PER_LEVEL_COUNT_MAX: u32 = PER_LEVEL_COUNT + 2;
