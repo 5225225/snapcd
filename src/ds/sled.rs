@@ -1,13 +1,30 @@
 use crate::DataStore;
-use crate::{CanonicalizeError, GetReflogError, KeyBuf, Keyish, Reflog, WalkReflogError};
+use crate::{GetReflogError, KeyBuf, Reflog, WalkReflogError};
 use failure::Fallible;
 use std::borrow::Cow;
 
-struct SledDS {
+pub struct SledDS {
     db: sled::Db,
 
     data_tree: sled::Tree,
     state_tree: sled::Tree,
+}
+
+impl SledDS {
+    pub fn new_tmp() -> Fallible<Self> {
+        let db = sled::Config::default()
+            .temporary(true)
+            .open()?;
+
+        let data_tree = db.open_tree("DATA")?;
+        let state_tree = db.open_tree("STATE")?;
+
+        Ok(Self {
+            db,
+            data_tree,
+            state_tree,
+        })
+    }
 }
 
 impl DataStore for SledDS {
