@@ -2,6 +2,7 @@ use crate::DataStore;
 use crate::{GetReflogError, KeyBuf, Reflog, WalkReflogError};
 use failure::Fallible;
 use std::borrow::Cow;
+use std::path::Path;
 
 pub struct SledDS {
     db: sled::Db,
@@ -15,6 +16,19 @@ impl SledDS {
         let db = sled::Config::default()
             .temporary(true)
             .open()?;
+
+        let data_tree = db.open_tree("DATA")?;
+        let state_tree = db.open_tree("STATE")?;
+
+        Ok(Self {
+            db,
+            data_tree,
+            state_tree,
+        })
+    }
+
+    pub fn new(path: &Path) -> Fallible<Self> {
+        let db = sled::open(path)?;
 
         let data_tree = db.open_tree("DATA")?;
         let state_tree = db.open_tree("STATE")?;
