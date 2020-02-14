@@ -37,15 +37,15 @@ fn inner_bench<DS: DataStore, T: Fn() -> DS>(ctor: &T, bench: &mut Criterion, si
 
 #[allow(non_snake_case)]
 fn perf_test_32B(bench: &mut Criterion) {
-    let ctor = || snapcd::ds::sled::SledDS::new_tmp().unwrap();
+    let ctor = || snapcd::SqliteDS::new(":memory:").unwrap();
     inner_bench(&ctor, bench, 32, "put-data-32B");
 }
 
 #[allow(non_snake_case)]
-fn perf_test_1MB(bench: &mut Criterion) {
-    let ctor = || snapcd::ds::sled::SledDS::new_tmp().unwrap();
+fn perf_test_4MB(bench: &mut Criterion) {
+    let ctor = || snapcd::SqliteDS::new(":memory:").unwrap();
     inner_bench(&ctor, bench, 1 << 22, "put-data-4MB");
 }
 
-criterion_group!(benches, perf_test_32B, perf_test_1MB);
+criterion_group!(benches, perf_test_32B, perf_test_4MB);
 criterion_main!(benches);
