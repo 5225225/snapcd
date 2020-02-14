@@ -7,7 +7,7 @@ use failure::Fallible;
 pub fn put_data<DS: DataStore, R: Read>(ds: &mut DS, mut data: R) -> Fallible<KeyBuf> {
     let mut key_bufs: [Vec<KeyBuf>; 5] = Default::default();
 
-    let mut read_buffer = [0u8; 4096usize];
+    let mut read_buffer = [0u8; 1<<16usize];
     let mut chunk_buffer: Vec<u8> = Vec::new();
     let mut current_chunk = Vec::new();
 
@@ -139,10 +139,10 @@ pub fn read_data<DS: DataStore, W: Write>(ds: &DS, key: &KeyBuf, to: &mut W) -> 
     Ok(())
 }
 
-const BLOB_ZERO_COUNT: u32 = 12;
+const BLOB_ZERO_COUNT: u32 = 13;
 const BLOB_ZERO_COUNT_MAX: u32 = BLOB_ZERO_COUNT + 2;
 
 const BLOB_ZERO_COUNT_BITMASK: u64 = !((1 << (64 - BLOB_ZERO_COUNT)) - 1);
 
-const PER_LEVEL_COUNT: u32 = 5;
+const PER_LEVEL_COUNT: u32 = 7;
 const PER_LEVEL_COUNT_MAX: u32 = PER_LEVEL_COUNT + 2;

@@ -400,9 +400,7 @@ pub trait DataStore {
 
         let keybuf = KeyBuf::Blake2B(hash.to_vec());
 
-        if !self.raw_exists(&keybuf.as_db_key())? {
-            self.raw_put(&keybuf.as_db_key(), &data)?;
-        }
+        self.raw_put(&keybuf.as_db_key(), &data)?;
 
         Ok(keybuf)
     }
@@ -509,6 +507,11 @@ impl SqliteDS {
         let conn = rusqlite::Connection::open(path)?;
 
         conn.pragma_update(None, &"journal_mode", &"WAL")?;
+
+        // values found through bullshitting around with them on my machine
+        // slightly faster than defaults
+        conn.pragma_update(None, &"page_size", &"16384")?;
+        conn.pragma_update(None, &"wal_autocheckpoint", &"500")?;
 
         conn.execute_batch(
             "

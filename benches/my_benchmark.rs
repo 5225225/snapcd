@@ -7,7 +7,7 @@ use std::time::Duration;
 
 use criterion::{criterion_group, criterion_main, BatchSize, Criterion, Throughput};
 
-fn inner_bench(bench: &mut Criterion, size: u64, bench_name: &str) {
+fn inner_bench<DS: DataStore, T: Fn() -> DS>(ctor: &T, bench: &mut Criterion, size: u64, bench_name: &str) {
     let rng: Box<dyn RngCore> = Box::new(ChaChaRng::seed_from_u64(1));
     let mut sample_data = rng.take(size);
     let mut buf = Vec::new();
@@ -23,7 +23,7 @@ fn inner_bench(bench: &mut Criterion, size: u64, bench_name: &str) {
     g.bench_function(bench_name, |b| {
         b.iter_batched(
             || {
-                let mut ds = snapcd::ds::sled::SledDS::new_tmp().unwrap();
+                let mut ds = ctor();
                 ds.begin_trans().unwrap();
                 ds
             },
@@ -37,12 +37,14 @@ fn inner_bench(bench: &mut Criterion, size: u64, bench_name: &str) {
 
 #[allow(non_snake_case)]
 fn perf_test_32B(bench: &mut Criterion) {
-    inner_bench(bench, 32, "put-data-32B");
+    let ctor = || snapcd::ds::sled::SledDS::new_tmp().unwrap();
+    inner_bench(&ctor, bench, 32, "put-data-32B");
 }
 
 #[allow(non_snake_case)]
 fn perf_test_1MB(bench: &mut Criterion) {
-    inner_bench(bench, 1 << 22, "put-data-4MB");
+    let ctor = || snapcd::ds::sled::SledDS::new_tmp().unwrap();
+    inner_bench(&ctor, bench, 1 << 22, "put-data-4MB");
 }
 
 criterion_group!(benches, perf_test_32B, perf_test_1MB);
