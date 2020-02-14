@@ -369,17 +369,11 @@ pub enum GetReflogError {
     SqliteError(rusqlite::Error),
 }
 
+static_assertions::assert_obj_safe!(DataStore);
+
 pub trait DataStore {
     fn raw_get<'a>(&'a self, key: &[u8]) -> Fallible<Cow<'a, [u8]>>;
     fn raw_put<'a>(&'a self, key: &[u8], data: &[u8]) -> Fallible<()>;
-
-    fn raw_put_many(&self, keys: &[(&[u8], &[u8])]) -> Fallible<()> {
-        for (key, data) in keys {
-            self.raw_put(key, data)?;
-        }
-
-        Ok(())
-    }
 
     fn raw_exists(&self, key: &[u8]) -> Fallible<bool>;
 

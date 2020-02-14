@@ -9,6 +9,14 @@ pub struct SledDS {
 
     data_tree: sled::Tree,
     state_tree: sled::Tree,
+
+    batch: std::cell::RefCell<sled::Batch>,
+}
+
+impl std::ops::Drop for SledDS {
+    fn drop(&mut self) {
+        self.data_tree.apply_batch(self.batch.replace(Default::default())).unwrap();
+    }
 }
 
 impl SledDS {
@@ -24,6 +32,7 @@ impl SledDS {
             db,
             data_tree,
             state_tree,
+            batch: Default::default(),
         })
     }
 
@@ -37,6 +46,7 @@ impl SledDS {
             db,
             data_tree,
             state_tree,
+            batch: Default::default(),
         })
     }
 }
@@ -46,7 +56,7 @@ impl DataStore for SledDS {
         Ok(Cow::Owned(self.data_tree.get(key).transpose().unwrap()?.to_vec()))
     }
     fn raw_put<'a>(&'a self, key: &[u8], data: &[u8]) -> Fallible<()> {
-        self.data_tree.insert(key, data)?;
+        self.batch.borrow_mut().insert(key, data);
 
         Ok(())
     }

@@ -23,7 +23,7 @@ fn inner_bench(bench: &mut Criterion, size: u64, bench_name: &str) {
     g.bench_function(bench_name, |b| {
         b.iter_batched(
             || {
-                let mut ds = SqliteDS::new(":memory:").unwrap();
+                let mut ds = snapcd::ds::sled::SledDS::new_tmp().unwrap();
                 ds.begin_trans().unwrap();
                 ds
             },
@@ -42,7 +42,7 @@ fn perf_test_32B(bench: &mut Criterion) {
 
 #[allow(non_snake_case)]
 fn perf_test_1MB(bench: &mut Criterion) {
-    inner_bench(bench, 1 << 20, "put-data-1MB");
+    inner_bench(bench, 1 << 22, "put-data-4MB");
 }
 
 criterion_group!(benches, perf_test_32B, perf_test_1MB);
