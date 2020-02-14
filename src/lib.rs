@@ -1,5 +1,5 @@
 use bitvec::prelude::*;
-use blake3::{hash, traits::digest::Digest};
+use blake3::hash;
 use failure_derive::Fail;
 use std::path::Path;
 

@@ -1,7 +1,7 @@
 use rand::prelude::*;
 use rand_chacha::ChaChaRng;
 use snapcd::file::put_data;
-use snapcd::{DataStore, SqliteDS};
+use snapcd::{DataStore};
 use std::io::{self, Read};
 use std::time::Duration;
 
