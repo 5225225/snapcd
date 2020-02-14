@@ -84,7 +84,7 @@ impl std::fmt::Display for KeyBuf {
 
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
 pub struct Object<'a> {
-    data: Cow<'a, [u8]>,
+    data: Cow<'a, serde_bytes::Bytes>,
     keys: Cow<'a, [KeyBuf]>,
     objtype: Cow<'a, str>,
 }
@@ -92,7 +92,7 @@ pub struct Object<'a> {
 impl<'a> Object<'a> {
     fn only_data(data: Cow<'a, [u8]>, objtype: Cow<'a, str>) -> Self {
         Self {
-            data,
+            data: Cow::Owned(serde_bytes::ByteBuf::from(data.into_owned())),
             keys: Cow::Borrowed(&[]),
             objtype,
         }
@@ -100,7 +100,7 @@ impl<'a> Object<'a> {
 
     fn only_keys(keys: Cow<'a, [KeyBuf]>, objtype: Cow<'a, str>) -> Self {
         Self {
-            data: Cow::Borrowed(&[]),
+            data: Cow::Owned(serde_bytes::ByteBuf::new()),
             keys,
             objtype,
         }

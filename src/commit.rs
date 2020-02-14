@@ -23,7 +23,7 @@ impl TryInto<Object<'static>> for Commit {
         keys.extend(self.parents);
 
         Ok(Object {
-            data: Cow::Owned(attrs),
+            data: Cow::Owned(serde_bytes::ByteBuf::from(attrs)),
             keys: Cow::Owned(keys),
             objtype: Cow::Borrowed("commit.commit"),
         })

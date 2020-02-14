@@ -36,7 +36,7 @@ impl TryInto<Object<'static>> for FSItem {
         };
 
         Ok(Object {
-            data: Cow::Owned(obj),
+            data: Cow::Owned(serde_bytes::ByteBuf::from(obj)),
             keys: Cow::Owned(self.children),
             objtype: Cow::Borrowed(objtype),
         })

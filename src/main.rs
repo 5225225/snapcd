@@ -347,6 +347,10 @@ fn debug_pretty_print(state: &mut State, args: PrettyPrintArgs) -> CMDResult {
 
     let key = ds_state.ds.canonicalize(args.key)?;
 
+    let item_raw_cbor = ds_state.ds.get(&key)?;
+    let item_decoded: serde_cbor::Value = serde_cbor::from_slice(&item_raw_cbor)?;
+    println!("{:?}", item_decoded);
+
     let item = ds_state.ds.get_obj(&key)?;
 
     println!("{}", item.debug_pretty_print());

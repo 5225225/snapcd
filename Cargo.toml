@@ -24,6 +24,7 @@ colored = "1.9.2"
 gearhash = "0.1.2"
 sled = "0.31.0"
 static_assertions = "1.1.0"
+serde_bytes = "0.11.3"
 
 [dev-dependencies]
 criterion = "0.3.1"
