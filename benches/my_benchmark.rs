@@ -7,7 +7,12 @@ use std::time::Duration;
 
 use criterion::{criterion_group, criterion_main, BatchSize, Criterion, Throughput};
 
-fn inner_bench<DS: DataStore, T: Fn() -> DS>(ctor: &T, bench: &mut Criterion, size: u64, bench_name: &str) {
+fn inner_bench<DS: DataStore, T: Fn() -> DS>(
+    ctor: &T,
+    bench: &mut Criterion,
+    size: u64,
+    bench_name: &str,
+) {
     let rng: Box<dyn RngCore> = Box::new(ChaChaRng::seed_from_u64(1));
     let mut sample_data = rng.take(size);
     let mut buf = Vec::new();

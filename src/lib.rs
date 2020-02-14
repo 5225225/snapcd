@@ -1,5 +1,5 @@
 use bitvec::prelude::*;
-use blake2::{digest::Digest, Blake2b};
+use blake3::{hash, traits::digest::Digest};
 use failure_derive::Fail;
 use std::path::Path;
 
@@ -21,28 +21,30 @@ pub mod filter;
     Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq, Eq, PartialOrd, Ord, Hash,
 )]
 pub enum KeyBuf {
-    Blake2B(Vec<u8>),
+    Blake3B([u8; 32]),
 }
 
 impl KeyBuf {
     fn hash_id(&self) -> u8 {
         match self {
-            Self::Blake2B(_) => 1,
+            Self::Blake3B(_) => 1,
         }
     }
 
     fn hash_bytes(&self) -> &[u8] {
         match self {
-            Self::Blake2B(x) => &x,
+            Self::Blake3B(x) => x.as_ref(),
         }
     }
 
     fn from_db_key(x: &[u8]) -> Self {
+        use std::convert::TryInto;
+
         let hash_id = x[0];
         let hash_bytes = &x[1..];
 
         match hash_id {
-            1 => Self::Blake2B(hash_bytes.to_vec()),
+            1 => Self::Blake3B(hash_bytes.try_into().unwrap()),
             0 | 2..=255 => panic!("invalid key"),
         }
     }
@@ -63,7 +65,7 @@ impl KeyBuf {
         let mut result = String::new();
 
         let prefix = match self {
-            Self::Blake2B(_) => "b",
+            Self::Blake3B(_) => "b",
         };
 
         result.push_str(prefix);
@@ -197,10 +199,11 @@ impl std::str::FromStr for Keyish {
     type Err = KeyishParseError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
+        dbg!(s);
         if s.contains('/') {
             return parse_from_ref(s);
         } else {
-            return parse_from_base32(s);
+            return dbg!(parse_from_base32(s));
         }
 
         fn parse_from_ref(s: &str) -> Result<Keyish, KeyishParseError> {
@@ -230,7 +233,7 @@ impl std::str::FromStr for Keyish {
             let (prefix, bytes) = (&s[0..1], &s[1..]);
 
             let max_len = match prefix {
-                "b" => 64 * 8,
+                "b" => 32 * 8,
                 _ => return Err(KeyishParseError::Invalid(s.to_string())),
             };
 
@@ -387,18 +390,12 @@ pub trait DataStore {
     }
 
     fn hash(&self, data: &[u8]) -> KeyBuf {
-        let mut b2 = Blake2b::new();
-        b2.input(&data);
-        let hash = b2.result();
-        KeyBuf::Blake2B(hash.to_vec())
+        let b3 = hash(data);
+        KeyBuf::Blake3B(*b3.as_bytes())
     }
 
     fn put(&self, data: Vec<u8>) -> Fallible<KeyBuf> {
-        let mut b2 = Blake2b::new();
-        b2.input(&data);
-        let hash = b2.result();
-
-        let keybuf = KeyBuf::Blake2B(hash.to_vec());
+        let keybuf = self.hash(&data);
 
         self.raw_put(&keybuf.as_db_key(), &data)?;
 
@@ -463,7 +460,10 @@ pub trait DataStore {
             #[allow(clippy::option_unwrap_used)]
             1 => Ok(KeyBuf::from_db_key(&results.pop().unwrap())),
             _ => {
-                let strs = results.into_iter().map(KeyBuf::Blake2B).collect();
+                let strs = results
+                    .into_iter()
+                    .map(|x| KeyBuf::from_db_key(&x))
+                    .collect();
                 Err(CanonicalizeError::Ambigious(err_str, strs))
             }
         }
@@ -657,6 +657,7 @@ impl DataStore for SqliteDS {
     }
 
     fn raw_between(&self, start: &[u8], end: Option<&[u8]>) -> Fallible<Vec<Vec<u8>>> {
+        dbg!(&start, &end);
         let mut results = Vec::new();
         if let Some(e) = end {
             let mut statement = self

@@ -7,7 +7,7 @@ use failure::Fallible;
 pub fn put_data<DS: DataStore, R: Read>(ds: &mut DS, mut data: R) -> Fallible<KeyBuf> {
     let mut key_bufs: [Vec<KeyBuf>; 5] = Default::default();
 
-    let mut read_buffer = [0u8; 1<<16usize];
+    let mut read_buffer = [0u8; 1 << 16usize];
     let mut chunk_buffer: Vec<u8> = Vec::new();
     let mut current_chunk = Vec::new();
 

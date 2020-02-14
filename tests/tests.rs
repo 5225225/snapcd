@@ -1,9 +1,14 @@
 use rand::prelude::*;
 use rand_chacha::ChaChaRng;
 use snapcd::file::{put_data, read_data};
-use snapcd::{DataStore, SqliteDS, ds::sled::SledDS};
+use snapcd::{ds::sled::SledDS, DataStore, SqliteDS};
 
-fn internal_test<T: DataStore, F: FnMut() -> T>(ctor: &mut F, size_upper_bound: usize, seed_lower_bound: u64, seed_upper_bound: u64) {
+fn internal_test<T: DataStore, F: FnMut() -> T>(
+    ctor: &mut F,
+    size_upper_bound: usize,
+    seed_lower_bound: u64,
+    seed_upper_bound: u64,
+) {
     for i in seed_lower_bound..seed_upper_bound {
         let mut rng = ChaChaRng::seed_from_u64(i);
 

@@ -15,15 +15,13 @@ pub struct SledDS {
 
 impl std::ops::Drop for SledDS {
     fn drop(&mut self) {
-        self.data_tree.apply_batch(self.batch.replace(Default::default())).unwrap();
+        self.commit();
     }
 }
 
 impl SledDS {
     pub fn new_tmp() -> Fallible<Self> {
-        let db = sled::Config::default()
-            .temporary(true)
-            .open()?;
+        let db = sled::Config::default().temporary(true).open()?;
 
         let data_tree = db.open_tree("DATA")?;
         let state_tree = db.open_tree("STATE")?;
@@ -49,11 +47,21 @@ impl SledDS {
             batch: Default::default(),
         })
     }
+
+    fn commit(&self) {
+        self.data_tree
+            .apply_batch(self.batch.replace(Default::default()))
+            .unwrap();
+    }
 }
 
 impl DataStore for SledDS {
     fn raw_get<'a>(&'a self, key: &[u8]) -> Fallible<Cow<'a, [u8]>> {
-        Ok(Cow::Owned(self.data_tree.get(key).transpose().unwrap()?.to_vec()))
+        self.commit();
+
+        Ok(Cow::Owned(
+            self.data_tree.get(key).transpose().unwrap()?.to_vec(),
+        ))
     }
     fn raw_put<'a>(&'a self, key: &[u8], data: &[u8]) -> Fallible<()> {
         self.batch.borrow_mut().insert(key, data);
@@ -61,6 +69,8 @@ impl DataStore for SledDS {
         Ok(())
     }
     fn raw_exists(&self, key: &[u8]) -> Fallible<bool> {
+        self.commit();
+
         Ok(self.data_tree.contains_key(key)?)
     }
     fn raw_get_state<'a>(&'a self, key: &[u8]) -> Fallible<Option<Vec<u8>>> {
@@ -72,7 +82,11 @@ impl DataStore for SledDS {
         Ok(())
     }
     fn reflog_push(&self, data: &Reflog) -> Fallible<()> {
-        let tree_name = format!("REFLOG\x00{}\x01{}", data.refname, data.remote.as_deref().unwrap_or(""));
+        let tree_name = format!(
+            "REFLOG\x00{}\x01{}",
+            data.refname,
+            data.remote.as_deref().unwrap_or("")
+        );
 
         let tree = self.db.open_tree(tree_name)?;
 
@@ -87,11 +101,20 @@ impl DataStore for SledDS {
         Ok(())
     }
     fn reflog_get(&self, refname: &str, remote: Option<&str>) -> Result<KeyBuf, GetReflogError> {
-        let tree_name = format!("REFLOG\x00{}\x01{}", refname, remote.as_deref().unwrap_or(""));
+        let tree_name = format!(
+            "REFLOG\x00{}\x01{}",
+            refname,
+            remote.as_deref().unwrap_or("")
+        );
 
         let tree = self.db.open_tree(tree_name).expect("failed to open tree");
 
-        let item = tree.iter().values().next_back().expect("no reflog item").expect("some failure");
+        let item = tree
+            .iter()
+            .values()
+            .next_back()
+            .expect("no reflog item")
+            .expect("some failure");
 
         Ok(KeyBuf::from_db_key(&item))
     }
@@ -102,7 +125,11 @@ impl DataStore for SledDS {
         remote: Option<&str>,
     ) -> Result<Vec<KeyBuf>, WalkReflogError> {
         let mut ret = Vec::new();
-        let tree_name = format!("REFLOG\x00{}\x01{}", refname, remote.as_deref().unwrap_or(""));
+        let tree_name = format!(
+            "REFLOG\x00{}\x01{}",
+            refname,
+            remote.as_deref().unwrap_or("")
+        );
 
         let tree = self.db.open_tree(tree_name).expect("failed to open tree");
 
