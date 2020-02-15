@@ -46,3 +46,35 @@ fn sanity_check() {
     internal_test(&mut sledDS, 1 << 10, 8, 64);
     internal_test(&mut sledDS, 1 << 6, 64, 128);
 }
+
+
+use snapcd::{KeyBuf, Keyish};
+use std::str::FromStr;
+
+proptest::proptest! {
+    #[test]
+    fn round_trip_blake3b_db(bytes: [u8; 32]) {
+        let k = KeyBuf::Blake3B(bytes);
+        let as_db = k.as_db_key();
+        let from_db = KeyBuf::from_db_key(&as_db);
+        assert_eq!(k, from_db);
+    }
+
+    #[test]
+    fn round_trip_blake3b_to_keyish(bytes: [u8; 32]) {
+        let k = KeyBuf::Blake3B(bytes);
+        let as_user = k.as_user_key();
+        let from_user = Keyish::from_str(&as_user).unwrap();
+
+        if let Keyish::Key(_, b) = from_user {
+            let db_key = KeyBuf::from_db_key(&b);
+            if let KeyBuf::Blake3B(newbytes) = db_key {
+                assert_eq!(bytes, newbytes);
+            } else {
+                panic!("parsed a keybuf that wasn't expected hash type")
+            }
+        } else {
+            panic!("we asked for the full key and we got something else")
+        }
+    }
+}

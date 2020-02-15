@@ -18,7 +18,7 @@ pub mod file;
 pub mod filter;
 
 #[derive(
-    Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq, Eq, PartialOrd, Ord, Hash,
+    Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq, Eq, PartialOrd, Ord, Hash
 )]
 pub enum KeyBuf {
     Blake3B([u8; 32]),
@@ -37,7 +37,7 @@ impl KeyBuf {
         }
     }
 
-    fn from_db_key(x: &[u8]) -> Self {
+    pub fn from_db_key(x: &[u8]) -> Self {
         use std::convert::TryInto;
 
         let hash_id = x[0];
@@ -49,7 +49,7 @@ impl KeyBuf {
         }
     }
 
-    fn as_db_key(&self) -> Vec<u8> {
+    pub fn as_db_key(&self) -> Vec<u8> {
         let hash_id = self.hash_id();
         let hash_bytes = self.hash_bytes();
 
@@ -199,11 +199,10 @@ impl std::str::FromStr for Keyish {
     type Err = KeyishParseError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        dbg!(s);
         if s.contains('/') {
             return parse_from_ref(s);
         } else {
-            return dbg!(parse_from_base32(s));
+            return parse_from_base32(s);
         }
 
         fn parse_from_ref(s: &str) -> Result<Keyish, KeyishParseError> {
@@ -310,6 +309,8 @@ fn from_base32(x: &str, max_len: usize) -> Fallible<BitVec<Msb0, u8>> {
             .iter()
             .position(|&x| x == ch)
             .ok_or_else(|| FromBase32Error::UnknownByte(ch as char))?;
+
+        debug_assert!((ch as char).is_ascii_lowercase() || (ch as char).is_ascii_digit());
 
         result.push(idx & 0b10000 != 0);
         result.push(idx & 0b01000 != 0);
@@ -507,6 +508,7 @@ impl SqliteDS {
         let conn = rusqlite::Connection::open(path)?;
 
         conn.pragma_update(None, &"journal_mode", &"WAL")?;
+        conn.pragma_update(None, &"synchronous", &"1")?;
 
         // values found through bullshitting around with them on my machine
         // slightly faster than defaults
@@ -616,9 +618,9 @@ impl DataStore for SqliteDS {
     }
 
     fn raw_put<'a>(&'a self, key: &[u8], data: &[u8]) -> Fallible<()> {
-        self.conn.execute(
-            "INSERT OR IGNORE INTO data VALUES (?, ?)",
-            params![key, data],
+        self.conn.prepare_cached(
+            "INSERT OR IGNORE INTO data VALUES (?, ?)")?.execute(
+            params![key, data]
         )?;
 
         Ok(())
