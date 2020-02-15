@@ -278,14 +278,17 @@ impl std::str::FromStr for Keyish {
 
 fn pop_u5_from_bitvec(x: &mut BitVec<Msb0, u8>) -> u8 {
     let mut v = 0;
-    for to_shift in (0..5).rev() {
-        if x.is_empty() {
-            return v << to_shift;
-        }
 
-        let bit = x.remove(0);
-        v <<= 1;
-        v |= bit as u8;
+    v |= (*x.get(0).unwrap_or(&false) as u8) << 4;
+    v |= (*x.get(1).unwrap_or(&false) as u8) << 3;
+    v |= (*x.get(2).unwrap_or(&false) as u8) << 2;
+    v |= (*x.get(3).unwrap_or(&false) as u8) << 1;
+    v |= (*x.get(4).unwrap_or(&false) as u8) << 0;
+
+    for _ in 0..5 {
+        if !x.is_empty() {
+            x.remove(0_usize);
+        }
     }
 
     assert!(v <= 31);
@@ -299,7 +302,7 @@ pub enum FromBase32Error {
     UnknownByte(char),
 }
 
-fn from_base32(x: &str, max_len: usize) -> Fallible<BitVec<Msb0, u8>> {
+pub fn from_base32(x: &str, max_len: usize) -> Fallible<BitVec<Msb0, u8>> {
     let mut result = BitVec::<Msb0, u8>::new();
 
     for mut ch in x.bytes() {
@@ -328,7 +331,8 @@ fn from_base32(x: &str, max_len: usize) -> Fallible<BitVec<Msb0, u8>> {
 
 static TABLE: [u8; 32] = *b"abcdefghijklmnopqrstuvwxyz234567";
 
-fn to_base32(x: &[u8]) -> String {
+pub fn to_base32(x: &[u8]) -> String {
+    dbg!(x);
     let mut scratch = BitVec::<Msb0, u8>::from_vec(x.to_vec());
     let mut ret = String::new();
     while !scratch.is_empty() {
@@ -336,7 +340,7 @@ fn to_base32(x: &[u8]) -> String {
         ret.push(TABLE[v as usize] as char);
     }
 
-    ret
+    dbg!(ret)
 }
 
 #[derive(Debug, Fail)]
