@@ -231,6 +231,8 @@ impl std::str::FromStr for Keyish {
         fn parse_from_base32(s: &str) -> Result<Keyish, KeyishParseError> {
             let (prefix, bytes) = (&s[0..1], &s[1..]);
 
+            dbg!(prefix, bytes);
+
             let max_len = match prefix {
                 "b" => 32 * 8,
                 _ => return Err(KeyishParseError::Invalid(s.to_string())),
@@ -243,7 +245,7 @@ impl std::str::FromStr for Keyish {
 
             if input.len() == max_len {
                 let mut v = input.into_vec();
-                v.insert(0_usize, 1);
+                v.insert(0_usize, 1_u8);
                 return Ok(Keyish::Key(s.to_string(), v));
             }
 

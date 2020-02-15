@@ -66,7 +66,10 @@ proptest::proptest! {
         let as_user = k.as_user_key();
         let from_user = Keyish::from_str(&as_user).unwrap();
 
+
         if let Keyish::Key(_, b) = from_user {
+            assert_eq!(b, k.as_db_key(), "keyish from_str did not round trip with as_user_key");
+
             let db_key = KeyBuf::from_db_key(&b);
             if let KeyBuf::Blake3B(newbytes) = db_key {
                 assert_eq!(bytes, newbytes);
