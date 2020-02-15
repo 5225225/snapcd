@@ -16,6 +16,7 @@ pub mod dir;
 pub mod ds;
 pub mod file;
 pub mod filter;
+pub mod base32;
 
 #[derive(
     Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq, Eq, PartialOrd, Ord, Hash,
@@ -70,7 +71,7 @@ impl KeyBuf {
 
         result.push_str(prefix);
 
-        let encoded = to_base32(self.hash_bytes());
+        let encoded = base32::to_base32(self.hash_bytes());
 
         result.push_str(&encoded);
 
@@ -238,7 +239,7 @@ impl std::str::FromStr for Keyish {
                 _ => return Err(KeyishParseError::Invalid(s.to_string())),
             };
 
-            let input = match from_base32(bytes, max_len) {
+            let input = match base32::from_base32(bytes, max_len) {
                 Ok(v) => v,
                 Err(_) => return Err(KeyishParseError::Invalid(s.to_string())),
             };
@@ -274,72 +275,6 @@ impl std::str::FromStr for Keyish {
             Ok(Keyish::Range(s.to_string(), ret_start, ret_end))
         }
     }
-}
-
-fn pop_u5_from_bitvec(x: &mut BitVec<Msb0, u8>) -> u8 {
-    let mut v = 0;
-
-    v |= (*x.get(0).unwrap_or(&false) as u8) << 4;
-    v |= (*x.get(1).unwrap_or(&false) as u8) << 3;
-    v |= (*x.get(2).unwrap_or(&false) as u8) << 2;
-    v |= (*x.get(3).unwrap_or(&false) as u8) << 1;
-    v |= (*x.get(4).unwrap_or(&false) as u8) << 0;
-
-    for _ in 0..5 {
-        if !x.is_empty() {
-            x.remove(0_usize);
-        }
-    }
-
-    assert!(v <= 31);
-
-    v
-}
-
-#[derive(Debug, Fail)]
-pub enum FromBase32Error {
-    #[fail(display = "found non-base32 char {}", _0)]
-    UnknownByte(char),
-}
-
-pub fn from_base32(x: &str, max_len: usize) -> Fallible<BitVec<Msb0, u8>> {
-    let mut result = BitVec::<Msb0, u8>::new();
-
-    for mut ch in x.bytes() {
-        if (b'A'..=b'Z').contains(&ch) {
-            ch |= 0b0010_0000; // Convert to lowercase
-        }
-
-        let idx = TABLE
-            .iter()
-            .position(|&x| x == ch)
-            .ok_or_else(|| FromBase32Error::UnknownByte(ch as char))?;
-
-        debug_assert!((ch as char).is_ascii_lowercase() || (ch as char).is_ascii_digit());
-
-        result.push(idx & 0b10000 != 0);
-        result.push(idx & 0b01000 != 0);
-        result.push(idx & 0b00100 != 0);
-        result.push(idx & 0b00010 != 0);
-        result.push(idx & 0b00001 != 0);
-    }
-
-    result.truncate(max_len);
-
-    Ok(result)
-}
-
-static TABLE: [u8; 32] = *b"abcdefghijklmnopqrstuvwxyz234567";
-
-pub fn to_base32(x: &[u8]) -> String {
-    let mut scratch = BitVec::<Msb0, u8>::from_vec(x.to_vec());
-    let mut ret = String::new();
-    while !scratch.is_empty() {
-        let v = pop_u5_from_bitvec(&mut scratch);
-        ret.push(TABLE[v as usize] as char);
-    }
-
-    ret
 }
 
 #[derive(Debug, Fail)]
@@ -498,192 +433,8 @@ pub trait DataStore {
     }
 }
 
-pub struct SqliteDS {
-    conn: rusqlite::Connection,
-}
-
 #[derive(Debug, Fail)]
 pub enum WalkReflogError {
     #[fail(display = "sqlite error: {}", _0)]
     SqliteError(rusqlite::Error),
-}
-
-impl SqliteDS {
-    pub fn new<S: AsRef<Path>>(path: S) -> Fallible<Self> {
-        let conn = rusqlite::Connection::open(path)?;
-
-        conn.pragma_update(None, &"journal_mode", &"WAL")?;
-        conn.pragma_update(None, &"synchronous", &"1")?;
-
-        // values found through bullshitting around with them on my machine
-        // slightly faster than defaults
-        conn.pragma_update(None, &"page_size", &"16384")?;
-        conn.pragma_update(None, &"wal_autocheckpoint", &"500")?;
-
-        conn.execute_batch(
-            "
-            CREATE TABLE IF NOT EXISTS data (
-                key BLOB NOT NULL UNIQUE PRIMARY KEY,
-                value BLOB NOT NULL
-            ) WITHOUT ROWID;
-
-            CREATE TABLE IF NOT EXISTS state (
-                key BLOB NOT NULL UNIQUE PRIMARY KEY,
-                value BLOB NOT NULL
-            ) WITHOUT ROWID;
-
-            CREATE TABLE IF NOT EXISTS reflog (
-                id INTEGER PRIMARY KEY,
-                refname TEXT NOT NULL,
-                remote TEXT,
-                key BLOB
-            );
-        ",
-        )?;
-
-        Ok(Self { conn })
-    }
-}
-
-impl DataStore for SqliteDS {
-    fn reflog_get(&self, refname: &str, remote: Option<&str>) -> Result<KeyBuf, GetReflogError> {
-        log::trace!("reflog_get({:?}, {:?})", refname, remote);
-
-        // We have to use `remote IS ?` here because we want NULL = NULL (it is not remote).
-        let query: Result<Option<Vec<u8>>, rusqlite::Error> = self
-            .conn
-            .query_row(
-                "SELECT key FROM reflog WHERE refname=? AND remote IS ? ORDER BY id DESC LIMIT 1",
-                params![refname, remote],
-                |row| row.get(0),
-            )
-            .optional();
-
-        let row = query.map_err(GetReflogError::SqliteError)?;
-
-        let key = row.ok_or(GetReflogError::NotFound)?;
-
-        Ok(KeyBuf::from_db_key(&key))
-    }
-
-    fn reflog_push(&self, data: &Reflog) -> Fallible<()> {
-        self.conn.execute(
-            "INSERT INTO reflog(refname, remote, key) VALUES (?, ?, ?)",
-            params![data.refname, data.remote, data.key.as_db_key(),],
-        )?;
-
-        Ok(())
-    }
-
-    fn reflog_walk(
-        &self,
-        refname: &str,
-        remote: Option<&str>,
-    ) -> Result<Vec<KeyBuf>, WalkReflogError> {
-        let mut statement = self
-            .conn
-            .prepare("SELECT key FROM reflog WHERE refname=? AND remote IS ? ORDER BY id DESC")
-            .unwrap();
-
-        let mut rows = statement.query(params![refname, remote]).unwrap();
-
-        let mut keys = Vec::new();
-
-        while let Some(row) = rows.next().unwrap() {
-            let buf: Vec<u8> = row.get(0).unwrap();
-            keys.push(KeyBuf::from_db_key(&buf));
-        }
-
-        Ok(keys)
-    }
-
-    fn begin_trans(&mut self) -> Fallible<()> {
-        self.conn.execute("BEGIN TRANSACTION", params![])?;
-        Ok(())
-    }
-
-    fn commit(&mut self) -> Fallible<()> {
-        self.conn.execute("COMMIT", params![])?;
-        Ok(())
-    }
-
-    fn rollback(&mut self) -> Fallible<()> {
-        self.conn.execute("ROLLBACK", params![])?;
-        Ok(())
-    }
-
-    fn raw_get<'a>(&'a self, key: &[u8]) -> Fallible<Cow<'a, [u8]>> {
-        let results: Vec<u8> =
-            self.conn
-                .query_row("SELECT value FROM data WHERE key=?", params![key], |row| {
-                    row.get(0)
-                })?;
-
-        Ok(Cow::Owned(results))
-    }
-
-    fn raw_put<'a>(&'a self, key: &[u8], data: &[u8]) -> Fallible<()> {
-        self.conn
-            .prepare_cached("INSERT OR IGNORE INTO data VALUES (?, ?)")?
-            .execute(params![key, data])?;
-
-        Ok(())
-    }
-
-    fn raw_get_state<'a>(&'a self, key: &[u8]) -> Fallible<Option<Vec<u8>>> {
-        let results: Result<Option<Vec<u8>>, _> = self
-            .conn
-            .query_row("SELECT value FROM state WHERE key=?", params![key], |row| {
-                row.get(0)
-            })
-            .optional();
-
-        Ok(results?)
-    }
-
-    fn raw_put_state<'a>(&'a self, key: &[u8], data: &[u8]) -> Fallible<()> {
-        self.conn.execute(
-            "INSERT OR REPLACE INTO state VALUES (?, ?)",
-            params![key, data],
-        )?;
-
-        Ok(())
-    }
-
-    fn raw_exists(&self, key: &[u8]) -> Fallible<bool> {
-        let count: u32 = self.conn.query_row(
-            "SELECT COUNT(*) FROM data WHERE key=?",
-            params![key],
-            |row| row.get(0),
-        )?;
-
-        assert!(count == 0 || count == 1);
-
-        Ok(count == 1)
-    }
-
-    fn raw_between(&self, start: &[u8], end: Option<&[u8]>) -> Fallible<Vec<Vec<u8>>> {
-        dbg!(&start, &end);
-        let mut results = Vec::new();
-        if let Some(e) = end {
-            let mut statement = self
-                .conn
-                .prepare("SELECT key FROM data WHERE key >= ? AND key < ?")?;
-
-            let rows = statement.query_map(params![start, e], |row| row.get(0))?;
-
-            for row in rows {
-                results.push(row?);
-            }
-        } else {
-            let mut statement = self.conn.prepare("SELECT key FROM data WHERE key >= ?")?;
-            let rows = statement.query_map(params![start], |row| row.get(0))?;
-
-            for row in rows {
-                results.push(row?);
-            }
-        }
-
-        Ok(results)
-    }
 }

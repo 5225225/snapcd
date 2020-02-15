@@ -1,7 +1,7 @@
 use rand::prelude::*;
 use rand_chacha::ChaChaRng;
 use snapcd::file::{put_data, read_data};
-use snapcd::{ds::sled::SledDS, DataStore, SqliteDS};
+use snapcd::{ds::{sled::SledDS, sqlite::SqliteDS}, DataStore};
 
 fn internal_test<T: DataStore, F: FnMut() -> T>(
     ctor: &mut F,
@@ -57,13 +57,6 @@ proptest::proptest! {
         let as_db = k.as_db_key();
         let from_db = KeyBuf::from_db_key(&as_db);
         assert_eq!(k, from_db);
-    }
-
-    #[test]
-    fn round_trip_base32(bytes: Vec<u8>) {
-        let b32 = snapcd::to_base32(&bytes);
-        let restored = snapcd::from_base32(&b32, bytes.len() * 8).unwrap();
-        assert_eq!(restored.as_slice(), &*bytes);
     }
 
     #[test]
