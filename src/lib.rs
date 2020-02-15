@@ -18,7 +18,7 @@ pub mod file;
 pub mod filter;
 
 #[derive(
-    Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq, Eq, PartialOrd, Ord, Hash
+    Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq, Eq, PartialOrd, Ord, Hash,
 )]
 pub enum KeyBuf {
     Blake3B([u8; 32]),
@@ -332,7 +332,6 @@ pub fn from_base32(x: &str, max_len: usize) -> Fallible<BitVec<Msb0, u8>> {
 static TABLE: [u8; 32] = *b"abcdefghijklmnopqrstuvwxyz234567";
 
 pub fn to_base32(x: &[u8]) -> String {
-    dbg!(x);
     let mut scratch = BitVec::<Msb0, u8>::from_vec(x.to_vec());
     let mut ret = String::new();
     while !scratch.is_empty() {
@@ -340,7 +339,7 @@ pub fn to_base32(x: &[u8]) -> String {
         ret.push(TABLE[v as usize] as char);
     }
 
-    dbg!(ret)
+    ret
 }
 
 #[derive(Debug, Fail)]
@@ -624,10 +623,9 @@ impl DataStore for SqliteDS {
     }
 
     fn raw_put<'a>(&'a self, key: &[u8], data: &[u8]) -> Fallible<()> {
-        self.conn.prepare_cached(
-            "INSERT OR IGNORE INTO data VALUES (?, ?)")?.execute(
-            params![key, data]
-        )?;
+        self.conn
+            .prepare_cached("INSERT OR IGNORE INTO data VALUES (?, ?)")?
+            .execute(params![key, data])?;
 
         Ok(())
     }

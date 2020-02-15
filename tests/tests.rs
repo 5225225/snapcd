@@ -47,7 +47,6 @@ fn sanity_check() {
     internal_test(&mut sledDS, 1 << 6, 64, 128);
 }
 
-
 use snapcd::{KeyBuf, Keyish};
 use std::str::FromStr;
 
