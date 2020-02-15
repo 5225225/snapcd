@@ -60,10 +60,10 @@ proptest::proptest! {
     }
 
     #[test]
-    fn round_trip_base32(bytes: [u8; 1]) {
+    fn round_trip_base32(bytes: Vec<u8>) {
         let b32 = snapcd::to_base32(&bytes);
         let restored = snapcd::from_base32(&b32, bytes.len() * 8).unwrap();
-        assert_eq!(restored.as_slice(), bytes);
+        assert_eq!(restored.as_slice(), &*bytes);
     }
 
     #[test]
