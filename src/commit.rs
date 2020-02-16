@@ -1,6 +1,7 @@
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::convert::TryInto;
+use thiserror::Error;
 
 use failure::Fallible;
 
@@ -48,6 +49,14 @@ impl TryInto<Commit> for Object<'static> {
             attrs,
         })
     }
+}
+
+#[derive(Debug, Error)]
+pub enum CommitTreeError {
+    #[error("error when serialising object")]
+    Serialisation {
+        #[from] source: serde_cbor::error::Error,
+    },
 }
 
 #[allow(clippy::implicit_hasher)]
