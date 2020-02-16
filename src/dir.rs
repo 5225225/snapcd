@@ -1,9 +1,9 @@
 use crate::{cache::Cache, cache::CacheKey, file, DataStore, KeyBuf, Object};
-use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
 use std::convert::TryInto;
 use std::fs::DirEntry;
 use std::path::{Path, PathBuf};
+use crate::object::ObjType;
 
 use failure::Fallible;
 
@@ -31,15 +31,11 @@ impl TryInto<Object<'static>> for FSItem {
         let obj = serde_cbor::to_vec(&value)?;
 
         let objtype = match self.itemtype {
-            FSItemType::Dir => "dir.FSItem.dir",
-            FSItemType::File => "dir.FSItem.file",
+            FSItemType::Dir => ObjType::FSItemDir,
+            FSItemType::File => ObjType::FSItemFile,
         };
 
-        Ok(Object {
-            data: Cow::Owned(serde_bytes::ByteBuf::from(obj)),
-            keys: Cow::Owned(self.children),
-            objtype: Cow::Borrowed(objtype),
-        })
+        Ok(Object::new_owned(obj, self.children, objtype))
     }
 }
 
@@ -47,11 +43,11 @@ impl<'a> TryInto<FSItem> for Object<'a> {
     type Error = serde_cbor::error::Error;
 
     fn try_into(self) -> Result<FSItem, serde_cbor::error::Error> {
-        let item: serde_cbor::Value = serde_cbor::from_slice(&self.data)?;
+        let item: serde_cbor::Value = serde_cbor::from_slice(&self.data())?;
 
         let mut fsitem: FSItem = serde_cbor::value::from_value(item)?;
 
-        fsitem.children = self.keys.into_owned();
+        fsitem.children = self.keys().to_vec();
 
         Ok(fsitem)
     }

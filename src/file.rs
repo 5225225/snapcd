@@ -1,5 +1,6 @@
 use crate::{DataStore, KeyBuf, Object};
 use std::io::prelude::*;
+use crate::object::ObjType;
 
 use failure::Fallible;
 
@@ -36,7 +37,7 @@ pub fn put_data<DS: DataStore, R: Read>(ds: &mut DS, mut data: R) -> Fallible<Ke
                 let key = ds.put_obj(&Object::new(
                     &current_chunk,
                     &[],
-                    "file.blob",
+                    ObjType::FileBlob,
                 ))?;
                 key_bufs[0].push(key);
                 current_chunk.clear();
@@ -48,7 +49,7 @@ pub fn put_data<DS: DataStore, R: Read>(ds: &mut DS, mut data: R) -> Fallible<Ke
                     {
                         let key = ds.put_obj(&Object::new(&[],
                             &key_bufs[offset as usize],
-                            "file.blobtree",
+                            ObjType::FileBlobTree,
                         ))?;
                         key_bufs[offset as usize].clear();
                         key_bufs[offset as usize + 1].push(key);
@@ -83,14 +84,14 @@ pub fn put_data<DS: DataStore, R: Read>(ds: &mut DS, mut data: R) -> Fallible<Ke
         // No chunks were made.
         return Ok(ds.put_obj(&Object::new(
             &current_chunk, &[],
-            "file.blob",
+            ObjType::FileBlob,
         ))?);
     }
 
     if !current_chunk.is_empty() {
         let key = ds.put_obj(&Object::new(
             &current_chunk, &[],
-            "file.blob",
+            ObjType::FileBlob,
         ))?;
         key_bufs[0].push(key);
     }
@@ -98,7 +99,7 @@ pub fn put_data<DS: DataStore, R: Read>(ds: &mut DS, mut data: R) -> Fallible<Ke
     for offset in 0..4 {
         let key = ds.put_obj(&Object::new(&[],
             &key_bufs[offset],
-            "file.blobtree",
+            ObjType::FileBlobTree,
         ))?;
 
         if key_bufs[offset].len() == 1 && (1 + offset..4).all(|x| key_bufs[x].is_empty()) {
@@ -112,26 +113,26 @@ pub fn put_data<DS: DataStore, R: Read>(ds: &mut DS, mut data: R) -> Fallible<Ke
 
     ds.put_obj(&Object::new(&[],
         &key_bufs[4],
-        "file.blobtree",
+        ObjType::FileBlobTree,
     ))
 }
 
 pub fn read_data<DS: DataStore, W: Write>(ds: &DS, key: &KeyBuf, to: &mut W) -> Fallible<()> {
     let obj = ds.get_obj(key)?;
 
-    match &*obj.objtype {
-        "file.blobtree" => {
-            for key in obj.keys.iter() {
+    match obj.objtype() {
+        ObjType::FileBlobTree => {
+            for key in obj.keys().iter() {
                 read_data(ds, key, to)?;
             }
         }
-        "file.blob" => {
-            to.write_all(&obj.data)?;
+        ObjType::FileBlob => {
+            to.write_all(&obj.data())?;
         }
         _ => {
             panic!(
                 "found invalid object type {:?} when reading key {:?}",
-                obj.objtype, key
+                obj.objtype(), key
             );
         }
     }

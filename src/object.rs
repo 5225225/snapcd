@@ -4,9 +4,21 @@ use crate::KeyBuf;
 
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
 pub struct Object<'a> {
-    pub data: Cow<'a, serde_bytes::Bytes>,
-    pub keys: Cow<'a, [KeyBuf]>,
-    pub objtype: Cow<'a, str>,
+    data: Cow<'a, serde_bytes::Bytes>,
+    keys: Cow<'a, [KeyBuf]>,
+    objtype: ObjType,
+}
+
+#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize)]
+pub enum ObjType {
+    FileBlobTree,
+    FileBlob,
+    Commit,
+    FSItemDir,
+    FSItemFile,
+
+    #[serde(other)]
+    Unknown,
 }
 
 #[derive(Copy, Clone)]
@@ -18,11 +30,19 @@ pub enum ObjectShowFormat {
 }
 
 impl<'a> Object<'a> {
-    pub fn new(data: &'a [u8], keys: &'a [KeyBuf], objtype: &'static str) -> Self {
+    pub fn new(data: &'a [u8], keys: &'a [KeyBuf], objtype: ObjType) -> Self {
         Self {
             data: Cow::Borrowed(serde_bytes::Bytes::new(data)),
             keys: Cow::Borrowed(keys),
-            objtype: Cow::Borrowed(objtype),
+            objtype: objtype,
+        }
+    }
+
+    pub fn new_owned(data: Vec<u8>, keys: Vec<KeyBuf>, objtype: ObjType) -> Self {
+        Self {
+            data: Cow::Owned(serde_bytes::ByteBuf::from(data)),
+            keys: Cow::Owned(keys),
+            objtype: objtype,
         }
     }
 
@@ -32,6 +52,18 @@ impl<'a> Object<'a> {
 
     pub fn show(&'a self, ds: &'a dyn crate::DataStore) -> impl std::fmt::Display + 'a {
         ObjectShowPrinter(self, ds)
+    }
+
+    pub fn objtype(&self) -> ObjType {
+        self.objtype
+    }
+
+    pub fn keys(&self) -> &[KeyBuf] {
+        &self.keys
+    }
+
+    pub fn data(&self) -> &[u8] {
+        &self.data
     }
 }
 
@@ -80,7 +112,7 @@ impl<'a> std::fmt::Display for ObjectShowPrinter<'a> {
     fn fmt(&self, _fmt: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
         match self.0.objtype {
             _ => {
-                debug_assert!(false, "unable to format {}", self.0.objtype);
+                debug_assert!(false, "unable to format {:?}", self.0.objtype);
                 Err(std::fmt::Error)
             }
         }

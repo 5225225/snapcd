@@ -1,4 +1,3 @@
-use std::borrow::Cow;
 use std::collections::HashMap;
 use std::convert::TryInto;
 use thiserror::Error;
@@ -6,6 +5,7 @@ use thiserror::Error;
 use failure::Fallible;
 
 use crate::{DataStore, KeyBuf, Object};
+use crate::object::ObjType;
 
 struct Commit {
     tree: KeyBuf,
@@ -23,11 +23,7 @@ impl TryInto<Object<'static>> for Commit {
         keys.push(self.tree);
         keys.extend(self.parents);
 
-        Ok(Object {
-            data: Cow::Owned(serde_bytes::ByteBuf::from(attrs)),
-            keys: Cow::Owned(keys),
-            objtype: Cow::Borrowed("commit.commit"),
-        })
+        Ok(Object::new_owned(attrs, keys, ObjType::Commit))
     }
 }
 
@@ -35,10 +31,10 @@ impl TryInto<Commit> for Object<'static> {
     type Error = serde_cbor::error::Error;
 
     fn try_into(self) -> Result<Commit, serde_cbor::error::Error> {
-        let item: serde_cbor::Value = serde_cbor::from_slice(&self.data)?;
+        let item: serde_cbor::Value = serde_cbor::from_slice(&self.data())?;
         let attrs: HashMap<String, String> = serde_cbor::value::from_value(item)?;
 
-        let mut owned_keys = self.keys.into_owned();
+        let mut owned_keys = self.keys().to_vec();
 
         let tree = owned_keys.remove(0);
         let parents = owned_keys;
