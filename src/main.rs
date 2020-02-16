@@ -7,7 +7,9 @@
 use failure::Fallible;
 use snapcd::{
     cache::{Cache, SqliteCache},
-    commit, diff, dir, filter, DataStore, Keyish, Reflog, ds::sqlite::SqliteDS,
+    commit, diff, dir,
+    ds::sqlite::SqliteDS,
+    filter, DataStore, Keyish, Reflog,
 };
 use std::collections::HashMap;
 

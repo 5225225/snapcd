@@ -1,14 +1,12 @@
 use bitvec::prelude::*;
 use blake3::hash;
 use failure_derive::Fail;
-use std::path::Path;
 
-use rusqlite::params;
-use rusqlite::OptionalExtension;
 use std::borrow::Cow;
 
 use failure::Fallible;
 
+pub mod base32;
 pub mod cache;
 pub mod commit;
 pub mod diff;
@@ -16,7 +14,6 @@ pub mod dir;
 pub mod ds;
 pub mod file;
 pub mod filter;
-pub mod base32;
 
 #[derive(
     Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq, Eq, PartialOrd, Ord, Hash,

@@ -4,8 +4,8 @@ use rusqlite::params;
 use rusqlite::OptionalExtension;
 use std::borrow::Cow;
 
+use crate::{DataStore, GetReflogError, KeyBuf, Reflog, WalkReflogError};
 use failure::Fallible;
-use crate::{Reflog, KeyBuf, GetReflogError, DataStore, WalkReflogError};
 
 pub struct SqliteDS {
     conn: rusqlite::Connection,

@@ -41,16 +41,33 @@ fn inner_bench<DS: DataStore, T: Fn() -> DS>(
 }
 
 #[allow(non_snake_case)]
-fn perf_test_32B(bench: &mut Criterion) {
-    let ctor = || snapcd::SqliteDS::new(":memory:").unwrap();
-    inner_bench(&ctor, bench, 32, "put-data-32B");
+fn perf_test_32B_sqlite_memory(bench: &mut Criterion) {
+    let ctor = || snapcd::ds::sqlite::SqliteDS::new(":memory:").unwrap();
+    inner_bench(&ctor, bench, 32, "put-data-32B-sqlite");
 }
 
 #[allow(non_snake_case)]
-fn perf_test_4MB(bench: &mut Criterion) {
-    let ctor = || snapcd::SqliteDS::new(":memory:").unwrap();
-    inner_bench(&ctor, bench, 1 << 22, "put-data-4MB");
+fn perf_test_4MB_sqlite_memory(bench: &mut Criterion) {
+    let ctor = || snapcd::ds::sqlite::SqliteDS::new(":memory:").unwrap();
+    inner_bench(&ctor, bench, 1 << 22, "put-data-4MB-sqlite");
 }
 
-criterion_group!(benches, perf_test_32B, perf_test_4MB);
-criterion_main!(benches);
+#[allow(non_snake_case)]
+fn perf_test_32B_null(bench: &mut Criterion) {
+    let ctor = || snapcd::ds::null::NullDS;
+    inner_bench(&ctor, bench, 32, "put-data-32B-null");
+}
+
+#[allow(non_snake_case)]
+fn perf_test_4MB_null(bench: &mut Criterion) {
+    let ctor = || snapcd::ds::null::NullDS;
+    inner_bench(&ctor, bench, 1 << 22, "put-data-4MB-null");
+}
+
+criterion_group!(
+    sqlite,
+    perf_test_32B_sqlite_memory,
+    perf_test_4MB_sqlite_memory
+);
+criterion_group!(null, perf_test_32B_null, perf_test_4MB_null);
+criterion_main!(sqlite, null);

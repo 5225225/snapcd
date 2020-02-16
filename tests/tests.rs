@@ -1,7 +1,10 @@
 use rand::prelude::*;
 use rand_chacha::ChaChaRng;
 use snapcd::file::{put_data, read_data};
-use snapcd::{ds::{sled::SledDS, sqlite::SqliteDS}, DataStore};
+use snapcd::{
+    ds::{sled::SledDS, sqlite::SqliteDS},
+    DataStore,
+};
 
 fn internal_test<T: DataStore, F: FnMut() -> T>(
     ctor: &mut F,
@@ -38,13 +41,13 @@ fn sanity_check() {
     let mut sqliteDS = || SqliteDS::new(":memory:").unwrap();
     let mut sledDS = || SledDS::new_tmp().unwrap();
 
-    internal_test(&mut sqliteDS, 1 << 16, 0, 8);
-    internal_test(&mut sqliteDS, 1 << 10, 8, 64);
-    internal_test(&mut sqliteDS, 1 << 6, 64, 128);
+    internal_test(&mut sqliteDS, 1 << 20, 0, 8);
+    internal_test(&mut sqliteDS, 1 << 14, 8, 64);
+    internal_test(&mut sqliteDS, 1 << 10, 64, 128);
 
-    internal_test(&mut sledDS, 1 << 16, 0, 8);
-    internal_test(&mut sledDS, 1 << 10, 8, 64);
-    internal_test(&mut sledDS, 1 << 6, 64, 128);
+    internal_test(&mut sledDS, 1 << 20, 0, 8);
+    internal_test(&mut sledDS, 1 << 14, 8, 64);
+    internal_test(&mut sledDS, 1 << 10, 64, 128);
 }
 
 use snapcd::{KeyBuf, Keyish};

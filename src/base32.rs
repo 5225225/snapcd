@@ -1,12 +1,6 @@
-
 use bitvec::prelude::*;
-use blake3::hash;
-use failure_derive::Fail;
-use std::path::Path;
 
-use rusqlite::params;
-use rusqlite::OptionalExtension;
-use std::borrow::Cow;
+use failure_derive::Fail;
 
 use failure::Fallible;
 
@@ -81,11 +75,11 @@ mod tests {
     use super::*;
 
     proptest::proptest! {
-#[test]
-        fn round_trip_base32(bytes: Vec<u8>) {
-            let b32 = to_base32(&bytes);
-            let restored = from_base32(&b32, bytes.len() * 8).unwrap();
-            assert_eq!(restored.as_slice(), &*bytes);
+    #[test]
+            fn round_trip_base32(bytes: Vec<u8>) {
+                let b32 = to_base32(&bytes);
+                let restored = from_base32(&b32, bytes.len() * 8).unwrap();
+                assert_eq!(restored.as_slice(), &*bytes);
+            }
         }
-    }
 }
