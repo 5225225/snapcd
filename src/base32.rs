@@ -1,8 +1,5 @@
+use thiserror::Error;
 use bitvec::prelude::*;
-
-use failure_derive::Fail;
-
-use failure::Fallible;
 
 fn pop_u5_from_bitvec(x: &mut BitVec<Msb0, u8>) -> u8 {
     let mut v = 0;
@@ -19,18 +16,18 @@ fn pop_u5_from_bitvec(x: &mut BitVec<Msb0, u8>) -> u8 {
         }
     }
 
-    assert!(v <= 31);
+    debug_assert!(v <= 31);
 
     v
 }
 
-#[derive(Debug, Fail)]
+#[derive(Debug, Error)]
 pub enum FromBase32Error {
-    #[fail(display = "found non-base32 char {}", _0)]
+    #[error("found non-base32 char {0}")]
     UnknownByte(char),
 }
 
-pub fn from_base32(x: &str, max_len: usize) -> Fallible<BitVec<Msb0, u8>> {
+pub fn from_base32(x: &str, max_len: usize) -> Result<BitVec<Msb0, u8>, FromBase32Error> {
     let mut result = BitVec::<Msb0, u8>::new();
 
     for mut ch in x.bytes() {
@@ -75,11 +72,16 @@ mod tests {
     use super::*;
 
     proptest::proptest! {
-    #[test]
-            fn round_trip_base32(bytes: Vec<u8>) {
-                let b32 = to_base32(&bytes);
-                let restored = from_base32(&b32, bytes.len() * 8).unwrap();
-                assert_eq!(restored.as_slice(), &*bytes);
-            }
+        #[test]
+        fn round_trip_base32(bytes: Vec<u8>) {
+            let b32 = to_base32(&bytes);
+            let restored = from_base32(&b32, bytes.len() * 8).unwrap();
+            assert_eq!(restored.as_slice(), &*bytes);
         }
+
+        #[test]
+        fn from_base32_non_panicking(bytes: String) {
+            from_base32(&bytes, bytes.len() * 8);
+        }
+    }
 }
