@@ -470,7 +470,7 @@ fn show(state: &mut State, args: ShowArgs) -> CMDResult {
 
     let value = ds_state.ds.get_obj(&key)?;
 
-    println!("{}", value.show());
+    println!("{}", value.show(&ds_state.ds));
 
     Ok(())
 }

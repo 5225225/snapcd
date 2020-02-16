@@ -1,5 +1,4 @@
 use crate::{DataStore, KeyBuf, Object};
-use std::borrow::Cow;
 use std::io::prelude::*;
 
 use failure::Fallible;
@@ -34,9 +33,10 @@ pub fn put_data<DS: DataStore, R: Read>(ds: &mut DS, mut data: R) -> Fallible<Ke
             debug_assert!(zeros >= BLOB_ZERO_COUNT || boundry == (1 << BLOB_ZERO_COUNT_MAX));
 
             if current_chunk.len() >= 1 << (BLOB_ZERO_COUNT_MAX) {
-                let key = ds.put_obj(&Object::only_data(
-                    Cow::Borrowed(&current_chunk),
-                    Cow::Borrowed("file.blob"),
+                let key = ds.put_obj(&Object::new(
+                    &current_chunk,
+                    &[],
+                    "file.blob",
                 ))?;
                 key_bufs[0].push(key);
                 current_chunk.clear();
@@ -46,9 +46,9 @@ pub fn put_data<DS: DataStore, R: Read>(ds: &mut DS, mut data: R) -> Fallible<Ke
                     if zeros > BLOB_ZERO_COUNT + (offset + 1) * PER_LEVEL_COUNT
                         || len >= 1 << PER_LEVEL_COUNT_MAX
                     {
-                        let key = ds.put_obj(&Object::only_keys(
-                            Cow::Borrowed(&key_bufs[offset as usize]),
-                            Cow::Borrowed("file.blobtree"),
+                        let key = ds.put_obj(&Object::new(&[],
+                            &key_bufs[offset as usize],
+                            "file.blobtree",
                         ))?;
                         key_bufs[offset as usize].clear();
                         key_bufs[offset as usize + 1].push(key);
@@ -81,24 +81,24 @@ pub fn put_data<DS: DataStore, R: Read>(ds: &mut DS, mut data: R) -> Fallible<Ke
 
     if (0..4).all(|x| key_bufs[x].is_empty()) {
         // No chunks were made.
-        return Ok(ds.put_obj(&Object::only_data(
-            Cow::Borrowed(&current_chunk),
-            Cow::Borrowed("file.blob"),
+        return Ok(ds.put_obj(&Object::new(
+            &current_chunk, &[],
+            "file.blob",
         ))?);
     }
 
     if !current_chunk.is_empty() {
-        let key = ds.put_obj(&Object::only_data(
-            Cow::Borrowed(&current_chunk),
-            Cow::Borrowed("file.blob"),
+        let key = ds.put_obj(&Object::new(
+            &current_chunk, &[],
+            "file.blob",
         ))?;
         key_bufs[0].push(key);
     }
 
     for offset in 0..4 {
-        let key = ds.put_obj(&Object::only_keys(
-            Cow::Borrowed(&key_bufs[offset]),
-            Cow::Borrowed("file.blobtree"),
+        let key = ds.put_obj(&Object::new(&[],
+            &key_bufs[offset],
+            "file.blobtree",
         ))?;
 
         if key_bufs[offset].len() == 1 && (1 + offset..4).all(|x| key_bufs[x].is_empty()) {
@@ -110,9 +110,9 @@ pub fn put_data<DS: DataStore, R: Read>(ds: &mut DS, mut data: R) -> Fallible<Ke
         key_bufs[offset + 1].push(key);
     }
 
-    ds.put_obj(&Object::only_keys(
-        Cow::Borrowed(&key_bufs[4]),
-        Cow::Borrowed("file.blobtree"),
+    ds.put_obj(&Object::new(&[],
+        &key_bufs[4],
+        "file.blobtree",
     ))
 }
 
