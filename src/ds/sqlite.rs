@@ -15,13 +15,9 @@ impl SqliteDS {
     pub fn new<S: AsRef<Path>>(path: S) -> Fallible<Self> {
         let conn = rusqlite::Connection::open(path)?;
 
-        conn.pragma_update(None, &"journal_mode", &"WAL")?;
-        conn.pragma_update(None, &"synchronous", &"1")?;
-
-        // values found through bullshitting around with them on my machine
-        // slightly faster than defaults
+        conn.pragma_update(None, &"synchronous", &"2")?;
+        conn.pragma_update(None, &"journal_mode", &"truncate")?;
         conn.pragma_update(None, &"page_size", &"16384")?;
-        conn.pragma_update(None, &"wal_autocheckpoint", &"500")?;
 
         conn.execute_batch(
             "

@@ -1,6 +1,7 @@
 pub mod null;
 pub mod sled;
 pub mod sqlite;
+pub mod rocks;
 
 use blake3::hash;
 use failure_derive::Fail;

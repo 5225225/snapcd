@@ -64,10 +64,29 @@ fn perf_test_4MB_null(bench: &mut Criterion) {
     inner_bench(&ctor, bench, 1 << 22, "put-data-4MB-null");
 }
 
+#[allow(non_snake_case)]
+fn perf_test_32B_rocks(bench: &mut Criterion) {
+    let ctor = || snapcd::ds::rocks::RocksDS::new("/tmp/foobar.db").unwrap();
+    inner_bench(&ctor, bench, 32, "put-data-32B-rocks");
+}
+
+#[allow(non_snake_case)]
+fn perf_test_4MB_rocks(bench: &mut Criterion) {
+    let ctor = || snapcd::ds::rocks::RocksDS::new("/tmp/foobar.db").unwrap();
+    inner_bench(&ctor, bench, 1 << 22, "put-data-4MB-rocks");
+}
+
 criterion_group!(
     sqlite,
     perf_test_32B_sqlite_memory,
     perf_test_4MB_sqlite_memory
 );
 criterion_group!(null, perf_test_32B_null, perf_test_4MB_null);
-criterion_main!(sqlite, null);
+
+criterion_group!(
+    rocks,
+    perf_test_32B_rocks,
+    perf_test_4MB_rocks
+);
+
+criterion_main!(sqlite, null, rocks);
