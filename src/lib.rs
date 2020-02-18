@@ -9,6 +9,7 @@ pub mod filter;
 pub mod key;
 pub mod keyish;
 pub mod object;
+pub mod display;
 
 pub use key::KeyBuf;
 pub use keyish::Keyish;

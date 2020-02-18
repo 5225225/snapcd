@@ -26,7 +26,7 @@ pub enum ObjectShowFormat {
     Oneline,
     Message,
     Stat,
-    Full
+    Full,
 }
 
 impl<'a> Object<'a> {
@@ -111,7 +111,13 @@ struct ObjectShowPrinter<'a>(&'a Object<'a>, &'a dyn crate::DataStore);
 impl<'a> std::fmt::Display for ObjectShowPrinter<'a> {
     fn fmt(&self, _fmt: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
         match self.0.objtype {
-            _ => {
+    ObjType::FileBlobTree => {todo!()}
+   ObjType::FileBlob => {todo!()}
+   ObjType::Commit => {todo!()}
+   ObjType::FSItemDir => {todo!()}
+   ObjType::FSItemFile => {todo!()}
+   ObjType::Unknown =>
+            {
                 debug_assert!(false, "unable to format {:?}", self.0.objtype);
                 Err(std::fmt::Error)
             }
