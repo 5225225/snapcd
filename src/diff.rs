@@ -67,9 +67,19 @@ pub fn compare<DS: DataStore>(
 
     let to_keys: HashSet<PathBuf> = to_map.keys().cloned().collect();
 
-    let mut in_from_only: Vec<DeletedDiffResult> = to_keys.difference(&from_keys).cloned().collect();
-    let mut in_to_only: Vec<AddedDiffResult> = from_keys.difference(&to_keys).cloned().collect();
-    let in_both: Vec<ModifiedDiffResult> = from_keys.intersection(&to_keys).collect();
+    let mut in_from_only: Vec<DeletedDiffResult> = to_keys.difference(&from_keys).map(|x| DeletedDiffResult{
+        path: x.clone(),
+        original_key: from_map.either(
+            |y| dir::hash_fs_item(ds, x, cache).expect("failed to hash"),
+            |y| y[x].0),
+    }).collect();
+
+    let mut in_to_only: Vec<AddedDiffResult> = from_keys.difference(&to_keys).map(|x| AddedDiffResult {
+        path: x.clone(),
+        new_key: to_map[x].0.clone(),
+    }).collect();
+
+    let in_both: Vec<_> = from_keys.intersection(&to_keys).collect();
 
     let mut modified = Vec::new();
 
@@ -96,7 +106,13 @@ pub fn compare<DS: DataStore>(
         let t = to_map[path].clone();
 
         if f != t.0 {
-            modified.push(path.clone());
+            let dr = ModifiedDiffResult {
+                original_key: f,
+                new_key: t.0,
+                path: path.clone(),
+            };
+
+            modified.push(dr);
         }
     }
 
@@ -117,7 +133,7 @@ pub fn simplify(r: DiffResult) -> DiffResult {
 
     if !r.added.is_empty() {
         for p in r.added {
-            if added.iter().any(|x| p.starts_with(x)) {
+            if added.iter().any(|x| p.path.starts_with(x.path)) {
                 added.push(p);
             }
         }
@@ -144,13 +160,13 @@ pub fn print_diff_result(r: DiffResult) {
     if !r.added.is_empty() {
         println!("{}", "added:".green());
         for p in r.added {
-            println!("  {}", p.display());
+            println!("  {}", p.path.display());
         }
     }
     if !r.deleted.is_empty() {
         println!("{}", "deleted:".red());
         for p in r.deleted {
-            println!("  {}", p.display());
+            println!("  {}", p.path.display());
         }
     }
 
@@ -158,7 +174,7 @@ pub fn print_diff_result(r: DiffResult) {
     if !r.modified.is_empty() {
         println!("{}", "modified:".blue());
         for p in r.modified {
-            println!("  {}", p.display());
+            println!("  {}", p.path.display());
         }
     }
 }
