@@ -130,6 +130,9 @@ struct CompareArgs {
     #[structopt(short = "-p", long = "--path")]
     path: Option<PathBuf>,
     key: Option<Keyish>,
+
+    #[structopt(short = "-s", long = "--stat")]
+    stat: bool,
 }
 
 #[derive(StructOpt, Debug)]
@@ -143,22 +146,6 @@ struct CommitArgs {
 struct ShowArgs {
     /// Object to show
     key: Keyish,
-
-    /// Shows a commit as an abbreviated hash, and the first line of the commit message
-    #[structopt(short, long, group("diff-fmt"))]
-    oneline: bool,
-
-    /// Shows a commit as a full hash, and the full commit message, with metadata
-    #[structopt(short, long, group("diff-fmt"))]
-    full: bool,
-
-    /// Shows a commit as in full, but also includes a stat of files changed.
-    #[structopt(short, long, group("diff-fmt"))]
-    stat: bool,
-
-    /// Shows a commit as in full, but also includes a full diff of changes made.
-    #[structopt(short, long, group("diff-fmt"))]
-    diff: bool,
 }
 
 #[derive(StructOpt, Debug)]
@@ -534,7 +521,11 @@ fn compare(state: &mut State, args: CompareArgs) -> CMDResult {
         &mut state.cache,
     )?;
 
-    diff::print_diff_result(result);
+    if args.stat {
+        diff::print_stat_diff_result(&mut ds_state.ds, result);
+    } else {
+        diff::print_diff_result(result);
+    }
 
     Ok(())
 }

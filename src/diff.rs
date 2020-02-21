@@ -1,4 +1,4 @@
-use crate::{cache, dir, filter};
+use crate::{cache, dir, filter, file};
 use crate::{DataStore, KeyBuf};
 use failure::Fallible;
 use std::collections::{HashMap, HashSet};
@@ -12,7 +12,7 @@ pub enum DiffTarget {
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
 pub struct DeletedDiffResult {
     path: PathBuf,
-    original_key: KeyBuf,
+    original_key: Option<KeyBuf>,
 }
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
@@ -25,9 +25,10 @@ pub struct ModifiedDiffResult {
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
 pub struct AddedDiffResult {
     path: PathBuf,
-    new_key: KeyBuf,
+    new_key: Option<KeyBuf>,
 }
 
+#[derive(Debug)]
 pub struct DiffResult {
     deleted: Vec<DeletedDiffResult>,
     added: Vec<AddedDiffResult>,
@@ -67,16 +68,26 @@ pub fn compare<DS: DataStore>(
 
     let to_keys: HashSet<PathBuf> = to_map.keys().cloned().collect();
 
-    let mut in_from_only: Vec<DeletedDiffResult> = to_keys.difference(&from_keys).map(|x| DeletedDiffResult{
+    let mut in_from_only: Vec<AddedDiffResult> = from_keys.difference(&to_keys).map(|x| AddedDiffResult{
         path: x.clone(),
-        original_key: from_map.either(
-            |y| dir::hash_fs_item(ds, x, cache).expect("failed to hash"),
-            |y| y[x].0),
+        new_key: from_map.as_ref().either(
+            |y| {
+                if !y[x] { // this is a file
+                    match dir::hash_fs_item(ds, x, cache) {
+                        Ok(h) => Some(h),
+                        Err(e) => panic!(e),
+                    }
+                } else {
+                    // directories don't have a hash
+                    None
+                }
+            },
+            |y| Some(y[x].0)),
     }).collect();
 
-    let mut in_to_only: Vec<AddedDiffResult> = from_keys.difference(&to_keys).map(|x| AddedDiffResult {
+    let mut in_to_only: Vec<DeletedDiffResult> = to_keys.difference(&from_keys).map(|x| DeletedDiffResult {
         path: x.clone(),
-        new_key: to_map[x].0.clone(),
+        original_key: Some(to_map[x].0.clone()),
     }).collect();
 
     let in_both: Vec<_> = from_keys.intersection(&to_keys).collect();
@@ -121,8 +132,8 @@ pub fn compare<DS: DataStore>(
     modified.sort_unstable();
 
     Ok(DiffResult {
-        deleted: in_from_only,
-        added: in_to_only,
+        deleted: in_to_only,
+        added: in_from_only,
         modified: modified,
     })
 }
@@ -133,7 +144,7 @@ pub fn simplify(r: DiffResult) -> DiffResult {
 
     if !r.added.is_empty() {
         for p in r.added {
-            if added.iter().any(|x| p.path.starts_with(x.path)) {
+            if !added.iter().any(|x: &AddedDiffResult| p.path.starts_with(&x.path)) {
                 added.push(p);
             }
         }
@@ -141,7 +152,7 @@ pub fn simplify(r: DiffResult) -> DiffResult {
 
     if !r.deleted.is_empty() {
         for p in r.deleted {
-            if !deleted.iter().any(|x| p.starts_with(x)) {
+            if !deleted.iter().any(|x: &DeletedDiffResult| p.path.starts_with(&x.path)) {
                 deleted.push(p);
             }
         }
@@ -160,23 +171,113 @@ pub fn print_diff_result(r: DiffResult) {
     if !r.added.is_empty() {
         println!("{}", "added:".green());
         for p in r.added {
-            println!("  {}", p.path.display());
+            match p.new_key {
+                Some(_) => println!("  {}", p.path.display()),
+                None => println!("  {}/", p.path.display().to_string().bold()),
+            }
         }
     }
     if !r.deleted.is_empty() {
         println!("{}", "deleted:".red());
         for p in r.deleted {
-            println!("  {}", p.path.display());
+            match p.original_key {
+                Some(_) => println!("  {}", p.path.display()),
+                None => println!("  {}/", p.path.display().to_string().bold()),
+            }
         }
     }
 
-    // Directories can't be modified, so we don't need to simplify here
     if !r.modified.is_empty() {
         println!("{}", "modified:".blue());
         for p in r.modified {
             println!("  {}", p.path.display());
         }
     }
+}
+
+pub fn print_stat_diff_result(ds: &impl DataStore, r: DiffResult) {
+    let stat = line_stat(ds, r);
+
+    print_line_stat(stat);
+}
+
+pub struct LineStatResult {
+    items: Vec<FileStatResult>
+}
+
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
+pub struct FileStatResult {
+    fname: PathBuf,
+    added: usize,
+    removed: usize,
+}
+
+pub fn line_stat(ds: &impl DataStore, r: DiffResult) -> LineStatResult {
+    let mut items = Vec::new();
+
+    for added in r.added {
+        if let Some(k) = added.new_key {
+            items.push(FileStatResult {
+                fname: added.path,
+                added: line_ct(ds, k),
+                removed: 0,
+            });
+        }
+    }
+
+    for removed in r.deleted {
+        if let Some(k) = removed.original_key {
+            items.push(FileStatResult {
+                fname: removed.path,
+                added: 0,
+                removed: line_ct(ds, k),
+            });
+        }
+    }
+
+    for modified in r.modified {
+        let mut before = Vec::new();
+        file::read_data(ds, &modified.original_key, &mut before).unwrap();
+
+        let mut after = Vec::new();
+        file::read_data(ds, &modified.new_key, &mut after).unwrap();
+
+        let before_str = String::from_utf8_lossy(&before);
+        let after_str = String::from_utf8_lossy(&after);
+
+        let lines = diff::lines(&before_str, &after_str);
+
+        let mut removed: usize = 0;
+        let mut added: usize = 0;
+        for item in lines {
+            match item {
+                diff::Result::Left(_) => removed += 1,
+                diff::Result::Right(_) => added += 1,
+                diff::Result::Both(_, _) => {},
+            }
+        }
+
+        items.push(FileStatResult {
+            fname: modified.path,
+            added, removed,
+        });
+    }
+
+    LineStatResult { items }
+}
+
+pub fn print_line_stat(mut lsr: LineStatResult) {
+    lsr.items.sort_unstable();
+
+    for item in lsr.items {
+        println!("{}  +{} -{}", item.fname.display(), item.added, item.removed);
+    }
+}
+
+pub fn line_ct(ds: &impl DataStore, key: KeyBuf) -> usize {
+    let mut data = Vec::new();
+    file::read_data(ds, &key, &mut data).unwrap();
+    data.iter().filter(|x| **x == b'\n').count()
 }
 
 pub fn diff_result_empty(r: &DiffResult) -> bool {

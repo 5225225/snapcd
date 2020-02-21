@@ -129,6 +129,12 @@ pub fn read_data<DS: DataStore, W: Write>(ds: &DS, key: &KeyBuf, to: &mut W) -> 
         ObjType::FileBlob => {
             to.write_all(&obj.data())?;
         }
+        ObjType::FSItemFile => {
+            assert!(obj.keys().len() == 1);
+
+            let key = obj.keys()[0];
+            read_data(ds, &key, to)?;
+        }
         _ => {
             panic!(
                 "found invalid object type {:?} when reading key {:?}",

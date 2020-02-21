@@ -165,7 +165,7 @@ pub fn hash_fs_item<DS: DataStore, C: Cache>(
         return Ok(obj_hash);
     }
 
-    unimplemented!("cannot hash non-files")
+    failure::bail!("cannot hash non-files")
 }
 
 pub fn get_fs_item<DS: DataStore>(ds: &DS, key: &KeyBuf, path: &Path) -> Fallible<()> {
