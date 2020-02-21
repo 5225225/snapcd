@@ -10,6 +10,7 @@ use snapcd::{
     commit, diff, dir,
     ds::sqlite::SqliteDS,
     filter, DataStore, Keyish, Reflog,
+    display,
 };
 use std::collections::HashMap;
 
@@ -142,6 +143,22 @@ struct CommitArgs {
 struct ShowArgs {
     /// Object to show
     key: Keyish,
+
+    /// Shows a commit as an abbreviated hash, and the first line of the commit message
+    #[structopt(short, long, group("diff-fmt"))]
+    oneline: bool,
+
+    /// Shows a commit as a full hash, and the full commit message, with metadata
+    #[structopt(short, long, group("diff-fmt"))]
+    full: bool,
+
+    /// Shows a commit as in full, but also includes a stat of files changed.
+    #[structopt(short, long, group("diff-fmt"))]
+    stat: bool,
+
+    /// Shows a commit as in full, but also includes a full diff of changes made.
+    #[structopt(short, long, group("diff-fmt"))]
+    diff: bool,
 }
 
 #[derive(StructOpt, Debug)]
@@ -468,9 +485,7 @@ fn show(state: &mut State, args: ShowArgs) -> CMDResult {
 
     let key = ds_state.ds.canonicalize(args.key)?;
 
-    let value = ds_state.ds.get_obj(&key)?;
-
-    println!("{}", value.show(&ds_state.ds));
+    display::display_obj(&ds_state.ds, key)?;
 
     Ok(())
 }

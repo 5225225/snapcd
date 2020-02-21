@@ -9,10 +9,29 @@ pub enum DiffTarget {
     Database(KeyBuf),
 }
 
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
+pub struct DeletedDiffResult {
+    path: PathBuf,
+    original_key: KeyBuf,
+}
+
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
+pub struct ModifiedDiffResult {
+    path: PathBuf,
+    original_key: KeyBuf,
+    new_key: KeyBuf,
+}
+
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
+pub struct AddedDiffResult {
+    path: PathBuf,
+    new_key: KeyBuf,
+}
+
 pub struct DiffResult {
-    deleted: Vec<PathBuf>,
-    added: Vec<PathBuf>,
-    modified: Vec<PathBuf>,
+    deleted: Vec<DeletedDiffResult>,
+    added: Vec<AddedDiffResult>,
+    modified: Vec<ModifiedDiffResult>,
 }
 
 pub fn compare<DS: DataStore>(
@@ -45,11 +64,12 @@ pub fn compare<DS: DataStore>(
         |x| x.keys().cloned().collect(),
         |x| x.keys().cloned().collect(),
     );
+
     let to_keys: HashSet<PathBuf> = to_map.keys().cloned().collect();
 
-    let mut in_from_only: Vec<_> = to_keys.difference(&from_keys).cloned().collect();
-    let mut in_to_only: Vec<_> = from_keys.difference(&to_keys).cloned().collect();
-    let in_both: Vec<_> = from_keys.intersection(&to_keys).collect();
+    let mut in_from_only: Vec<DeletedDiffResult> = to_keys.difference(&from_keys).cloned().collect();
+    let mut in_to_only: Vec<AddedDiffResult> = from_keys.difference(&to_keys).cloned().collect();
+    let in_both: Vec<ModifiedDiffResult> = from_keys.intersection(&to_keys).collect();
 
     let mut modified = Vec::new();
 
@@ -91,27 +111,46 @@ pub fn compare<DS: DataStore>(
     })
 }
 
-pub fn print_diff_result(r: DiffResult) {
-    use colored::*;
+pub fn simplify(r: DiffResult) -> DiffResult {
+    let mut deleted = Vec::new();
+    let mut added = Vec::new();
 
     if !r.added.is_empty() {
-        let mut already_added: HashSet<PathBuf> = HashSet::new();
-        println!("{}", "added:".green());
         for p in r.added {
-            if !already_added.iter().any(|x| p.starts_with(x)) {
-                println!("  {}", p.display());
-                already_added.insert(p);
+            if added.iter().any(|x| p.starts_with(x)) {
+                added.push(p);
             }
         }
     }
+
     if !r.deleted.is_empty() {
-        let mut already_added: HashSet<PathBuf> = HashSet::new();
+        for p in r.deleted {
+            if !deleted.iter().any(|x| p.starts_with(x)) {
+                deleted.push(p);
+            }
+        }
+    }
+
+    DiffResult {added, modified: r.modified, deleted}
+
+    // Directories can't be modified, so we don't need to simplify here
+}
+
+pub fn print_diff_result(r: DiffResult) {
+    let r = simplify(r);
+
+    use colored::*;
+
+    if !r.added.is_empty() {
+        println!("{}", "added:".green());
+        for p in r.added {
+            println!("  {}", p.display());
+        }
+    }
+    if !r.deleted.is_empty() {
         println!("{}", "deleted:".red());
         for p in r.deleted {
-            if !already_added.iter().any(|x| p.starts_with(x)) {
-                println!("  {}", p.display());
-                already_added.insert(p);
-            }
+            println!("  {}", p.display());
         }
     }
 

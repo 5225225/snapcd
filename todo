@@ -1,0 +1,43 @@
+multiple ways to show a commit, in order of shortest to longest
+
+
+1. single line (Show commit hash, and then first line of message)
+    --oneline
+
+2. multi line (Show commit hash, and full message, as well as metadata)
+    --full
+
+3. stat (The above, but also a list of changes between it and the child)
+    --stat
+
+4. diff (Multi line, but a full text diff of contents)
+    --diff
+
+All of the above should also be supported when showing a log
+
+
+Showing a directory: shows children names, no configuration.
+
+Showing a file/blobtree/blob: Shows contents
+
+
+`snapcd show <object>`
+
+`snapcd log <commit>`
+
+
+Format:
+
+DiffHeader
+    oneline:
+        `(yellow <maybe truncated hash>) <branch names> <commit message>`
+    normal
+        commit <full hash> <branch names>
+        <common metadata (Author, Date)>
+        <Commit message (Full)>
+    raw
+        commit <full hash> <branch names>
+        <all metadata>
+        <Commit message (Full)>
+        
+Vec<DiffFile>

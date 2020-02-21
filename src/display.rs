@@ -1,13 +1,20 @@
+use colored::*;
+
 use crate::{DataStore, KeyBuf};
+use thiserror::Error;
 
-pub struct ShownObject {
-
+#[derive(Debug, Error)]
+pub enum ShowError {
+    #[error("")]
+    GetError,
 }
 
-pub struct ShowError {
 
-}
+pub fn display_obj(ds: &impl DataStore, key: KeyBuf) -> Result<(), ShowError> {
+    let obj = ds.get_obj(&key).unwrap();
 
-pub fn show_object(ds: impl DataStore, key: KeyBuf) -> Result<ShownObject, ShowError> {
-    todo!();
+    println!("{}", format!("commit {}", key).yellow());
+
+
+    Ok(())
 }
