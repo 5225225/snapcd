@@ -23,7 +23,15 @@ pub trait Cache {
 
         let cache_result = self.raw_get(&data)?;
 
-        Ok(cache_result.map(|x| KeyBuf::from_db_key(&x)))
+        match cache_result {
+            Some(data) => {
+                let key = KeyBuf::from_db_key(&data)?;
+                Ok(Some(key))
+            }
+            None => Ok(None),
+        }
+
+        // Ok(cache_result.map(|x| KeyBuf::from_db_key(&x)))
     }
 
     fn put(&self, cachekey: CacheKey, value: &KeyBuf) -> Fallible<()> {

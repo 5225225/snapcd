@@ -62,7 +62,7 @@ impl DataStore for SqliteDS {
 
         let key = row.ok_or(GetReflogError::NotFound)?;
 
-        Ok(KeyBuf::from_db_key(&key))
+        Ok(KeyBuf::from_db_key(&key)?)
     }
 
     fn reflog_push(&self, data: &Reflog) -> Fallible<()> {
@@ -90,7 +90,7 @@ impl DataStore for SqliteDS {
 
         while let Some(row) = rows.next().unwrap() {
             let buf: Vec<u8> = row.get(0).unwrap();
-            keys.push(KeyBuf::from_db_key(&buf));
+            keys.push(KeyBuf::from_db_key(&buf)?);
         }
 
         Ok(keys)

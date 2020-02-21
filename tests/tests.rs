@@ -2,7 +2,7 @@ use rand::prelude::*;
 use rand_chacha::ChaChaRng;
 use snapcd::file::{put_data, read_data};
 use snapcd::{
-    ds::{sled::SledDS, sqlite::SqliteDS},
+    ds::sqlite::SqliteDS,
     DataStore,
 };
 
@@ -39,47 +39,8 @@ fn internal_test<T: DataStore, F: FnMut() -> T>(
 #[test]
 fn sanity_check() {
     let mut sqliteDS = || SqliteDS::new(":memory:").unwrap();
-    let mut sledDS = || SledDS::new_tmp().unwrap();
 
     internal_test(&mut sqliteDS, 1 << 20, 0, 8);
     internal_test(&mut sqliteDS, 1 << 14, 8, 64);
     internal_test(&mut sqliteDS, 1 << 10, 64, 128);
-
-    internal_test(&mut sledDS, 1 << 20, 0, 8);
-    internal_test(&mut sledDS, 1 << 14, 8, 64);
-    internal_test(&mut sledDS, 1 << 10, 64, 128);
-}
-
-use snapcd::{KeyBuf, Keyish};
-use std::str::FromStr;
-
-proptest::proptest! {
-    #[test]
-    fn round_trip_blake3b_db(bytes: [u8; 32]) {
-        let k = KeyBuf::Blake3B(bytes);
-        let as_db = k.as_db_key();
-        let from_db = KeyBuf::from_db_key(&as_db);
-        assert_eq!(k, from_db);
-    }
-
-    #[test]
-    fn round_trip_blake3b_to_keyish(bytes: [u8; 32]) {
-        let k = KeyBuf::Blake3B(bytes);
-        let as_user = k.as_user_key();
-        let from_user = Keyish::from_str(&as_user).unwrap();
-
-
-        if let Keyish::Key(_, b) = from_user {
-            assert_eq!(b, k.as_db_key(), "keyish from_str did not round trip with as_user_key");
-
-            let db_key = KeyBuf::from_db_key(&b);
-            if let KeyBuf::Blake3B(newbytes) = db_key {
-                assert_eq!(bytes, newbytes);
-            } else {
-                panic!("parsed a keybuf that wasn't expected hash type")
-            }
-        } else {
-            panic!("we asked for the full key and we got something else")
-        }
-    }
 }

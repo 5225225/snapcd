@@ -1,7 +1,7 @@
 pub mod null;
-pub mod sled;
+//pub mod sled;
 pub mod sqlite;
-pub mod rocks;
+//pub mod rocks;
 
 use blake3::hash;
 use failure_derive::Fail;
@@ -10,9 +10,12 @@ use std::borrow::Cow;
 
 use failure::Fallible;
 
+use thiserror::Error;
+
 use crate::Keyish;
 use crate::Object;
 use crate::KeyBuf;
+use crate::key;
 
 #[derive(Debug, Fail)]
 pub enum CanonicalizeError {
@@ -41,13 +44,16 @@ pub struct Reflog {
     pub remote: Option<String>,
 }
 
-#[derive(Debug, Fail)]
+#[derive(Debug, Error)]
 pub enum GetReflogError {
-    #[fail(display = "Ref not found")]
+    #[error("Ref not found")]
     NotFound,
 
-    #[fail(display = "sqlite error: {}", _0)]
-    SqliteError(rusqlite::Error),
+    #[error("error parsing db key: {_0}")]
+    FromDbKeyError(#[from] key::FromDbKeyError),
+
+    #[error("sqlite error: {_0}")]
+    SqliteError(#[from] rusqlite::Error),
 }
 
 static_assertions::assert_obj_safe!(DataStore);
@@ -128,7 +134,7 @@ pub trait DataStore {
             } => match self.reflog_get(&keyname, remote.as_deref()) {
                 Ok(key) => return Ok(key),
                 Err(GetReflogError::NotFound) => return Err(CanonicalizeError::NotFound(orig)),
-                Err(GetReflogError::SqliteError(e)) => return Err(e.into()),
+                Err(e) => return Err(e.into()),
             },
         };
 
@@ -136,13 +142,13 @@ pub trait DataStore {
             0 => Err(CanonicalizeError::NotFound(err_str)),
             // This is okay since we know it will have one item.
             #[allow(clippy::option_unwrap_used)]
-            1 => Ok(KeyBuf::from_db_key(&results.pop().unwrap())),
+            1 => Ok(KeyBuf::from_db_key(&results.pop().unwrap())?),
             _ => {
-                let strs = results
+                let strs: Result<_, _> = results
                     .into_iter()
                     .map(|x| KeyBuf::from_db_key(&x))
                     .collect();
-                Err(CanonicalizeError::Ambigious(err_str, strs))
+                Err(CanonicalizeError::Ambigious(err_str, strs?))
             }
         }
     }
@@ -170,8 +176,11 @@ pub trait DataStore {
     }
 }
 
-#[derive(Debug, Fail)]
+#[derive(Debug, Error)]
 pub enum WalkReflogError {
-    #[fail(display = "sqlite error: {}", _0)]
-    SqliteError(rusqlite::Error),
+    #[error("error parsing db key: {_0}")]
+    FromDbKeyError(#[from] key::FromDbKeyError),
+
+    #[error("sqlite error: {_0}")]
+    SqliteError(#[from] rusqlite::Error),
 }
