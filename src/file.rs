@@ -1,10 +1,19 @@
 use crate::{DataStore, KeyBuf, Object};
 use std::io::prelude::*;
 use crate::object::ObjType;
+use crate::ds;
+use thiserror::Error;
 
-use failure::Fallible;
+#[derive(Debug, Error)]
+pub enum PutDataError {
+    #[error("error putting object: {_0}")]
+    PutObjError(#[from] ds::PutObjError),
 
-pub fn put_data<DS: DataStore, R: Read>(ds: &mut DS, mut data: R) -> Fallible<KeyBuf> {
+    #[error("io error: {_0}")]
+    IOError(#[from] std::io::Error),
+}
+
+pub fn put_data<DS: DataStore, R: Read>(ds: &mut DS, mut data: R) -> Result<KeyBuf, PutDataError> {
     let mut key_bufs: [Vec<KeyBuf>; 5] = Default::default();
 
     let mut read_buffer = [0u8; 1 << 16usize];
@@ -111,13 +120,22 @@ pub fn put_data<DS: DataStore, R: Read>(ds: &mut DS, mut data: R) -> Fallible<Ke
         key_bufs[offset + 1].push(key);
     }
 
-    ds.put_obj(&Object::new(&[],
+    Ok(ds.put_obj(&Object::new(&[],
         &key_bufs[4],
         ObjType::FileBlobTree,
-    ))
+    ))?)
 }
 
-pub fn read_data<DS: DataStore, W: Write>(ds: &DS, key: &KeyBuf, to: &mut W) -> Fallible<()> {
+#[derive(Debug, Error)]
+pub enum ReadDataError {
+    #[error("error putting object: {_0}")]
+    GetObjError(#[from] ds::GetObjError),
+
+    #[error("io error: {_0}")]
+    IOError(#[from] std::io::Error),
+}
+
+pub fn read_data<DS: DataStore, W: Write>(ds: &DS, key: &KeyBuf, to: &mut W) -> Result<(), ReadDataError> {
     let obj = ds.get_obj(key)?;
 
     match obj.objtype() {

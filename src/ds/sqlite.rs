@@ -4,8 +4,12 @@ use rusqlite::params;
 use rusqlite::OptionalExtension;
 use std::borrow::Cow;
 
-use crate::{DataStore, GetReflogError, KeyBuf, Reflog, WalkReflogError};
+use crate::ds::{ToDSError, ToDSErrorResult};
+use crate::{KeyBuf, Reflog};
+use crate::ds::{BeginTransError, RollbackTransError, CommitTransError, DataStore, RawPutError,
+GetReflogError, WalkReflogError, RawGetError, RawExistsError, ReflogPushError, RawBetweenError, RawPutStateError, RawGetStateError};
 use failure::Fallible;
+
 
 pub struct SqliteDS {
     conn: rusqlite::Connection,
@@ -58,18 +62,18 @@ impl DataStore for SqliteDS {
             )
             .optional();
 
-        let row = query.map_err(GetReflogError::SqliteError)?;
-
-        let key = row.ok_or(GetReflogError::NotFound)?;
-
-        Ok(KeyBuf::from_db_key(&key)?)
+        match query {
+            Ok(Some(k)) => Ok(KeyBuf::from_db_key(&k)?),
+            Ok(None) => return Err(GetReflogError::NotFound),
+            Err(e) => return Err(e.to_ds().into()),
+        }
     }
 
-    fn reflog_push(&self, data: &Reflog) -> Fallible<()> {
+    fn reflog_push(&self, data: &Reflog) -> Result<(), ReflogPushError> {
         self.conn.execute(
             "INSERT INTO reflog(refname, remote, key) VALUES (?, ?, ?)",
             params![data.refname, data.remote, data.key.as_db_key(),],
-        )?;
+        ).to_ds_r()?;
 
         Ok(())
     }
@@ -82,7 +86,7 @@ impl DataStore for SqliteDS {
         let mut statement = self
             .conn
             .prepare("SELECT key FROM reflog WHERE refname=? AND remote IS ? ORDER BY id DESC")
-            .unwrap();
+            .to_ds_r()?;
 
         let mut rows = statement.query(params![refname, remote]).unwrap();
 
@@ -96,40 +100,42 @@ impl DataStore for SqliteDS {
         Ok(keys)
     }
 
-    fn begin_trans(&mut self) -> Fallible<()> {
+    fn begin_trans(&mut self) -> Result<(), BeginTransError> {
         self.conn.execute("BEGIN TRANSACTION", params![])?;
         Ok(())
     }
 
-    fn commit(&mut self) -> Fallible<()> {
-        self.conn.execute("COMMIT", params![])?;
+    fn commit(&mut self) -> Result<(), CommitTransError> {
+        self.conn.execute("COMMIT", params![]).to_ds_r()?;
+
         Ok(())
     }
 
-    fn rollback(&mut self) -> Fallible<()> {
-        self.conn.execute("ROLLBACK", params![])?;
+    fn rollback(&mut self) -> Result<(), RollbackTransError> {
+        self.conn.execute("ROLLBACK", params![]).to_ds_r()?;
+
         Ok(())
     }
 
-    fn raw_get<'a>(&'a self, key: &[u8]) -> Fallible<Cow<'a, [u8]>> {
+    fn raw_get<'a>(&'a self, key: &[u8]) -> Result<Cow<'a, [u8]>, RawGetError> {
         let results: Vec<u8> =
             self.conn
                 .query_row("SELECT value FROM data WHERE key=?", params![key], |row| {
                     row.get(0)
-                })?;
+                }).to_ds_r()?;
 
         Ok(Cow::Owned(results))
     }
 
-    fn raw_put<'a>(&'a self, key: &[u8], data: &[u8]) -> Fallible<()> {
+    fn raw_put<'a>(&'a self, key: &[u8], data: &[u8]) -> Result<(), RawPutError> {
         self.conn
-            .prepare_cached("INSERT OR IGNORE INTO data VALUES (?, ?)")?
-            .execute(params![key, data])?;
+            .prepare_cached("INSERT OR IGNORE INTO data VALUES (?, ?)").to_ds_r()?
+            .execute(params![key, data]).to_ds_r()?;
 
         Ok(())
     }
 
-    fn raw_get_state<'a>(&'a self, key: &[u8]) -> Fallible<Option<Vec<u8>>> {
+    fn raw_get_state<'a>(&'a self, key: &[u8]) -> Result<Option<Vec<u8>>, RawGetStateError> {
         let results: Result<Option<Vec<u8>>, _> = self
             .conn
             .query_row("SELECT value FROM state WHERE key=?", params![key], |row| {
@@ -137,49 +143,49 @@ impl DataStore for SqliteDS {
             })
             .optional();
 
-        Ok(results?)
+        Ok(results.to_ds_r()?)
     }
 
-    fn raw_put_state<'a>(&'a self, key: &[u8], data: &[u8]) -> Fallible<()> {
+    fn raw_put_state<'a>(&'a self, key: &[u8], data: &[u8]) -> Result<(), RawPutStateError> {
         self.conn.execute(
             "INSERT OR REPLACE INTO state VALUES (?, ?)",
             params![key, data],
-        )?;
+        ).to_ds_r()?;
 
         Ok(())
     }
 
-    fn raw_exists(&self, key: &[u8]) -> Fallible<bool> {
+    fn raw_exists(&self, key: &[u8]) -> Result<bool, RawExistsError> {
         let count: u32 = self.conn.query_row(
             "SELECT COUNT(*) FROM data WHERE key=?",
             params![key],
             |row| row.get(0),
-        )?;
+        ).to_ds_r()?;
 
         assert!(count == 0 || count == 1);
 
         Ok(count == 1)
     }
 
-    fn raw_between(&self, start: &[u8], end: Option<&[u8]>) -> Fallible<Vec<Vec<u8>>> {
+    fn raw_between(&self, start: &[u8], end: Option<&[u8]>) -> Result<Vec<Vec<u8>>, RawBetweenError> {
         dbg!(&start, &end);
         let mut results = Vec::new();
         if let Some(e) = end {
             let mut statement = self
                 .conn
-                .prepare("SELECT key FROM data WHERE key >= ? AND key < ?")?;
+                .prepare("SELECT key FROM data WHERE key >= ? AND key < ?").to_ds_r()?;
 
-            let rows = statement.query_map(params![start, e], |row| row.get(0))?;
+            let rows = statement.query_map(params![start, e], |row| row.get(0)).to_ds_r()?;
 
             for row in rows {
-                results.push(row?);
+                results.push(row.to_ds_r()?);
             }
         } else {
-            let mut statement = self.conn.prepare("SELECT key FROM data WHERE key >= ?")?;
-            let rows = statement.query_map(params![start], |row| row.get(0))?;
+            let mut statement = self.conn.prepare("SELECT key FROM data WHERE key >= ?").to_ds_r()?;
+            let rows = statement.query_map(params![start], |row| row.get(0)).to_ds_r()?;
 
             for row in rows {
-                results.push(row?);
+                results.push(row.to_ds_r()?);
             }
         }
 

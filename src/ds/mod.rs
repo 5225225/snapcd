@@ -4,11 +4,8 @@ pub mod sqlite;
 //pub mod rocks;
 
 use blake3::hash;
-use failure_derive::Fail;
 
 use std::borrow::Cow;
-
-use failure::Fallible;
 
 use thiserror::Error;
 
@@ -17,25 +14,22 @@ use crate::Object;
 use crate::KeyBuf;
 use crate::key;
 
-#[derive(Debug, Fail)]
+#[derive(Debug, Error)]
 pub enum CanonicalizeError {
-    #[fail(display = "Invalid object id '{}'", _0)]
+    #[error("Invalid object id '{_0}'")]
     InvalidHex(String),
 
-    #[fail(display = "Object '{}' not found", _0)]
+    #[error("Object '{_0}' not found")]
     NotFound(String),
 
-    #[fail(display = "Object '{}' is ambiguous", _0)]
+    #[error("Object '{_0}' is ambiguous")]
     Ambigious(String, Vec<KeyBuf>),
 
-    #[fail(display = "{}", _0)]
-    Unknown(failure::Error),
-}
+    #[error("error when converting db key: {_0}")]
+    FromDbKeyError(#[from] key::FromDbKeyError),
 
-impl<T: std::error::Error + Send + Sync + 'static> std::convert::From<T> for CanonicalizeError {
-    fn from(err: T) -> Self {
-        Self::Unknown(failure::Error::from_boxed_compat(Box::new(err)))
-    }
+    #[error("error when getting reflog: {_0}")]
+    GetReflogError(#[from] GetReflogError),
 }
 
 pub struct Reflog {
@@ -52,22 +46,145 @@ pub enum GetReflogError {
     #[error("error parsing db key: {_0}")]
     FromDbKeyError(#[from] key::FromDbKeyError),
 
-    #[error("sqlite error: {_0}")]
-    SqliteError(#[from] rusqlite::Error),
+
+    #[error(transparent)]
+    DSerror(#[from] DSError),
 }
 
+#[derive(Debug, Error)]
+pub enum DSError {
+    #[error("sqlite error: {_0}")]
+    SqliteError(#[from] rusqlite::Error)
+}
+
+pub trait ToDSError {
+    fn to_ds(self) -> DSError;
+}
+
+pub trait ToDSErrorResult<T> {
+    fn to_ds_r(self) -> Result<T, DSError>;
+}
+
+impl<T: Into<DSError>> ToDSError for T {
+    fn to_ds(self) -> DSError {
+        self.into()
+    }
+}
+
+impl<T, E: ToDSError> ToDSErrorResult<T> for Result<T, E> {
+    fn to_ds_r(self) -> Result<T, DSError> {
+        self.map_err(|x| x.to_ds())
+    }
+}
+
+#[derive(Debug, Error)]
+pub enum BeginTransError {
+    #[error("sqlite error when starting transaction: {_0}")]
+    SqliteError(#[from] rusqlite::Error)
+}
+
+#[derive(Debug, Error)]
+pub enum RollbackTransError {
+    #[error(transparent)]
+    DSerror(#[from] DSError),
+}
+
+#[derive(Debug, Error)]
+pub enum CommitTransError {
+    #[error(transparent)]
+    DSerror(#[from] DSError),
+}
+
+#[derive(Debug, Error)]
+pub enum RawGetError {
+    #[error(transparent)]
+    DSerror(#[from] DSError),
+}
+
+#[derive(Debug, Error)]
+pub enum RawPutError {
+    #[error(transparent)]
+    DSerror(#[from] DSError),
+}
+
+#[derive(Debug, Error)]
+pub enum RawExistsError {
+    #[error(transparent)]
+    DSerror(#[from] DSError),
+}
+
+#[derive(Debug, Error)]
+pub enum RawGetStateError {
+    #[error(transparent)]
+    DSerror(#[from] DSError),
+}
+
+#[derive(Debug, Error)]
+pub enum RawPutStateError {
+    #[error(transparent)]
+    DSerror(#[from] DSError),
+}
+
+#[derive(Debug, Error)]
+pub enum ReflogPushError {
+    #[error(transparent)]
+    DSerror(#[from] DSError),
+}
+#[derive(Debug, Error)]
+pub enum RawBetweenError {
+    #[error(transparent)]
+    DSerror(#[from] DSError),
+}
+#[derive(Debug, Error)]
+pub enum RawGetHeadError {
+    #[error(transparent)]
+    DSerror(#[from] DSError),
+}
+#[derive(Debug, Error)]
+pub enum RawPutHeadError {
+    #[error(transparent)]
+    DSerror(#[from] DSError),
+}
+
+#[derive(Debug, Error)]
+pub enum GetHeadError {
+    #[error("error when getting state: {_0}")]
+    RawGetStateError(#[from] RawGetStateError),
+
+    #[error("error decoding utf8 string: {_0}")]
+    FromUtf8Error(#[from] std::string::FromUtf8Error),
+}
+
+#[derive(Debug, Error)]
+pub enum GetObjError {
+    #[error("error getting object: {_0}")]
+    RawGetError(#[from] RawGetError),
+
+    #[error("error decoding object: {_0}")]
+    DecodeError(#[from] serde_cbor::error::Error),
+}
+
+#[derive(Debug, Error)]
+pub enum PutObjError {
+    #[error("error putting object: {_0}")]
+    RawPutError(#[from] RawPutError),
+
+    #[error("error encoding object: {_0}")]
+    EncodeError(#[from] serde_cbor::error::Error),
+}
+
+
 static_assertions::assert_obj_safe!(DataStore);
-
 pub trait DataStore {
-    fn raw_get<'a>(&'a self, key: &[u8]) -> Fallible<Cow<'a, [u8]>>;
-    fn raw_put<'a>(&'a self, key: &[u8], data: &[u8]) -> Fallible<()>;
+    fn raw_get<'a>(&'a self, key: &[u8]) -> Result<Cow<'a, [u8]>, RawGetError>;
+    fn raw_put<'a>(&'a self, key: &[u8], data: &[u8]) -> Result<(), RawPutError>;
 
-    fn raw_exists(&self, key: &[u8]) -> Fallible<bool>;
+    fn raw_exists(&self, key: &[u8]) -> Result<bool, RawExistsError>;
 
-    fn raw_get_state<'a>(&'a self, key: &[u8]) -> Fallible<Option<Vec<u8>>>;
-    fn raw_put_state<'a>(&'a self, key: &[u8], data: &[u8]) -> Fallible<()>;
+    fn raw_get_state<'a>(&'a self, key: &[u8]) -> Result<Option<Vec<u8>>, RawGetStateError>;
+    fn raw_put_state<'a>(&'a self, key: &[u8], data: &[u8]) -> Result<(), RawPutStateError>;
 
-    fn get<'a>(&'a self, key: &KeyBuf) -> Fallible<Cow<'a, [u8]>> {
+    fn get<'a>(&'a self, key: &KeyBuf) -> Result<Cow<'a, [u8]>, RawGetError> {
         let results = self.raw_get(&key.as_db_key())?;
 
         Ok(results)
@@ -78,7 +195,7 @@ pub trait DataStore {
         KeyBuf::Blake3B(*b3.as_bytes())
     }
 
-    fn put(&self, data: Vec<u8>) -> Fallible<KeyBuf> {
+    fn put(&self, data: Vec<u8>) -> Result<KeyBuf, RawPutError> {
         let keybuf = self.hash(&data);
 
         self.raw_put(&keybuf.as_db_key(), &data)?;
@@ -86,7 +203,7 @@ pub trait DataStore {
         Ok(keybuf)
     }
 
-    fn get_head(&self) -> Fallible<Option<String>> {
+    fn get_head(&self) -> Result<Option<String>, GetHeadError> {
         let bytes = self.raw_get_state(b"HEAD")?;
 
         Ok(match bytes {
@@ -95,12 +212,12 @@ pub trait DataStore {
         })
     }
 
-    fn put_head(&self, head: &str) -> Fallible<()> {
+    fn put_head(&self, head: &str) -> Result<(), RawPutStateError> {
         self.raw_put_state(b"HEAD", head.as_bytes())?;
         Ok(())
     }
 
-    fn reflog_push(&self, data: &Reflog) -> Fallible<()>;
+    fn reflog_push(&self, data: &Reflog) -> Result<(), ReflogPushError>;
     fn reflog_get(&self, refname: &str, remote: Option<&str>) -> Result<KeyBuf, GetReflogError>;
     fn reflog_walk(
         &self,
@@ -108,7 +225,7 @@ pub trait DataStore {
         remote: Option<&str>,
     ) -> Result<Vec<KeyBuf>, WalkReflogError>;
 
-    fn raw_between(&self, start: &[u8], end: Option<&[u8]>) -> Fallible<Vec<Vec<u8>>>;
+    fn raw_between(&self, start: &[u8], end: Option<&[u8]>) -> Result<Vec<Vec<u8>>, RawBetweenError>;
 
     fn canonicalize(&self, search: Keyish) -> Result<KeyBuf, CanonicalizeError> {
         let mut results: Vec<Vec<u8>> = Vec::new();
@@ -153,25 +270,25 @@ pub trait DataStore {
         }
     }
 
-    fn get_obj(&self, key: &KeyBuf) -> Fallible<Object> {
+    fn get_obj(&self, key: &KeyBuf) -> Result<Object, GetObjError> {
         let data = self.get(key)?;
 
         Ok(serde_cbor::from_slice(&data)?)
     }
 
-    fn put_obj(&self, data: &Object) -> Fallible<KeyBuf> {
+    fn put_obj(&self, data: &Object) -> Result<KeyBuf, PutObjError> {
         let data = serde_cbor::to_vec(data)?;
 
         Ok(self.put(data)?)
     }
 
-    fn begin_trans(&mut self) -> Fallible<()> {
+    fn begin_trans(&mut self) -> Result<(), BeginTransError> {
         Ok(())
     }
-    fn commit(&mut self) -> Fallible<()> {
+    fn commit(&mut self) -> Result<(), CommitTransError> {
         Ok(())
     }
-    fn rollback(&mut self) -> Fallible<()> {
+    fn rollback(&mut self) -> Result<(), RollbackTransError> {
         Ok(())
     }
 }
@@ -181,6 +298,6 @@ pub enum WalkReflogError {
     #[error("error parsing db key: {_0}")]
     FromDbKeyError(#[from] key::FromDbKeyError),
 
-    #[error("sqlite error: {_0}")]
-    SqliteError(#[from] rusqlite::Error),
+    #[error(transparent)]
+    DSerror(#[from] DSError),
 }
