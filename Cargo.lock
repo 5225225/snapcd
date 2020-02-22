@@ -1256,6 +1256,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 name = "snapcd"
 version = "0.1.0"
 dependencies = [
+ "anyhow 1.0.26 (registry+https://github.com/rust-lang/crates.io-index)",
  "backtrace 0.3.44 (registry+https://github.com/rust-lang/crates.io-index)",
  "bitvec 0.17.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "blake3 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)",

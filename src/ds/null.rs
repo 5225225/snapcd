@@ -1,9 +1,12 @@
+use crate::ds;
 use crate::{KeyBuf, Reflog};
 use crate::ds::{GetReflogError, WalkReflogError, RawGetError, RawPutError, RawBetweenError,
 RawExistsError, ReflogPushError, RawGetStateError, RawPutStateError};
 use std::borrow::Cow;
 
 pub struct NullDS;
+
+impl ds::Transactional for NullDS {}
 
 impl crate::DataStore for NullDS {
     fn raw_get<'a>(&'a self, _key: &[u8]) -> Result<Cow<'a, [u8]>, RawGetError> {

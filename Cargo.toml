@@ -30,6 +30,7 @@ backtrace = "0.3.44"
 rocksdb = "0.13.0"
 clap = "2.33.0"
 diff = "0.1.12"
+anyhow = "1.0.26"
 
 [dev-dependencies]
 criterion = "0.3.1"

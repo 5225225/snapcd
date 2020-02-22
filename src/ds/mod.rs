@@ -79,8 +79,8 @@ impl<T, E: ToDSError> ToDSErrorResult<T> for Result<T, E> {
 
 #[derive(Debug, Error)]
 pub enum BeginTransError {
-    #[error("sqlite error when starting transaction: {_0}")]
-    SqliteError(#[from] rusqlite::Error)
+    #[error(transparent)]
+    DSerror(#[from] DSError),
 }
 
 #[derive(Debug, Error)]
@@ -173,9 +173,20 @@ pub enum PutObjError {
     EncodeError(#[from] serde_cbor::error::Error),
 }
 
+pub trait Transactional {
+    fn begin_trans(&mut self) -> Result<(), BeginTransError> {
+        Ok(())
+    }
+    fn commit(&mut self) -> Result<(), CommitTransError> {
+        Ok(())
+    }
+    fn rollback(&mut self) -> Result<(), RollbackTransError> {
+        Ok(())
+    }
+}
 
 static_assertions::assert_obj_safe!(DataStore);
-pub trait DataStore {
+pub trait DataStore : Transactional {
     fn raw_get<'a>(&'a self, key: &[u8]) -> Result<Cow<'a, [u8]>, RawGetError>;
     fn raw_put<'a>(&'a self, key: &[u8], data: &[u8]) -> Result<(), RawPutError>;
 
@@ -280,16 +291,6 @@ pub trait DataStore {
         let data = serde_cbor::to_vec(data)?;
 
         Ok(self.put(data)?)
-    }
-
-    fn begin_trans(&mut self) -> Result<(), BeginTransError> {
-        Ok(())
-    }
-    fn commit(&mut self) -> Result<(), CommitTransError> {
-        Ok(())
-    }
-    fn rollback(&mut self) -> Result<(), RollbackTransError> {
-        Ok(())
     }
 }
 

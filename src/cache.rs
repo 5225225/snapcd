@@ -3,6 +3,10 @@ use crate::KeyBuf;
 use failure::Fallible;
 use rusqlite::{params, OptionalExtension};
 use std::path::Path;
+use thiserror::Error;
+use crate::ds::ToDSErrorResult;
+
+use crate::{ds, key};
 
 #[derive(Copy, Clone, Debug)]
 pub struct CacheKey {
@@ -11,11 +15,38 @@ pub struct CacheKey {
     pub size: u64,
 }
 
-pub trait Cache {
-    fn raw_get(&self, cachekey: &[u8]) -> Fallible<Option<Vec<u8>>>;
-    fn raw_put(&self, cachekey: &[u8], value: &[u8]) -> Fallible<()>;
+#[derive(Debug, Error)]
+pub enum RawGetCacheError {
+    #[error("data store error: {_0}")]
+    DSError(#[from] ds::DSError),
+}
 
-    fn get(&self, cachekey: CacheKey) -> Fallible<Option<KeyBuf>> {
+#[derive(Debug, Error)]
+pub enum RawPutCacheError {
+    #[error("data store error: {_0}")]
+    DSError(#[from] ds::DSError),
+}
+
+#[derive(Debug, Error)]
+pub enum PutCacheError {
+    #[error("error when inserting item into cache: {_0}")]
+    RawPutCacheError(#[from] RawPutCacheError),
+}
+
+#[derive(Debug, Error)]
+pub enum GetCacheError {
+    #[error("error when getting item from cache: {_0}")]
+    RawGetCacheError(#[from] RawGetCacheError),
+
+    #[error("error when parsing key from cache: {_0}")]
+    FromDbKeyError(#[from] key::FromDbKeyError),
+}
+
+pub trait Cache : ds::Transactional {
+    fn raw_get(&self, cachekey: &[u8]) -> Result<Option<Vec<u8>>, RawGetCacheError>;
+    fn raw_put(&self, cachekey: &[u8], value: &[u8]) -> Result<(), RawPutCacheError>;
+
+    fn get(&self, cachekey: CacheKey) -> Result<Option<KeyBuf>, GetCacheError> {
         let mut data = Vec::with_capacity(8 * 3);
         data.extend(cachekey.inode.to_le_bytes().iter());
         data.extend(cachekey.mtime.to_le_bytes().iter());
@@ -34,7 +65,7 @@ pub trait Cache {
         // Ok(cache_result.map(|x| KeyBuf::from_db_key(&x)))
     }
 
-    fn put(&self, cachekey: CacheKey, value: &KeyBuf) -> Fallible<()> {
+    fn put(&self, cachekey: CacheKey, value: &KeyBuf) -> Result<(), PutCacheError> {
         let mut data = Vec::with_capacity(8 * 3);
 
         data.extend(cachekey.inode.to_le_bytes().iter());
@@ -43,16 +74,6 @@ pub trait Cache {
 
         self.raw_put(&data, &value.as_db_key())?;
 
-        Ok(())
-    }
-
-    fn begin_trans(&mut self) -> Fallible<()> {
-        Ok(())
-    }
-    fn commit(&mut self) -> Fallible<()> {
-        Ok(())
-    }
-    fn rollback(&mut self) -> Fallible<()> {
         Ok(())
     }
 }
@@ -83,8 +104,25 @@ impl SqliteCache {
     }
 }
 
+impl ds::Transactional for SqliteCache {
+    fn begin_trans(&mut self) -> Result<(), ds::BeginTransError> {
+        self.conn.execute("BEGIN TRANSACTION", params![]).to_ds_r()?;
+        Ok(())
+    }
+
+    fn commit(&mut self) -> Result<(), ds::CommitTransError> {
+        self.conn.execute("COMMIT", params![]).to_ds_r()?;
+        Ok(())
+    }
+
+    fn rollback(&mut self) -> Result<(), ds::RollbackTransError> {
+        self.conn.execute("ROLLBACK", params![]).to_ds_r()?;
+        Ok(())
+    }
+}
+
 impl Cache for SqliteCache {
-    fn raw_get<'a>(&'a self, key: &[u8]) -> Fallible<Option<Vec<u8>>> {
+    fn raw_get<'a>(&'a self, key: &[u8]) -> Result<Option<Vec<u8>>, RawGetCacheError> {
         let results: Result<Option<Vec<u8>>, _> = self
             .conn
             .query_row("SELECT value FROM cache WHERE key=?", params![key], |row| {
@@ -92,30 +130,15 @@ impl Cache for SqliteCache {
             })
             .optional();
 
-        Ok(results?)
+        Ok(results.to_ds_r()?)
     }
 
-    fn raw_put<'a>(&'a self, key: &[u8], data: &[u8]) -> Fallible<()> {
+    fn raw_put<'a>(&'a self, key: &[u8], data: &[u8]) -> Result<(), RawPutCacheError> {
         self.conn.execute(
             "INSERT OR IGNORE INTO cache VALUES (?, ?)",
             params![key, data],
-        )?;
+        ).to_ds_r()?;
 
-        Ok(())
-    }
-
-    fn begin_trans(&mut self) -> Fallible<()> {
-        self.conn.execute("BEGIN TRANSACTION", params![])?;
-        Ok(())
-    }
-
-    fn commit(&mut self) -> Fallible<()> {
-        self.conn.execute("COMMIT", params![])?;
-        Ok(())
-    }
-
-    fn rollback(&mut self) -> Fallible<()> {
-        self.conn.execute("ROLLBACK", params![])?;
         Ok(())
     }
 }

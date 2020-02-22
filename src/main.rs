@@ -6,9 +6,10 @@
 
 use failure::Fallible;
 use snapcd::{
-    cache::{Cache, SqliteCache},
+    cache::SqliteCache,
     commit, diff, dir,
     ds::sqlite::SqliteDS,
+    ds::Transactional,
     filter, DataStore, Keyish, Reflog,
     display,
 };

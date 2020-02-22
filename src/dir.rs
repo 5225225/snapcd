@@ -4,6 +4,8 @@ use std::convert::TryInto;
 use std::fs::DirEntry;
 use std::path::{Path, PathBuf};
 use crate::object::ObjType;
+use thiserror::Error;
+use crate::ds;
 
 use failure::Fallible;
 
@@ -53,11 +55,26 @@ impl<'a> TryInto<FSItem> for Object<'a> {
     }
 }
 
+#[derive(Debug, Error)]
+pub enum PutFsItemError {
+    #[error("io error: {_0}")]
+    IOError(#[from] std::io::Error),
+
+    #[error("error putting object")]
+    PutObjError(#[from] ds::PutObjError),
+
+    #[error("error putting data")]
+    PutDataError(#[from] file::PutDataError),
+
+    #[error("serialisation error")]
+    SerialisationError(#[from] serde_cbor::error::Error),
+}
+
 pub fn put_fs_item<DS: DataStore>(
     ds: &mut DS,
     path: &Path,
     filter: &dyn Fn(&DirEntry) -> bool,
-) -> Fallible<KeyBuf> {
+) -> Result<KeyBuf, PutFsItemError> {
     let meta = std::fs::metadata(path)?;
 
     if meta.is_dir() {

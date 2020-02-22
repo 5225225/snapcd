@@ -4,19 +4,26 @@ use rusqlite::params;
 use rusqlite::OptionalExtension;
 use std::borrow::Cow;
 
+use crate::ds;
 use crate::ds::{ToDSError, ToDSErrorResult};
 use crate::{KeyBuf, Reflog};
 use crate::ds::{BeginTransError, RollbackTransError, CommitTransError, DataStore, RawPutError,
 GetReflogError, WalkReflogError, RawGetError, RawExistsError, ReflogPushError, RawBetweenError, RawPutStateError, RawGetStateError};
-use failure::Fallible;
+use thiserror::Error;
 
 
 pub struct SqliteDS {
     conn: rusqlite::Connection,
 }
 
+#[derive(Debug, Error)]
+pub enum NewSqliteError {
+    #[error("sqlite error")]
+    SqliteError(#[from] rusqlite::Error),
+}
+
 impl SqliteDS {
-    pub fn new<S: AsRef<Path>>(path: S) -> Fallible<Self> {
+    pub fn new<S: AsRef<Path>>(path: S) -> Result<Self, NewSqliteError> {
         let conn = rusqlite::Connection::open(path)?;
 
         conn.pragma_update(None, &"synchronous", &"2")?;
@@ -46,6 +53,27 @@ impl SqliteDS {
 
         Ok(Self { conn })
     }
+}
+
+impl ds::Transactional for SqliteDS {
+    fn begin_trans(&mut self) -> Result<(), BeginTransError> {
+        self.conn.execute("BEGIN TRANSACTION", params![]).to_ds_r()?;
+        Ok(())
+    }
+
+    fn commit(&mut self) -> Result<(), CommitTransError> {
+        self.conn.execute("COMMIT", params![]).to_ds_r()?;
+
+        Ok(())
+    }
+
+    fn rollback(&mut self) -> Result<(), RollbackTransError> {
+        self.conn.execute("ROLLBACK", params![]).to_ds_r()?;
+
+        Ok(())
+    }
+
+
 }
 
 impl DataStore for SqliteDS {
@@ -98,23 +126,6 @@ impl DataStore for SqliteDS {
         }
 
         Ok(keys)
-    }
-
-    fn begin_trans(&mut self) -> Result<(), BeginTransError> {
-        self.conn.execute("BEGIN TRANSACTION", params![])?;
-        Ok(())
-    }
-
-    fn commit(&mut self) -> Result<(), CommitTransError> {
-        self.conn.execute("COMMIT", params![]).to_ds_r()?;
-
-        Ok(())
-    }
-
-    fn rollback(&mut self) -> Result<(), RollbackTransError> {
-        self.conn.execute("ROLLBACK", params![]).to_ds_r()?;
-
-        Ok(())
     }
 
     fn raw_get<'a>(&'a self, key: &[u8]) -> Result<Cow<'a, [u8]>, RawGetError> {

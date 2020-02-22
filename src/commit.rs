@@ -2,9 +2,9 @@ use std::collections::HashMap;
 use std::convert::TryInto;
 use thiserror::Error;
 
-use failure::Fallible;
-
 use crate::{DataStore, KeyBuf, Object};
+
+use crate::ds::PutObjError;
 use crate::object::ObjType;
 
 struct Commit {
@@ -50,9 +50,10 @@ impl TryInto<Commit> for Object<'static> {
 #[derive(Debug, Error)]
 pub enum CommitTreeError {
     #[error("error when serialising object")]
-    Serialisation {
-        #[from] source: serde_cbor::error::Error,
-    },
+    SerialisationError(#[from] serde_cbor::error::Error),
+
+    #[error("error when putting object")]
+    PutObjError(#[from] PutObjError),
 }
 
 #[allow(clippy::implicit_hasher)]
@@ -61,7 +62,7 @@ pub fn commit_tree<DS: DataStore>(
     tree: KeyBuf,
     mut parents: Vec<KeyBuf>,
     attrs: HashMap<String, String>,
-) -> Fallible<KeyBuf> {
+) -> Result<KeyBuf, CommitTreeError> {
     parents.sort();
 
     let commit = Commit {
