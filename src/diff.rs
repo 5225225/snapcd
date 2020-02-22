@@ -1,8 +1,8 @@
 use crate::{cache, dir, filter, file};
 use crate::{DataStore, KeyBuf};
-use failure::Fallible;
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
+use thiserror::Error;
 
 pub enum DiffTarget {
     FileSystem(PathBuf, Vec<String>, PathBuf),
@@ -35,12 +35,24 @@ pub struct DiffResult {
     modified: Vec<ModifiedDiffResult>,
 }
 
+#[derive(Debug, Error)]
+pub enum CompareError {
+    #[error("io error: {_0}")]
+    IOError(#[from] std::io::Error),
+    #[error("error when hashing fs item: {_0}")]
+    HashError(#[from] dir::HashFsItemError),
+    #[error("error when walking database items: {_0}")]
+    WalkError(#[from] dir::WalkFsItemsError),
+    #[error("error when walking filesystem items: {_0}")]
+    RealWalkError(#[from] dir::WalkRealFsItemsError),
+}
+
 pub fn compare<DS: DataStore>(
     ds: &mut DS,
     from: DiffTarget,
     to: Option<KeyBuf>,
     cache: &mut cache::SqliteCache,
-) -> Fallible<DiffResult> {
+) -> Result<DiffResult, CompareError> {
     let from_path;
     let from_map = match from {
         DiffTarget::FileSystem(path, filters, folder_path) => {

@@ -1,6 +1,5 @@
 use crate::KeyBuf;
 
-use failure::Fallible;
 use rusqlite::{params, OptionalExtension};
 use std::path::Path;
 use thiserror::Error;
@@ -82,8 +81,14 @@ pub struct SqliteCache {
     conn: rusqlite::Connection,
 }
 
+#[derive(Debug, Error)]
+pub enum NewSqliteCacheError {
+    #[error("sqlite error")]
+    SqliteError(#[from] rusqlite::Error)
+}
+
 impl SqliteCache {
-    pub fn new(path: impl AsRef<Path>) -> Fallible<Self> {
+    pub fn new(path: impl AsRef<Path>) -> Result<Self, NewSqliteCacheError> {
         let conn = rusqlite::Connection::open(path)?;
 
         conn.pragma_update(None, &"journal_mode", &"WAL")?;
