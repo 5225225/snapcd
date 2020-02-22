@@ -4,7 +4,6 @@
 // I don't care.
 #![allow(clippy::needless_pass_by_value)]
 
-use failure::Fallible;
 use snapcd::{
     cache::SqliteCache,
     commit, diff, dir,
@@ -15,12 +14,14 @@ use snapcd::{
 };
 use std::collections::HashMap;
 
+pub use thiserror::Error;
+
 use std::path::{Path, PathBuf};
 use structopt::StructOpt;
 
 use simplelog::{LevelFilter, TermLogError, TerminalMode};
 
-type CMDResult = Fallible<()>;
+type CMDResult = Result<(), anyhow::Error>;
 
 use structopt::clap::AppSettings;
 
@@ -221,14 +222,12 @@ struct CommitTreeArgs {
     parents: Vec<Keyish>,
 }
 
-#[derive(Debug, failure_derive::Fail)]
-#[fail(display = "database could not be found (maybe run snapcd init)")]
+#[derive(Debug, Error)]
+#[error("database could not be found (maybe run snapcd init)")]
 struct DatabaseNotFoundError;
 
-#[derive(Debug, failure_derive::Fail)]
-#[fail(
-    display = "an operation that requires a HEAD was run, without being given one, and no head has been set"
-)]
+#[derive(Debug, Error)]
+#[error("an operation that requires a HEAD was run, without being given one, and no head has been set")]
 struct NoHeadError;
 
 fn insert(state: &mut State, args: InsertArgs) -> CMDResult {
@@ -410,7 +409,7 @@ fn debug_reflog_push(state: &mut State, args: ReflogPushArgs) -> CMDResult {
     Ok(())
 }
 
-fn find_db_folder(name: &Path) -> Fallible<Option<PathBuf>> {
+fn find_db_folder(name: &Path) -> Result<Option<PathBuf>, anyhow::Error> {
     let cwd = std::env::current_dir()?;
 
     let mut d = &*cwd;
