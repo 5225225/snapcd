@@ -19,7 +19,6 @@ pub use thiserror::Error;
 use std::path::{Path, PathBuf};
 use structopt::StructOpt;
 
-use simplelog::{LevelFilter, TermLogError, TerminalMode};
 
 type CMDResult = Result<(), anyhow::Error>;
 
@@ -610,27 +609,35 @@ fn checkout_head(state: &mut State, args: CheckoutHeadArgs) -> CMDResult {
     Ok(())
 }
 
+fn setup_logging(#[allow(unused_variables)] level: u64) {
+    #[cfg(feature = "logging")] {
+        use simplelog::{LevelFilter, TermLogError, TerminalMode};
+
+        let filter = match level {
+            0 => LevelFilter::Warn,
+            1 => LevelFilter::Info,
+            2 => LevelFilter::Debug,
+            3..=std::u64::MAX => LevelFilter::Trace,
+        };
+
+        let log_config = simplelog::ConfigBuilder::new()
+            .set_time_level(LevelFilter::Debug)
+            .set_time_to_local(true)
+            .build();
+
+        match simplelog::TermLogger::init(filter, log_config, TerminalMode::Stderr) {
+            Ok(()) => {}
+            Err(TermLogError::SetLogger(_)) => panic!("logger has been already set, this is a bug."),
+            Err(TermLogError::Term) => eprintln!("failed to open terminal for logging"),
+            // how are we printing this then?
+        }
+    }
+}
+
 fn main() -> CMDResult {
     let opt = Opt::from_args();
 
-    let log_config = simplelog::ConfigBuilder::new()
-        .set_time_level(LevelFilter::Debug)
-        .set_time_to_local(true)
-        .build();
-
-    let filter = match opt.common.verbosity {
-        0 => LevelFilter::Warn,
-        1 => LevelFilter::Info,
-        2 => LevelFilter::Debug,
-        3..=std::u64::MAX => LevelFilter::Trace,
-    };
-
-    match simplelog::TermLogger::init(filter, log_config, TerminalMode::Stderr) {
-        Ok(()) => {}
-        Err(TermLogError::SetLogger(_)) => panic!("logger has been already set, this is a bug."),
-        Err(TermLogError::Term) => eprintln!("failed to open terminal for logging"),
-        // how are we printing this then?
-    }
+    setup_logging(opt.common.verbosity);
 
     setup_sqlite_callback()?;
 
