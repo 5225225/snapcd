@@ -27,6 +27,10 @@ pub enum FromBase32Error {
     UnknownByte(char),
 }
 
+/// Decodes the bits from `x` as a base32 string that was previously used with [`to_base32`] into a BitVec.
+///
+/// `max_len` is used for when there were bits left over, and you do not want to decode them as
+/// zero bits.
 pub fn from_base32(x: &str, max_len: usize) -> Result<BitVec<Msb0, u8>, FromBase32Error> {
     let mut result = BitVec::<Msb0, u8>::new();
 
@@ -56,6 +60,30 @@ pub fn from_base32(x: &str, max_len: usize) -> Result<BitVec<Msb0, u8>, FromBase
 
 static TABLE: [u8; 32] = *b"abcdefghijklmnopqrstuvwxyz234567";
 
+/// Converts `x` into a [`String`] as base32, using the table `"abcdefghijklmnopqrstuvwxyz234567"`.
+///
+/// Each character represents 5 bits, and if there are any bits left over, they will be used in the
+/// high bits to select an index from the table.
+///
+///
+/// ```rust
+/// use snapcd::base32::to_base32;
+///
+/// let table: [u8; 32] = *b"abcdefghijklmnopqrstuvwxyz234567";
+///
+/// let x = [0b10101_010__; 1];
+///
+/// let s = to_base32(&x);
+/// let s_bytes = s.as_bytes();
+///
+/// let first_char = table[0b10101];
+/// assert_eq!(s_bytes[0], first_char);
+///
+/// let second_char = table[0b01000];
+/// assert_eq!(s_bytes[1], second_char);
+///
+/// assert_eq!(s, "vi");
+/// ```
 pub fn to_base32(x: &[u8]) -> String {
     let mut scratch = BitVec::<Msb0, u8>::from_vec(x.to_vec());
     let mut ret = String::new();

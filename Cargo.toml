@@ -9,26 +9,27 @@ serde_cbor = "0.11.1"
 serde = { version = "1.0.104", features = ["derive"] }
 structopt = "0.3.9"
 rusqlite = { version = "0.21.0", features = ["trace"] }
-zstd = "0.5.1"
 bitvec = "0.17.2"
 hex = "0.4.1"
-simplelog = "0.7.4"
 log = "0.4.8"
 globset = "0.4.4"
 dirs = "2.0.2"
 either = "1.5.3"
 colored = "1.9.2"
 gearhash = "0.1.2"
-sled = "0.31.0"
 static_assertions = "1.1.0"
 serde_bytes = "0.11.3"
 blake3 = "0.2.1"
 thiserror = "1.0.11"
-backtrace = "0.3.44"
-rocksdb = "0.13.0"
 clap = "2.33.0"
 diff = "0.1.12"
 anyhow = "1.0.26"
+
+simplelog = {version = "0.7.4", optional = true}
+
+[features]
+default = ["logging"]
+logging = ["simplelog"]
 
 [dev-dependencies]
 criterion = "0.3.1"
