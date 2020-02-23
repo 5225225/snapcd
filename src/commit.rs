@@ -2,14 +2,14 @@ use std::collections::HashMap;
 use std::convert::TryInto;
 use thiserror::Error;
 
-use crate::{DataStore, KeyBuf, Object};
+use crate::{DataStore, Key, Object};
 
 use crate::ds::PutObjError;
 use crate::object::ObjType;
 
 struct Commit {
-    tree: KeyBuf,
-    parents: Vec<KeyBuf>,
+    tree: Key,
+    parents: Vec<Key>,
     attrs: HashMap<String, String>,
 }
 
@@ -59,10 +59,10 @@ pub enum CommitTreeError {
 #[allow(clippy::implicit_hasher)]
 pub fn commit_tree<DS: DataStore>(
     ds: &mut DS,
-    tree: KeyBuf,
-    mut parents: Vec<KeyBuf>,
+    tree: Key,
+    mut parents: Vec<Key>,
     attrs: HashMap<String, String>,
-) -> Result<KeyBuf, CommitTreeError> {
+) -> Result<Key, CommitTreeError> {
     parents.sort();
 
     let commit = Commit {

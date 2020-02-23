@@ -1,10 +1,7 @@
 use rand::prelude::*;
 use rand_chacha::ChaChaRng;
 use snapcd::file::{put_data, read_data};
-use snapcd::{
-    ds::sqlite::SqliteDS,
-    DataStore,
-};
+use snapcd::{ds::sqlite::SqliteDS, DataStore};
 
 fn internal_test<T: DataStore, F: FnMut() -> T>(
     ctor: &mut F,
@@ -27,7 +24,7 @@ fn internal_test<T: DataStore, F: FnMut() -> T>(
 
         let mut to = Vec::new();
 
-        read_data(&data, &hash, &mut to).unwrap();
+        read_data(&data, hash, &mut to).unwrap();
 
         if to != test_vector {
             dbg!(to.len(), test_vector.len());
@@ -38,9 +35,9 @@ fn internal_test<T: DataStore, F: FnMut() -> T>(
 
 #[test]
 fn sanity_check() {
-    let mut sqliteDS = || SqliteDS::new(":memory:").unwrap();
+    let mut sqlite_ds = || SqliteDS::new(":memory:").unwrap();
 
-    internal_test(&mut sqliteDS, 1 << 20, 0, 8);
-    internal_test(&mut sqliteDS, 1 << 14, 8, 64);
-    internal_test(&mut sqliteDS, 1 << 10, 64, 128);
+    internal_test(&mut sqlite_ds, 1 << 20, 0, 8);
+    internal_test(&mut sqlite_ds, 1 << 14, 8, 64);
+    internal_test(&mut sqlite_ds, 1 << 10, 64, 128);
 }

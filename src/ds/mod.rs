@@ -9,10 +9,10 @@ use std::borrow::Cow;
 
 use thiserror::Error;
 
+use crate::key;
+use crate::Key;
 use crate::Keyish;
 use crate::Object;
-use crate::KeyBuf;
-use crate::key;
 
 #[derive(Debug, Error)]
 pub enum CanonicalizeError {
@@ -23,7 +23,7 @@ pub enum CanonicalizeError {
     NotFound(String),
 
     #[error("Object '{_0}' is ambiguous")]
-    Ambigious(String, Vec<KeyBuf>),
+    Ambigious(String, Vec<Key>),
 
     #[error("error when converting db key: {_0}")]
     FromDbKeyError(#[from] key::FromDbKeyError),
@@ -34,7 +34,7 @@ pub enum CanonicalizeError {
 
 pub struct Reflog {
     pub refname: String,
-    pub key: KeyBuf,
+    pub key: Key,
     pub remote: Option<String>,
 }
 
@@ -46,7 +46,6 @@ pub enum GetReflogError {
     #[error("error parsing db key: {_0}")]
     FromDbKeyError(#[from] key::FromDbKeyError),
 
-
     #[error(transparent)]
     DSerror(#[from] DSError),
 }
@@ -54,7 +53,7 @@ pub enum GetReflogError {
 #[derive(Debug, Error)]
 pub enum DSError {
     #[error("sqlite error: {_0}")]
-    SqliteError(#[from] rusqlite::Error)
+    SqliteError(#[from] rusqlite::Error),
 }
 
 pub trait ToDSError {
@@ -186,7 +185,7 @@ pub trait Transactional {
 }
 
 static_assertions::assert_obj_safe!(DataStore);
-pub trait DataStore : Transactional {
+pub trait DataStore: Transactional {
     fn raw_get<'a>(&'a self, key: &[u8]) -> Result<Cow<'a, [u8]>, RawGetError>;
     fn raw_put<'a>(&'a self, key: &[u8], data: &[u8]) -> Result<(), RawPutError>;
 
@@ -195,18 +194,18 @@ pub trait DataStore : Transactional {
     fn raw_get_state<'a>(&'a self, key: &[u8]) -> Result<Option<Vec<u8>>, RawGetStateError>;
     fn raw_put_state<'a>(&'a self, key: &[u8], data: &[u8]) -> Result<(), RawPutStateError>;
 
-    fn get<'a>(&'a self, key: &KeyBuf) -> Result<Cow<'a, [u8]>, RawGetError> {
+    fn get(&self, key: Key) -> Result<Cow<'_, [u8]>, RawGetError> {
         let results = self.raw_get(&key.as_db_key())?;
 
         Ok(results)
     }
 
-    fn hash(&self, data: &[u8]) -> KeyBuf {
+    fn hash(&self, data: &[u8]) -> Key {
         let b3 = hash(data);
-        KeyBuf::Blake3B(*b3.as_bytes())
+        Key::Blake3B(*b3.as_bytes())
     }
 
-    fn put(&self, data: Vec<u8>) -> Result<KeyBuf, RawPutError> {
+    fn put(&self, data: Vec<u8>) -> Result<Key, RawPutError> {
         let keybuf = self.hash(&data);
 
         self.raw_put(&keybuf.as_db_key(), &data)?;
@@ -229,16 +228,17 @@ pub trait DataStore : Transactional {
     }
 
     fn reflog_push(&self, data: &Reflog) -> Result<(), ReflogPushError>;
-    fn reflog_get(&self, refname: &str, remote: Option<&str>) -> Result<KeyBuf, GetReflogError>;
-    fn reflog_walk(
+    fn reflog_get(&self, refname: &str, remote: Option<&str>) -> Result<Key, GetReflogError>;
+    fn reflog_walk(&self, refname: &str, remote: Option<&str>)
+        -> Result<Vec<Key>, WalkReflogError>;
+
+    fn raw_between(
         &self,
-        refname: &str,
-        remote: Option<&str>,
-    ) -> Result<Vec<KeyBuf>, WalkReflogError>;
+        start: &[u8],
+        end: Option<&[u8]>,
+    ) -> Result<Vec<Vec<u8>>, RawBetweenError>;
 
-    fn raw_between(&self, start: &[u8], end: Option<&[u8]>) -> Result<Vec<Vec<u8>>, RawBetweenError>;
-
-    fn canonicalize(&self, search: Keyish) -> Result<KeyBuf, CanonicalizeError> {
+    fn canonicalize(&self, search: Keyish) -> Result<Key, CanonicalizeError> {
         let mut results: Vec<Vec<u8>> = Vec::new();
 
         let err_str;
@@ -270,24 +270,22 @@ pub trait DataStore : Transactional {
             0 => Err(CanonicalizeError::NotFound(err_str)),
             // This is okay since we know it will have one item.
             #[allow(clippy::option_unwrap_used)]
-            1 => Ok(KeyBuf::from_db_key(&results.pop().unwrap())?),
+            1 => Ok(Key::from_db_key(&results.pop().unwrap())?),
             _ => {
-                let strs: Result<_, _> = results
-                    .into_iter()
-                    .map(|x| KeyBuf::from_db_key(&x))
-                    .collect();
+                let strs: Result<_, _> =
+                    results.into_iter().map(|x| Key::from_db_key(&x)).collect();
                 Err(CanonicalizeError::Ambigious(err_str, strs?))
             }
         }
     }
 
-    fn get_obj(&self, key: &KeyBuf) -> Result<Object, GetObjError> {
+    fn get_obj(&self, key: Key) -> Result<Object, GetObjError> {
         let data = self.get(key)?;
 
         Ok(serde_cbor::from_slice(&data)?)
     }
 
-    fn put_obj(&self, data: &Object) -> Result<KeyBuf, PutObjError> {
+    fn put_obj(&self, data: &Object) -> Result<Key, PutObjError> {
         let data = serde_cbor::to_vec(data)?;
 
         Ok(self.put(data)?)

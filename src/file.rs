@@ -1,7 +1,7 @@
-use crate::{DataStore, KeyBuf, Object};
-use std::io::prelude::*;
-use crate::object::ObjType;
 use crate::ds;
+use crate::object::ObjType;
+use crate::{DataStore, Key, Object};
+use std::io::prelude::*;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -13,8 +13,8 @@ pub enum PutDataError {
     IOError(#[from] std::io::Error),
 }
 
-pub fn put_data<DS: DataStore, R: Read>(ds: &mut DS, mut data: R) -> Result<KeyBuf, PutDataError> {
-    let mut key_bufs: [Vec<KeyBuf>; 5] = Default::default();
+pub fn put_data<DS: DataStore, R: Read>(ds: &mut DS, mut data: R) -> Result<Key, PutDataError> {
+    let mut key_bufs: [Vec<Key>; 5] = Default::default();
 
     let mut read_buffer = [0u8; 1 << 16usize];
     let mut chunk_buffer: Vec<u8> = Vec::new();
@@ -43,11 +43,7 @@ pub fn put_data<DS: DataStore, R: Read>(ds: &mut DS, mut data: R) -> Result<KeyB
             debug_assert!(zeros >= BLOB_ZERO_COUNT || boundry == (1 << BLOB_ZERO_COUNT_MAX));
 
             if current_chunk.len() >= 1 << (BLOB_ZERO_COUNT_MAX) {
-                let key = ds.put_obj(&Object::new(
-                    &current_chunk,
-                    &[],
-                    ObjType::FileBlob,
-                ))?;
+                let key = ds.put_obj(&Object::new(&current_chunk, &[], ObjType::FileBlob))?;
                 key_bufs[0].push(key);
                 current_chunk.clear();
 
@@ -56,7 +52,8 @@ pub fn put_data<DS: DataStore, R: Read>(ds: &mut DS, mut data: R) -> Result<KeyB
                     if zeros > BLOB_ZERO_COUNT + (offset + 1) * PER_LEVEL_COUNT
                         || len >= 1 << PER_LEVEL_COUNT_MAX
                     {
-                        let key = ds.put_obj(&Object::new(&[],
+                        let key = ds.put_obj(&Object::new(
+                            &[],
                             &key_bufs[offset as usize],
                             ObjType::FileBlobTree,
                         ))?;
@@ -91,25 +88,16 @@ pub fn put_data<DS: DataStore, R: Read>(ds: &mut DS, mut data: R) -> Result<KeyB
 
     if (0..4).all(|x| key_bufs[x].is_empty()) {
         // No chunks were made.
-        return Ok(ds.put_obj(&Object::new(
-            &current_chunk, &[],
-            ObjType::FileBlob,
-        ))?);
+        return Ok(ds.put_obj(&Object::new(&current_chunk, &[], ObjType::FileBlob))?);
     }
 
     if !current_chunk.is_empty() {
-        let key = ds.put_obj(&Object::new(
-            &current_chunk, &[],
-            ObjType::FileBlob,
-        ))?;
+        let key = ds.put_obj(&Object::new(&current_chunk, &[], ObjType::FileBlob))?;
         key_bufs[0].push(key);
     }
 
     for offset in 0..4 {
-        let key = ds.put_obj(&Object::new(&[],
-            &key_bufs[offset],
-            ObjType::FileBlobTree,
-        ))?;
+        let key = ds.put_obj(&Object::new(&[], &key_bufs[offset], ObjType::FileBlobTree))?;
 
         if key_bufs[offset].len() == 1 && (1 + offset..4).all(|x| key_bufs[x].is_empty()) {
             // We know this is safe because key_bufs[offset] has exactly 1 element
@@ -120,10 +108,7 @@ pub fn put_data<DS: DataStore, R: Read>(ds: &mut DS, mut data: R) -> Result<KeyB
         key_bufs[offset + 1].push(key);
     }
 
-    Ok(ds.put_obj(&Object::new(&[],
-        &key_bufs[4],
-        ObjType::FileBlobTree,
-    ))?)
+    Ok(ds.put_obj(&Object::new(&[], &key_bufs[4], ObjType::FileBlobTree))?)
 }
 
 #[derive(Debug, Error)]
@@ -135,12 +120,16 @@ pub enum ReadDataError {
     IOError(#[from] std::io::Error),
 }
 
-pub fn read_data<DS: DataStore, W: Write>(ds: &DS, key: &KeyBuf, to: &mut W) -> Result<(), ReadDataError> {
+pub fn read_data<DS: DataStore, W: Write>(
+    ds: &DS,
+    key: Key,
+    to: &mut W,
+) -> Result<(), ReadDataError> {
     let obj = ds.get_obj(key)?;
 
     match obj.objtype() {
         ObjType::FileBlobTree => {
-            for key in obj.keys().iter() {
+            for key in obj.keys().iter().copied() {
                 read_data(ds, key, to)?;
             }
         }
@@ -151,12 +140,13 @@ pub fn read_data<DS: DataStore, W: Write>(ds: &DS, key: &KeyBuf, to: &mut W) -> 
             assert!(obj.keys().len() == 1);
 
             let key = obj.keys()[0];
-            read_data(ds, &key, to)?;
+            read_data(ds, key, to)?;
         }
         _ => {
             panic!(
                 "found invalid object type {:?} when reading key {:?}",
-                obj.objtype(), key
+                obj.objtype(),
+                key
             );
         }
     }

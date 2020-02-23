@@ -5,12 +5,8 @@
 #![allow(clippy::needless_pass_by_value)]
 
 use snapcd::{
-    cache::SqliteCache,
-    commit, diff, dir,
-    ds::sqlite::SqliteDS,
-    ds::Transactional,
+    cache::SqliteCache, commit, diff, dir, display, ds::sqlite::SqliteDS, ds::Transactional,
     filter, DataStore, Keyish, Reflog,
-    display,
 };
 use std::collections::HashMap;
 
@@ -18,7 +14,6 @@ pub use thiserror::Error;
 
 use std::path::{Path, PathBuf};
 use structopt::StructOpt;
-
 
 type CMDResult = Result<(), anyhow::Error>;
 
@@ -226,7 +221,9 @@ struct CommitTreeArgs {
 struct DatabaseNotFoundError;
 
 #[derive(Debug, Error)]
-#[error("an operation that requires a HEAD was run, without being given one, and no head has been set")]
+#[error(
+    "an operation that requires a HEAD was run, without being given one, and no head has been set"
+)]
 struct NoHeadError;
 
 fn insert(state: &mut State, args: InsertArgs) -> CMDResult {
@@ -246,7 +243,7 @@ fn fetch(state: &mut State, args: FetchArgs) -> CMDResult {
 
     let key = ds_state.ds.canonicalize(args.key)?;
 
-    dir::get_fs_item(&ds_state.ds, &key, &args.dest)?;
+    dir::get_fs_item(&ds_state.ds, key, &args.dest)?;
 
     Ok(())
 }
@@ -328,7 +325,7 @@ fn debug_walk_tree(state: &mut State, args: WalkTreeArgs) -> CMDResult {
 
     let key = ds_state.ds.canonicalize(args.key)?;
 
-    let fs_items = dir::walk_fs_items(&ds_state.ds, &key)?;
+    let fs_items = dir::walk_fs_items(&ds_state.ds, key)?;
 
     for item in fs_items {
         println!("{:?}", item)
@@ -352,7 +349,7 @@ fn debug_pretty_print(state: &mut State, args: PrettyPrintArgs) -> CMDResult {
 
     let key = ds_state.ds.canonicalize(args.key)?;
 
-    let item = ds_state.ds.get_obj(&key)?;
+    let item = ds_state.ds.get_obj(key)?;
 
     println!("{}", item.debug_pretty_print());
 
@@ -457,7 +454,7 @@ fn commit_cmd(state: &mut State, args: CommitArgs) -> CMDResult {
 
     let log = Reflog {
         key,
-        refname: refname,
+        refname,
         remote: None,
     };
 
@@ -499,8 +496,7 @@ fn compare(state: &mut State, args: CompareArgs) -> CMDResult {
         Some(k) => ds_state.ds.canonicalize(k)?,
         None => {
             let reflog = ds_state.ds.get_head()?.ok_or(NoHeadError)?;
-            let ref_key = ds_state.ds.reflog_get(&reflog, None)?;
-            ref_key
+            ds_state.ds.reflog_get(&reflog, None)?
         }
     };
 
@@ -521,7 +517,7 @@ fn compare(state: &mut State, args: CompareArgs) -> CMDResult {
     )?;
 
     if args.stat {
-        diff::print_stat_diff_result(&mut ds_state.ds, result);
+        diff::print_stat_diff_result(&ds_state.ds, result);
     } else {
         diff::print_diff_result(result);
     }
@@ -571,7 +567,7 @@ fn checkout(state: &mut State, _args: CheckoutArgs) -> CMDResult {
 
     let filter = filter::make_filter_fn(&state.common.exclude, ds_state.db_folder_path.clone());
 
-    dir::checkout_fs_item(&ds_state.ds, &key, &ds_state.repo_path, &filter)?;
+    dir::checkout_fs_item(&ds_state.ds, key, &ds_state.repo_path, &filter)?;
     Ok(())
 }
 
@@ -610,7 +606,8 @@ fn checkout_head(state: &mut State, args: CheckoutHeadArgs) -> CMDResult {
 }
 
 fn setup_logging(#[allow(unused_variables)] level: u64) {
-    #[cfg(feature = "logging")] {
+    #[cfg(feature = "logging")]
+    {
         use simplelog::{LevelFilter, TermLogError, TerminalMode};
 
         let filter = match level {
@@ -627,7 +624,9 @@ fn setup_logging(#[allow(unused_variables)] level: u64) {
 
         match simplelog::TermLogger::init(filter, log_config, TerminalMode::Stderr) {
             Ok(()) => {}
-            Err(TermLogError::SetLogger(_)) => panic!("logger has been already set, this is a bug."),
+            Err(TermLogError::SetLogger(_)) => {
+                panic!("logger has been already set, this is a bug.")
+            }
             Err(TermLogError::Term) => eprintln!("failed to open terminal for logging"),
             // how are we printing this then?
         }

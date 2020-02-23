@@ -1,6 +1,7 @@
-use thiserror::Error;
 use bitvec::prelude::*;
+use thiserror::Error;
 
+#[allow(clippy::identity_op)] // look, the << 0 makes it look neater IMO
 fn pop_u5_from_bitvec(x: &mut BitVec<Msb0, u8>) -> u8 {
     let mut v = 0;
 
@@ -108,8 +109,8 @@ mod tests {
         }
 
         #[test]
-        fn from_base32_non_panicking(bytes: String) {
-            from_base32(&bytes, bytes.len() * 8);
+        fn from_base32_non_panicking(bytes: String, mul: usize) {
+            let _ = from_base32(&bytes, bytes.len() * (mul % 10));
         }
     }
 }

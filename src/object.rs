@@ -1,11 +1,10 @@
-use serde_bytes;
+use crate::Key;
 use std::borrow::Cow;
-use crate::KeyBuf;
 
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
 pub struct Object<'a> {
     data: Cow<'a, serde_bytes::Bytes>,
-    keys: Cow<'a, [KeyBuf]>,
+    keys: Cow<'a, [Key]>,
     objtype: ObjType,
 }
 
@@ -30,19 +29,19 @@ pub enum ObjectShowFormat {
 }
 
 impl<'a> Object<'a> {
-    pub fn new(data: &'a [u8], keys: &'a [KeyBuf], objtype: ObjType) -> Self {
+    pub fn new(data: &'a [u8], keys: &'a [Key], objtype: ObjType) -> Self {
         Self {
             data: Cow::Borrowed(serde_bytes::Bytes::new(data)),
             keys: Cow::Borrowed(keys),
-            objtype: objtype,
+            objtype,
         }
     }
 
-    pub fn new_owned(data: Vec<u8>, keys: Vec<KeyBuf>, objtype: ObjType) -> Self {
+    pub fn new_owned(data: Vec<u8>, keys: Vec<Key>, objtype: ObjType) -> Self {
         Self {
             data: Cow::Owned(serde_bytes::ByteBuf::from(data)),
             keys: Cow::Owned(keys),
-            objtype: objtype,
+            objtype,
         }
     }
 
@@ -58,7 +57,7 @@ impl<'a> Object<'a> {
         self.objtype
     }
 
-    pub fn keys(&self) -> &[KeyBuf] {
+    pub fn keys(&self) -> &[Key] {
         &self.keys
     }
 
@@ -111,17 +110,15 @@ struct ObjectShowPrinter<'a>(&'a Object<'a>, &'a dyn crate::DataStore);
 impl<'a> std::fmt::Display for ObjectShowPrinter<'a> {
     fn fmt(&self, _fmt: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
         match self.0.objtype {
-    ObjType::FileBlobTree => {todo!()}
-   ObjType::FileBlob => {todo!()}
-   ObjType::Commit => {todo!()}
-   ObjType::FSItemDir => {todo!()}
-   ObjType::FSItemFile => {todo!()}
-   ObjType::Unknown =>
-            {
+            ObjType::FileBlobTree => todo!(),
+            ObjType::FileBlob => todo!(),
+            ObjType::Commit => todo!(),
+            ObjType::FSItemDir => todo!(),
+            ObjType::FSItemFile => todo!(),
+            ObjType::Unknown => {
                 debug_assert!(false, "unable to format {:?}", self.0.objtype);
                 Err(std::fmt::Error)
             }
         }
     }
 }
-

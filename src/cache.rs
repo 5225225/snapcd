@@ -1,9 +1,9 @@
-use crate::KeyBuf;
+use crate::Key;
 
+use crate::ds::ToDSErrorResult;
 use rusqlite::{params, OptionalExtension};
 use std::path::Path;
 use thiserror::Error;
-use crate::ds::ToDSErrorResult;
 
 use crate::{ds, key};
 
@@ -41,11 +41,11 @@ pub enum GetCacheError {
     FromDbKeyError(#[from] key::FromDbKeyError),
 }
 
-pub trait Cache : ds::Transactional {
+pub trait Cache: ds::Transactional {
     fn raw_get(&self, cachekey: &[u8]) -> Result<Option<Vec<u8>>, RawGetCacheError>;
     fn raw_put(&self, cachekey: &[u8], value: &[u8]) -> Result<(), RawPutCacheError>;
 
-    fn get(&self, cachekey: CacheKey) -> Result<Option<KeyBuf>, GetCacheError> {
+    fn get(&self, cachekey: CacheKey) -> Result<Option<Key>, GetCacheError> {
         let mut data = Vec::with_capacity(8 * 3);
         data.extend(cachekey.inode.to_le_bytes().iter());
         data.extend(cachekey.mtime.to_le_bytes().iter());
@@ -55,16 +55,16 @@ pub trait Cache : ds::Transactional {
 
         match cache_result {
             Some(data) => {
-                let key = KeyBuf::from_db_key(&data)?;
+                let key = Key::from_db_key(&data)?;
                 Ok(Some(key))
             }
             None => Ok(None),
         }
 
-        // Ok(cache_result.map(|x| KeyBuf::from_db_key(&x)))
+        // Ok(cache_result.map(|x| Key::from_db_key(&x)))
     }
 
-    fn put(&self, cachekey: CacheKey, value: &KeyBuf) -> Result<(), PutCacheError> {
+    fn put(&self, cachekey: CacheKey, value: Key) -> Result<(), PutCacheError> {
         let mut data = Vec::with_capacity(8 * 3);
 
         data.extend(cachekey.inode.to_le_bytes().iter());
@@ -84,7 +84,7 @@ pub struct SqliteCache {
 #[derive(Debug, Error)]
 pub enum NewSqliteCacheError {
     #[error("sqlite error")]
-    SqliteError(#[from] rusqlite::Error)
+    SqliteError(#[from] rusqlite::Error),
 }
 
 impl SqliteCache {
@@ -111,7 +111,9 @@ impl SqliteCache {
 
 impl ds::Transactional for SqliteCache {
     fn begin_trans(&mut self) -> Result<(), ds::BeginTransError> {
-        self.conn.execute("BEGIN TRANSACTION", params![]).to_ds_r()?;
+        self.conn
+            .execute("BEGIN TRANSACTION", params![])
+            .to_ds_r()?;
         Ok(())
     }
 
@@ -139,10 +141,12 @@ impl Cache for SqliteCache {
     }
 
     fn raw_put<'a>(&'a self, key: &[u8], data: &[u8]) -> Result<(), RawPutCacheError> {
-        self.conn.execute(
-            "INSERT OR IGNORE INTO cache VALUES (?, ?)",
-            params![key, data],
-        ).to_ds_r()?;
+        self.conn
+            .execute(
+                "INSERT OR IGNORE INTO cache VALUES (?, ?)",
+                params![key, data],
+            )
+            .to_ds_r()?;
 
         Ok(())
     }

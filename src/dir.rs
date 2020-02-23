@@ -1,11 +1,11 @@
-use crate::{cache::Cache, cache::CacheKey, file, DataStore, KeyBuf, Object};
+use crate::object::ObjType;
+use crate::{cache, ds};
+use crate::{cache::Cache, cache::CacheKey, file, DataStore, Key, Object};
 use std::collections::{HashMap, HashSet};
 use std::convert::TryInto;
 use std::fs::DirEntry;
 use std::path::{Path, PathBuf};
-use crate::object::ObjType;
 use thiserror::Error;
-use crate::{ds, cache};
 
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
 pub struct FSItem {
@@ -13,7 +13,7 @@ pub struct FSItem {
     itemtype: FSItemType,
     children_names: Vec<PathBuf>,
     #[serde(skip)]
-    children: Vec<KeyBuf>,
+    children: Vec<Key>,
 }
 
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
@@ -72,7 +72,7 @@ pub fn put_fs_item<DS: DataStore>(
     ds: &mut DS,
     path: &Path,
     filter: &dyn Fn(&DirEntry) -> bool,
-) -> Result<KeyBuf, PutFsItemError> {
+) -> Result<Key, PutFsItemError> {
     let meta = std::fs::metadata(path)?;
 
     if meta.is_dir() {
@@ -154,7 +154,7 @@ pub fn hash_fs_item<DS: DataStore, C: Cache>(
     ds: &mut DS,
     path: &Path,
     cache: &C,
-) -> Result<KeyBuf, HashFsItemError> {
+) -> Result<Key, HashFsItemError> {
     let meta = std::fs::metadata(path)?;
 
     if meta.is_file() {
@@ -188,7 +188,7 @@ pub fn hash_fs_item<DS: DataStore, C: Cache>(
 
         let obj_hash = ds.put_obj(&object)?;
 
-        match cache.put(cache_key, &obj_hash) {
+        match cache.put(cache_key, obj_hash) {
             Ok(()) => {}
             Err(e) => log::warn!(
                 "Error {:?} putting cache entry {:?} as {}",
@@ -203,7 +203,6 @@ pub fn hash_fs_item<DS: DataStore, C: Cache>(
 
     Err(HashFsItemError::NonFileError)
 }
-
 
 #[derive(Debug, Error)]
 pub enum GetFsItemError {
@@ -220,15 +219,15 @@ pub enum GetFsItemError {
     DecodeError(#[from] serde_cbor::error::Error),
 }
 
-pub fn get_fs_item<DS: DataStore>(ds: &DS, key: &KeyBuf, path: &Path) -> Result<(), GetFsItemError> {
+pub fn get_fs_item<DS: DataStore>(ds: &DS, key: Key, path: &Path) -> Result<(), GetFsItemError> {
     let obj = ds.get_obj(key)?;
 
     let fsobj: FSItem = obj.try_into()?;
 
     match fsobj.itemtype {
         FSItemType::Dir => {
-            for (child, name) in fsobj.children.iter().zip(fsobj.children_names.iter()) {
-                get_fs_item(ds, &child, &path.join(&name))?;
+            for (&child, name) in fsobj.children.iter().zip(fsobj.children_names.iter()) {
+                get_fs_item(ds, child, &path.join(&name))?;
             }
         }
         FSItemType::File => {
@@ -241,7 +240,7 @@ pub fn get_fs_item<DS: DataStore>(ds: &DS, key: &KeyBuf, path: &Path) -> Result<
                 .create_new(true)
                 .open(path)?;
 
-            file::read_data(ds, &fsobj.children[0], &mut f)?;
+            file::read_data(ds, fsobj.children[0], &mut f)?;
         }
     }
 
@@ -268,7 +267,7 @@ pub enum CheckoutFsItemError {
 
 pub fn checkout_fs_item<DS: DataStore>(
     ds: &DS,
-    key: &KeyBuf,
+    key: Key,
     path: &Path,
     filter: &dyn Fn(&DirEntry) -> bool,
 ) -> Result<(), CheckoutFsItemError> {
@@ -306,10 +305,10 @@ pub fn checkout_fs_item<DS: DataStore>(
                 }
             }
 
-            for (child, name) in fsobj.children.iter().zip(fsobj.children_names.iter()) {
+            for (&child, name) in fsobj.children.iter().zip(fsobj.children_names.iter()) {
                 std::fs::create_dir_all(&path)?;
 
-                checkout_fs_item(ds, &child, &path.join(&name), filter)?;
+                checkout_fs_item(ds, child, &path.join(&name), filter)?;
             }
         }
         FSItemType::File => {
@@ -317,7 +316,7 @@ pub fn checkout_fs_item<DS: DataStore>(
 
             assert!(path.starts_with("/home/jess/src/snapcd/repo"));
 
-            file::read_data(ds, &fsobj.children[0], &mut f)?;
+            file::read_data(ds, fsobj.children[0], &mut f)?;
         }
     }
 
@@ -333,19 +332,18 @@ pub enum WalkFsItemsError {
     DecodeError(#[from] serde_cbor::error::Error),
 }
 
-
 pub fn walk_fs_items<DS: DataStore>(
     ds: &DS,
-    key: &KeyBuf,
-) -> Result<HashMap<PathBuf, (KeyBuf, bool)>, WalkFsItemsError> {
+    key: Key,
+) -> Result<HashMap<PathBuf, (Key, bool)>, WalkFsItemsError> {
     internal_walk_fs_items(ds, key, &PathBuf::new())
 }
 
 pub fn internal_walk_fs_items<DS: DataStore>(
     ds: &DS,
-    key: &KeyBuf,
+    key: Key,
     path: &Path,
-) -> Result<HashMap<PathBuf, (KeyBuf, bool)>, WalkFsItemsError> {
+) -> Result<HashMap<PathBuf, (Key, bool)>, WalkFsItemsError> {
     let mut results = HashMap::new();
 
     let obj = ds.get_obj(key)?;
@@ -356,22 +354,21 @@ pub fn internal_walk_fs_items<DS: DataStore>(
         FSItemType::Dir => {
             // Same as internal_walk_real_fs_items, we don't want to add an empty entry for the
             // root.
-            if path.as_os_str().len() > 0 {
-                results.insert(path.to_path_buf(), (key.clone(), true));
+            if !path.as_os_str().is_empty() {
+                results.insert(path.to_path_buf(), (key, true));
             }
 
-            for (child, name) in fsobj.children.iter().zip(fsobj.children_names.iter()) {
-                results.extend(internal_walk_fs_items(ds, &child, &path.join(&name))?);
+            for (&child, name) in fsobj.children.iter().zip(fsobj.children_names.iter()) {
+                results.extend(internal_walk_fs_items(ds, child, &path.join(&name))?);
             }
         }
         FSItemType::File => {
-            results.insert(path.to_path_buf(), (key.clone(), false));
+            results.insert(path.to_path_buf(), (key, false));
         }
     }
 
     Ok(results)
 }
-
 
 #[derive(Debug, Error)]
 pub enum WalkRealFsItemsError {
@@ -404,7 +401,7 @@ pub fn internal_walk_real_fs_items(
         let entries = std::fs::read_dir(&curr_path)?;
 
         // We don't want to add an empty entry for the root
-        if path.as_os_str().len() > 0 {
+        if path.as_os_str().is_empty() {
             results.insert(path.to_path_buf(), true);
         }
 

@@ -124,16 +124,16 @@ mod tests {
     use super::*;
     use std::str::FromStr;
 
-    proptest::proptest!{
+    proptest::proptest! {
         #[test]
         fn keyish_parse_doesnt_crash(string: String) {
-            Keyish::from_str(&string);
+            let _ = Keyish::from_str(&string);
         }
 
         #[test]
         fn keyish_ref_parse_doesnt_crash(first: String, last: String) {
             let result = format!("{}/{}", first, last);
-            Keyish::from_str(&result);
+            let _ = Keyish::from_str(&result);
         }
     }
 }

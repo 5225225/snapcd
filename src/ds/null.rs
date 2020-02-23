@@ -1,7 +1,9 @@
 use crate::ds;
-use crate::{KeyBuf, Reflog};
-use crate::ds::{GetReflogError, WalkReflogError, RawGetError, RawPutError, RawBetweenError,
-RawExistsError, ReflogPushError, RawGetStateError, RawPutStateError};
+use crate::ds::{
+    GetReflogError, RawBetweenError, RawExistsError, RawGetError, RawGetStateError, RawPutError,
+    RawPutStateError, ReflogPushError, WalkReflogError,
+};
+use crate::{Key, Reflog};
 use std::borrow::Cow;
 
 pub struct NullDS;
@@ -27,18 +29,22 @@ impl crate::DataStore for NullDS {
     fn reflog_push(&self, _data: &Reflog) -> Result<(), ReflogPushError> {
         Ok(())
     }
-    fn reflog_get(&self, _refname: &str, _remote: Option<&str>) -> Result<KeyBuf, GetReflogError> {
+    fn reflog_get(&self, _refname: &str, _remote: Option<&str>) -> Result<Key, GetReflogError> {
         unimplemented!("null datastore, no data")
     }
     fn reflog_walk(
         &self,
         _refname: &str,
         _remote: Option<&str>,
-    ) -> Result<Vec<KeyBuf>, WalkReflogError> {
+    ) -> Result<Vec<Key>, WalkReflogError> {
         unimplemented!("null datastore, no data")
     }
 
-    fn raw_between(&self, _start: &[u8], _end: Option<&[u8]>) -> Result<Vec<Vec<u8>>, RawBetweenError> {
+    fn raw_between(
+        &self,
+        _start: &[u8],
+        _end: Option<&[u8]>,
+    ) -> Result<Vec<Vec<u8>>, RawBetweenError> {
         unimplemented!("null datastore, no data")
     }
 }
