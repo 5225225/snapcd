@@ -1,6 +1,6 @@
 use colored::*;
 
-use crate::{commit, file, object, DataStore, Key};
+use crate::{commit, file, object, DataStore, Key, diff};
 use std::convert::TryInto;
 use thiserror::Error;
 
@@ -10,7 +10,7 @@ pub enum ShowError {
     DataReadError(#[from] file::ReadDataError),
 }
 
-pub fn display_obj(ds: &impl DataStore, key: Key) -> Result<(), ShowError> {
+pub fn display_obj(ds: &mut impl DataStore, key: Key) -> Result<(), ShowError> {
     let obj = ds.get_obj(key).unwrap();
 
     use object::ObjType;
@@ -34,6 +34,21 @@ pub fn display_obj(ds: &impl DataStore, key: Key) -> Result<(), ShowError> {
             println!();
 
             println!("{}", commit_obj.attrs().message());
+
+            println!();
+
+            let parent = commit_obj.parents().get(0).copied();
+            let parent_obj = ds.get_obj(parent.unwrap()).unwrap();
+
+            let parent_cmt: commit::Commit = parent_obj
+                .into_owned()
+                .try_into()
+                .expect("failed to convert commit obj");
+
+
+            let dr = diff::compare(ds, diff::DiffTarget::Database(commit_obj.tree()), Some(parent_cmt.tree()), None).unwrap();
+
+            diff::print_patch_diff_result(ds, dr);
         }
         ObjType::FSItemDir => todo!(),
         ObjType::Unknown => {

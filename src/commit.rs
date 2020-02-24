@@ -32,6 +32,14 @@ impl CommitAttrs {
 }
 
 impl Commit {
+    pub fn parents(&self) -> &[Key] {
+        &self.parents
+    }
+
+    pub fn tree(&self) -> Key {
+        self.tree
+    }
+
     pub fn attrs(&self) -> &CommitAttrs {
         &self.attrs
     }

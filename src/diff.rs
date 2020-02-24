@@ -1,8 +1,10 @@
 use crate::{cache, dir, file, filter};
+use std::io::BufRead;
 use crate::{DataStore, Key};
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use thiserror::Error;
+use colored::*;
 
 pub enum DiffTarget {
     FileSystem(PathBuf, Vec<String>, PathBuf),
@@ -47,12 +49,15 @@ pub enum CompareError {
     RealWalkError(#[from] dir::WalkRealFsItemsError),
 }
 
-pub fn compare<DS: DataStore>(
-    ds: &mut DS,
+pub fn compare<'a, DS: DataStore>(
+    ds: &'a mut DS,
     from: DiffTarget,
     to: Option<Key>,
-    cache: &mut cache::SqliteCache,
+    cache: impl Into<Option<&'a mut cache::SqliteCache>>,
 ) -> Result<DiffResult, CompareError> {
+    let cache = cache.into();
+    let cache = cache.as_ref();
+
     let from_path;
     let from_map = match from {
         DiffTarget::FileSystem(path, filters, folder_path) => {
@@ -88,7 +93,7 @@ pub fn compare<DS: DataStore>(
                 |y| {
                     if !y[x] {
                         // this is a file
-                        match dir::hash_fs_item(ds, x, cache) {
+                        match dir::hash_fs_item(ds, x, *cache.expect("you must pass a cache if you're hashing the fs")) {
                             Ok(h) => Some(h),
                             Err(e) => panic!(e),
                         }
@@ -128,7 +133,7 @@ pub fn compare<DS: DataStore>(
                         .as_ref()
                         .expect("should have been populated")
                         .join(path),
-                    cache,
+                    *cache.expect("you must pass a cache if you're hashing the fs"),
                 )?;
             }
             either::Right(db_items) => f = db_items[path].0,
@@ -229,6 +234,74 @@ pub fn print_stat_diff_result(ds: &impl DataStore, r: DiffResult) {
     let stat = line_stat(ds, r);
 
     print_line_stat(stat);
+}
+
+pub fn print_patch_diff_result(ds: &impl DataStore, r: DiffResult) {
+    let mut items = Vec::new();
+
+    for added in r.added {
+        if let Some(k) = added.new_key {
+            println!("{}", added.path.to_string_lossy().bright_black());
+
+            let mut data = Vec::new();
+            file::read_data(ds, k, &mut data).unwrap();
+
+            let mut cursor = std::io::Cursor::new(data);
+
+            for line_r in cursor.lines() {
+                let line = line_r.unwrap();
+                println!("{}", format!("+{}", line).green())
+            }
+        }
+    }
+
+    for removed in r.deleted {
+        if let Some(k) = removed.original_key {
+            println!("{}", removed.path.to_string_lossy().bright_black());
+
+            let mut data = Vec::new();
+            file::read_data(ds, k, &mut data).unwrap();
+
+            let mut cursor = std::io::Cursor::new(data);
+
+            for line_r in cursor.lines() {
+                let line = line_r.unwrap();
+                println!("{}", format!("-{}", line).red())
+            }
+        }
+    }
+
+    for modified in r.modified {
+        let mut before = Vec::new();
+        file::read_data(ds, modified.original_key, &mut before).unwrap();
+
+        let mut after = Vec::new();
+        file::read_data(ds, modified.new_key, &mut after).unwrap();
+
+        let before_str = String::from_utf8_lossy(&before);
+        let after_str = String::from_utf8_lossy(&after);
+
+        let lines = diff::lines(&before_str, &after_str);
+
+        let mut removed: usize = 0;
+        let mut added: usize = 0;
+        for item in lines {
+            match item {
+                diff::Result::Left(s) => println!("{}", format!("+{}", s).green()),
+                diff::Result::Right(s) => println!("{}", format!("-{}", s).red()),
+                diff::Result::Both(l, r) => {
+                    println!("{}", format!("-{}", l).red());
+                    println!("{}", format!("+{}", r).green());
+                }
+            }
+        }
+
+        items.push(FileStatResult {
+            fname: modified.path,
+            added,
+            removed,
+        });
+    }
 }
 
 pub struct LineStatResult {

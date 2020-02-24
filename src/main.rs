@@ -10,6 +10,7 @@ use snapcd::{
 };
 
 pub use thiserror::Error;
+use colored::*;
 
 use std::path::{Path, PathBuf};
 use structopt::StructOpt;
@@ -17,6 +18,7 @@ use structopt::StructOpt;
 type CMDResult = Result<(), anyhow::Error>;
 
 use structopt::clap::AppSettings;
+use std::convert::TryInto;
 
 #[derive(StructOpt, Debug)]
 #[structopt(global_setting=AppSettings::ColoredHelp)]
@@ -99,7 +101,7 @@ enum RefCommand {
 
 #[derive(StructOpt, Debug)]
 struct RefLogArgs {
-    refname: String,
+    refname: Option<String>,
     remote: Option<String>,
 }
 
@@ -267,12 +269,19 @@ fn debug(state: &mut State, args: DebugCommand) -> CMDResult {
 fn ref_log(state: &mut State, args: RefLogArgs) -> CMDResult {
     let ds_state = state.ds_state.as_ref().ok_or(DatabaseNotFoundError)?;
 
+    let refname = match args.refname {
+        Some(s) => s,
+        None => ds_state.ds.get_head()?.ok_or(NoHeadError)?,
+    };
+
     let keys = ds_state
         .ds
-        .reflog_walk(&args.refname, args.remote.as_deref())?;
+        .reflog_walk(&refname, args.remote.as_deref())?;
 
-    for key in keys {
-        println!("{}", key);
+    println!("{}", "log entries are printed with most recent at top".bright_black());
+
+    for (idx, key) in keys.iter().enumerate() {
+        println!("{}: {}", keys.len()-idx, key);
     }
 
     Ok(())
@@ -485,7 +494,7 @@ fn show(state: &mut State, args: ShowArgs) -> CMDResult {
 
     let key = ds_state.ds.canonicalize(args.key)?;
 
-    display::display_obj(&ds_state.ds, key)?;
+    display::display_obj(&mut ds_state.ds, key)?;
 
     Ok(())
 }
@@ -560,6 +569,8 @@ fn status(state: &mut State, _args: StatusArgs) -> CMDResult {
         }
     }
 
+    let obj: commit::Commit = ds_state.ds.get_obj(ref_key.unwrap()).unwrap().into_owned().try_into().unwrap();
+
     let result = diff::compare(
         &mut ds_state.ds,
         diff::DiffTarget::FileSystem(
@@ -567,7 +578,7 @@ fn status(state: &mut State, _args: StatusArgs) -> CMDResult {
             state.common.exclude.clone(),
             ds_state.db_folder_path.clone(),
         ),
-        ref_key,
+        Some(obj.tree()),
         &mut state.cache,
     )?;
 

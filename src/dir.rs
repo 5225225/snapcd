@@ -401,7 +401,7 @@ pub fn internal_walk_real_fs_items(
         let entries = std::fs::read_dir(&curr_path)?;
 
         // We don't want to add an empty entry for the root
-        if path.as_os_str().is_empty() {
+        if !path.as_os_str().is_empty() {
             results.insert(path.to_path_buf(), true);
         }
 
