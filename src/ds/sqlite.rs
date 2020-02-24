@@ -195,7 +195,8 @@ impl DataStore for SqliteDS {
         start: &[u8],
         end: Option<&[u8]>,
     ) -> Result<Vec<Vec<u8>>, RawBetweenError> {
-        dbg!(&start, &end);
+        log::trace!("raw_between({:?}, {:?})", start, end);
+
         let mut results = Vec::new();
         if let Some(e) = end {
             let mut statement = self
@@ -224,6 +225,7 @@ impl DataStore for SqliteDS {
             }
         }
 
+        log::trace!("... got results {:?}", &results);
         Ok(results)
     }
 }

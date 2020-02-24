@@ -5,10 +5,9 @@
 #![allow(clippy::needless_pass_by_value)]
 
 use snapcd::{
-    cache::SqliteCache, commit, diff, dir, display, ds::sqlite::SqliteDS, ds::Transactional,
-    filter, DataStore, Keyish, Reflog,
+    cache::SqliteCache, commit, diff, dir, display, ds::sqlite::SqliteDS, ds::GetReflogError,
+    ds::Transactional, filter, DataStore, Keyish, Reflog,
 };
-use std::collections::HashMap;
 
 pub use thiserror::Error;
 
@@ -133,8 +132,12 @@ struct CompareArgs {
 
 #[derive(StructOpt, Debug)]
 struct CommitArgs {
-    #[structopt(short = "-p", long = "--path")]
+    #[structopt(short, long)]
     path: Option<PathBuf>,
+
+    #[structopt(short, long)]
+    message: String,
+
     refname: Option<String>,
 }
 
@@ -351,7 +354,7 @@ fn debug_pretty_print(state: &mut State, args: PrettyPrintArgs) -> CMDResult {
 
     let item = ds_state.ds.get_obj(key)?;
 
-    println!("{}", item.debug_pretty_print());
+    item.debug_pretty_print();
 
     Ok(())
 }
@@ -368,7 +371,7 @@ fn debug_commit_tree(state: &mut State, args: CommitTreeArgs) -> CMDResult {
         parents.push(key);
     }
 
-    let attrs = HashMap::new();
+    let attrs = commit::CommitAttrs::default();
 
     let commit = commit::commit_tree(&mut ds_state.ds, tree, parents, attrs)?;
 
@@ -445,15 +448,29 @@ fn commit_cmd(state: &mut State, args: CommitArgs) -> CMDResult {
         None => &ds_state.repo_path,
     };
 
-    let key = dir::put_fs_item(&mut ds_state.ds, &commit_path, &filter)?;
-
     let refname = match args.refname {
         Some(name) => name,
         None => ds_state.ds.get_head()?.ok_or(NoHeadError)?,
     };
 
+    let try_got_key = ds_state.ds.reflog_get(&refname, None);
+
+    let parent_key = match try_got_key {
+        Ok(k) => vec![k],
+        Err(GetReflogError::NotFound) => vec![],
+        Err(other) => return Err(other.into()),
+    };
+
+    let key = dir::put_fs_item(&mut ds_state.ds, &commit_path, &filter)?;
+
+    let mut attrs = commit::CommitAttrs::default();
+
+    attrs.set_message(args.message);
+
+    let commit_key = commit::commit_tree(&mut ds_state.ds, key, parent_key, attrs)?;
+
     let log = Reflog {
-        key,
+        key: commit_key,
         refname,
         remote: None,
     };

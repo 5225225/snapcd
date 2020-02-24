@@ -29,6 +29,18 @@ pub enum ObjectShowFormat {
 }
 
 impl<'a> Object<'a> {
+    pub fn into_owned(self) -> Object<'static> {
+        let obj: Object<'static> = Object::<'static> {
+            data: Cow::Owned::<'static>(self.data.into_owned()),
+            keys: Cow::Owned::<'static>(self.keys.into_owned()),
+            objtype: self.objtype,
+        };
+
+        obj
+    }
+}
+
+impl<'a> Object<'a> {
     pub fn new(data: &'a [u8], keys: &'a [Key], objtype: ObjType) -> Self {
         Self {
             data: Cow::Borrowed(serde_bytes::Bytes::new(data)),
@@ -45,12 +57,8 @@ impl<'a> Object<'a> {
         }
     }
 
-    pub fn debug_pretty_print(&self) -> impl std::fmt::Display + '_ {
-        ObjectPrettyPrinter(self)
-    }
-
-    pub fn show(&'a self, ds: &'a dyn crate::DataStore) -> impl std::fmt::Display + 'a {
-        ObjectShowPrinter(self, ds)
+    pub fn debug_pretty_print(&self) {
+        pretty_print(self, std::io::stdout().lock());
     }
 
     pub fn objtype(&self) -> ObjType {
@@ -66,59 +74,46 @@ impl<'a> Object<'a> {
     }
 }
 
-struct ObjectPrettyPrinter<'a>(&'a Object<'a>);
 const DISPLAY_CHUNK_SIZE: usize = 20;
-impl<'a> std::fmt::Display for ObjectPrettyPrinter<'a> {
-    fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
-        writeln!(fmt, "--type: {:?}--", self.0.objtype)?;
 
-        writeln!(fmt, "--keys--")?;
-        if !self.0.keys.is_empty() {
-            for key in self.0.keys.iter() {
-                writeln!(fmt, "{}", key)?;
-            }
-        }
-        writeln!(fmt, "-/keys--")?;
+// In tests, you should force the color output to be true or not
+// This will assume `to` is stdout and will color based on that (and envars)
+// see: https://docs.rs/colored/1.9.2/colored/control/index.html
+fn pretty_print(
+    obj: &Object,
+    mut to: impl std::io::Write,
+) -> std::result::Result<(), std::io::Error> {
+    writeln!(to, "--type: {:?}--", obj.objtype)?;
 
-        writeln!(fmt, "--data--")?;
-        if !self.0.data.is_empty() {
-            for chunk in self.0.data.chunks(DISPLAY_CHUNK_SIZE) {
-                let ashex = hex::encode(chunk);
-                writeln!(fmt, "{}", ashex)?;
-            }
-        }
-        writeln!(fmt, "-/data--")?;
-
-        writeln!(fmt, "--deserialised data--")?;
-
-        match serde_cbor::from_slice::<serde_cbor::Value>(&self.0.data) {
-            Ok(v) => {
-                println!("{:?}", v);
-            }
-            Err(e) => {
-                println!("error when deserialising!");
-                println!("{:?}", e);
-            }
-        };
-        writeln!(fmt, "--/deserialised data--")?;
-
-        Ok(())
-    }
-}
-
-struct ObjectShowPrinter<'a>(&'a Object<'a>, &'a dyn crate::DataStore);
-impl<'a> std::fmt::Display for ObjectShowPrinter<'a> {
-    fn fmt(&self, _fmt: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
-        match self.0.objtype {
-            ObjType::FileBlobTree => todo!(),
-            ObjType::FileBlob => todo!(),
-            ObjType::Commit => todo!(),
-            ObjType::FSItemDir => todo!(),
-            ObjType::FSItemFile => todo!(),
-            ObjType::Unknown => {
-                debug_assert!(false, "unable to format {:?}", self.0.objtype);
-                Err(std::fmt::Error)
-            }
+    writeln!(to, "--keys--")?;
+    if !obj.keys.is_empty() {
+        for key in obj.keys.iter() {
+            writeln!(to, "{}", key)?;
         }
     }
+    writeln!(to, "-/keys--")?;
+
+    writeln!(to, "--data--")?;
+    if !obj.data.is_empty() {
+        for chunk in obj.data.chunks(DISPLAY_CHUNK_SIZE) {
+            let ashex = hex::encode(chunk);
+            writeln!(to, "{}", ashex)?;
+        }
+    }
+    writeln!(to, "-/data--")?;
+
+    writeln!(to, "--deserialised data--")?;
+
+    match serde_cbor::from_slice::<serde_cbor::Value>(&obj.data) {
+        Ok(v) => {
+            writeln!(to, "{:?}", v)?;
+        }
+        Err(e) => {
+            writeln!(to, "error when deserialising!")?;
+            writeln!(to, "{:?}", e)?;
+        }
+    };
+    writeln!(to, "--/deserialised data--")?;
+
+    Ok(())
 }
