@@ -35,7 +35,7 @@ impl CommitAttrs {
 }
 
 impl Commit {
-    pub fn from_key(ds: impl DataStore, key: TypedKey<Commit>) -> Self {
+    pub fn from_key(ds: &impl DataStore, key: TypedKey<Commit>) -> Self {
         ds.get_obj(key.inner()).unwrap().into_owned().try_into().unwrap()
     }
 

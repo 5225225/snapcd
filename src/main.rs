@@ -248,7 +248,7 @@ fn fetch(state: &mut State, args: FetchArgs) -> CMDResult {
 
     let key = ds_state.ds.canonicalize(args.key)?;
 
-    dir::get_fs_item(&ds_state.ds, key, &args.dest)?;
+    dir::get_fs_item(&ds_state.ds, key.into(), &args.dest)?;
 
     Ok(())
 }
@@ -337,7 +337,7 @@ fn debug_walk_tree(state: &mut State, args: WalkTreeArgs) -> CMDResult {
 
     let key = ds_state.ds.canonicalize(args.key)?;
 
-    let fs_items = dir::walk_fs_items(&ds_state.ds, key)?;
+    let fs_items = dir::walk_fs_items(&ds_state.ds, key.into())?;
 
     for item in fs_items {
         println!("{:?}", item)
@@ -382,7 +382,7 @@ fn debug_commit_tree(state: &mut State, args: CommitTreeArgs) -> CMDResult {
 
     let attrs = commit::CommitAttrs::default();
 
-    let commit = commit::commit_tree(&mut ds_state.ds, tree, parents, attrs)?;
+    let commit = commit::commit_tree(&mut ds_state.ds, tree.into(), parents.iter().map(|&x| x.into()).collect(), attrs)?;
 
     println!("{}", commit);
 
@@ -476,7 +476,7 @@ fn commit_cmd(state: &mut State, args: CommitArgs) -> CMDResult {
 
     attrs.set_message(args.message);
 
-    let commit_key = commit::commit_tree(&mut ds_state.ds, key, parent_key, attrs)?;
+    let commit_key = commit::commit_tree(&mut ds_state.ds, key.into(), parent_key, attrs)?;
 
     let log = Reflog {
         key: commit_key,
@@ -519,10 +519,11 @@ fn compare(state: &mut State, args: CompareArgs) -> CMDResult {
     let ds_state = state.ds_state.as_mut().ok_or(DatabaseNotFoundError)?;
 
     let key = match args.key {
-        Some(k) => ds_state.ds.canonicalize(k)?,
+        Some(k) => ds_state.ds.canonicalize(k)?.into(),
         None => {
             let reflog = ds_state.ds.get_head()?.ok_or(NoHeadError)?;
-            ds_state.ds.reflog_get(&reflog, None)?
+            let key = ds_state.ds.reflog_get(&reflog, None)?;
+            commit::Commit::from_key(&ds_state.ds, key).tree()
         }
     };
 
@@ -530,6 +531,8 @@ fn compare(state: &mut State, args: CompareArgs) -> CMDResult {
         Some(p) => p,
         None => &ds_state.repo_path,
     };
+
+    
 
     let result = diff::compare(
         &mut ds_state.ds,
@@ -562,14 +565,14 @@ fn status(state: &mut State, _args: StatusArgs) -> CMDResult {
 
     match &ref_key {
         Some(k) => {
-            println!("HEAD: {} [{}]", reflog, &k.as_user_key()[0..8]);
+            println!("HEAD: {} [{}]", reflog, &k.inner().as_user_key()[0..8]);
         }
         None => {
             println!("HEAD: {} (no commits on {})", reflog, reflog);
         }
     }
 
-    let obj: commit::Commit = ds_state.ds.get_obj(ref_key.unwrap()).unwrap().into_owned().try_into().unwrap();
+    let obj: commit::Commit = ds_state.ds.get_obj(ref_key.unwrap().into()).unwrap().into_owned().try_into().unwrap();
 
     let result = diff::compare(
         &mut ds_state.ds,
@@ -595,7 +598,7 @@ fn checkout(state: &mut State, _args: CheckoutArgs) -> CMDResult {
 
     let filter = filter::make_filter_fn(&state.common.exclude, ds_state.db_folder_path.clone());
 
-    let tree_key = commit::Commit::from_key(ds_state.ds, key).tree();
+    let tree_key = commit::Commit::from_key(&ds_state.ds, key).tree();
     dir::checkout_fs_item(&ds_state.ds, tree_key, &ds_state.repo_path, &filter)?;
     Ok(())
 }
@@ -609,7 +612,7 @@ fn checkout_head(state: &mut State, args: CheckoutHeadArgs) -> CMDResult {
 
     let ref_key = ds_state.ds.reflog_get(&reflog, None).ok();
 
-    let tree_key = ref_key.map(|key| commit::Commit::from_key(ds_state.ds, key).tree());
+    let tree_key = ref_key.map(|key| commit::Commit::from_key(&ds_state.ds, key).tree());
 
     let result = diff::compare(
         &mut ds_state.ds,
