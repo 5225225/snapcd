@@ -1,4 +1,5 @@
 use crate::{cache, dir, file, filter};
+use crate::key::TypedKey;
 use std::io::BufRead;
 use crate::{DataStore, Key};
 use std::collections::{HashMap, HashSet};
@@ -8,26 +9,26 @@ use colored::*;
 
 pub enum DiffTarget {
     FileSystem(PathBuf, Vec<String>, PathBuf),
-    Database(Key),
+    Database(TypedKey<dir::FSItem>),
 }
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
 pub struct DeletedDiffResult {
     path: PathBuf,
-    original_key: Option<Key>,
+    original_key: Option<TypedKey<dir::FSItem>>,
 }
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
 pub struct ModifiedDiffResult {
     path: PathBuf,
-    original_key: Key,
-    new_key: Key,
+    original_key: TypedKey<dir::FSItem>,
+    new_key: TypedKey<dir::FSItem>,
 }
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
 pub struct AddedDiffResult {
     path: PathBuf,
-    new_key: Option<Key>,
+    new_key: Option<TypedKey<dir::FSItem>>,
 }
 
 #[derive(Debug)]
@@ -52,7 +53,7 @@ pub enum CompareError {
 pub fn compare<'a, DS: DataStore>(
     ds: &'a mut DS,
     from: DiffTarget,
-    to: Option<Key>,
+    to: Option<TypedKey<dir::FSItem>>,
     cache: impl Into<Option<&'a mut cache::SqliteCache>>,
 ) -> Result<DiffResult, CompareError> {
     let cache = cache.into();
@@ -94,7 +95,7 @@ pub fn compare<'a, DS: DataStore>(
                     if !y[x] {
                         // this is a file
                         match dir::hash_fs_item(ds, x, *cache.expect("you must pass a cache if you're hashing the fs")) {
-                            Ok(h) => Some(h),
+                            Ok(h) => Some(h.into()),
                             Err(e) => panic!(e),
                         }
                     } else {
@@ -134,7 +135,7 @@ pub fn compare<'a, DS: DataStore>(
                         .expect("should have been populated")
                         .join(path),
                     *cache.expect("you must pass a cache if you're hashing the fs"),
-                )?;
+                )?.into();
             }
             either::Right(db_items) => f = db_items[path].0,
         }
@@ -244,7 +245,7 @@ pub fn print_patch_diff_result(ds: &impl DataStore, r: DiffResult) {
             println!("{}", added.path.to_string_lossy().bright_black());
 
             let mut data = Vec::new();
-            file::read_data(ds, k, &mut data).unwrap();
+            file::read_data(ds, k.into(), &mut data).unwrap();
 
             let mut cursor = std::io::Cursor::new(data);
 
@@ -260,7 +261,7 @@ pub fn print_patch_diff_result(ds: &impl DataStore, r: DiffResult) {
             println!("{}", removed.path.to_string_lossy().bright_black());
 
             let mut data = Vec::new();
-            file::read_data(ds, k, &mut data).unwrap();
+            file::read_data(ds, k.into(), &mut data).unwrap();
 
             let mut cursor = std::io::Cursor::new(data);
 
@@ -273,10 +274,10 @@ pub fn print_patch_diff_result(ds: &impl DataStore, r: DiffResult) {
 
     for modified in r.modified {
         let mut before = Vec::new();
-        file::read_data(ds, modified.original_key, &mut before).unwrap();
+        file::read_data(ds, modified.original_key.into(), &mut before).unwrap();
 
         let mut after = Vec::new();
-        file::read_data(ds, modified.new_key, &mut after).unwrap();
+        file::read_data(ds, modified.new_key.into(), &mut after).unwrap();
 
         let before_str = String::from_utf8_lossy(&before);
         let after_str = String::from_utf8_lossy(&after);
@@ -340,10 +341,10 @@ pub fn line_stat(ds: &impl DataStore, r: DiffResult) -> LineStatResult {
 
     for modified in r.modified {
         let mut before = Vec::new();
-        file::read_data(ds, modified.original_key, &mut before).unwrap();
+        file::read_data(ds, modified.original_key.into(), &mut before).unwrap();
 
         let mut after = Vec::new();
-        file::read_data(ds, modified.new_key, &mut after).unwrap();
+        file::read_data(ds, modified.new_key.into(), &mut after).unwrap();
 
         let before_str = String::from_utf8_lossy(&before);
         let after_str = String::from_utf8_lossy(&after);
@@ -383,9 +384,9 @@ pub fn print_line_stat(mut lsr: LineStatResult) {
     }
 }
 
-pub fn line_ct(ds: &impl DataStore, key: Key) -> usize {
+pub fn line_ct(ds: &impl DataStore, key: TypedKey<dir::FSItem>) -> usize {
     let mut data = Vec::new();
-    file::read_data(ds, key, &mut data).unwrap();
+    file::read_data(ds, key.into(), &mut data).unwrap();
 
     #[allow(clippy::naive_bytecount)]
     // This whole function will be cached in the store at some point, this is just for testing

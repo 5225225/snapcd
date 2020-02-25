@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::convert::TryInto;
 use thiserror::Error;
+use crate::key::TypedKey;
 
 use serde::{Deserialize, Serialize};
 
@@ -9,9 +10,11 @@ use crate::{DataStore, Key, Object};
 use crate::ds::PutObjError;
 use crate::object::ObjType;
 
+use crate::dir;
+
 pub struct Commit {
-    tree: Key,
-    parents: Vec<Key>,
+    tree: TypedKey<dir::FSItem>,
+    parents: Vec<TypedKey<Commit>>,
     attrs: CommitAttrs,
 }
 
@@ -32,11 +35,15 @@ impl CommitAttrs {
 }
 
 impl Commit {
-    pub fn parents(&self) -> &[Key] {
+    pub fn from_key(ds: impl DataStore, key: TypedKey<Commit>) -> Self {
+        ds.get_obj(key.inner()).unwrap().into_owned().try_into().unwrap()
+    }
+
+    pub fn parents(&self) -> &[TypedKey<Commit>] {
         &self.parents
     }
 
-    pub fn tree(&self) -> Key {
+    pub fn tree(&self) -> TypedKey<dir::FSItem> {
         self.tree
     }
 
@@ -55,9 +62,13 @@ impl TryInto<Object<'static>> for Commit {
     fn try_into(self) -> Result<Object<'static>, serde_cbor::error::Error> {
         let attrs = serde_cbor::to_vec(&self.attrs)?;
 
-        let mut keys = vec![];
-        keys.push(self.tree);
-        keys.extend(self.parents);
+        let mut keys: Vec<Key> = vec![];
+
+        keys.push(self.tree.into());
+
+        for p in self.parents {
+            keys.push(p.into())
+        }
 
         Ok(Object::new_owned(attrs, keys, ObjType::Commit))
     }
@@ -76,9 +87,14 @@ impl TryInto<Commit> for Object<'static> {
         let tree = owned_keys.remove(0);
         let parents = owned_keys;
 
+        let mut new_parents = Vec::new();
+        for parent in parents {
+            new_parents.push(parent.into())
+        }
+
         Ok(Commit {
-            tree,
-            parents,
+            tree: tree.into(),
+            parents: new_parents,
             attrs,
         })
     }
@@ -96,10 +112,10 @@ pub enum CommitTreeError {
 #[allow(clippy::implicit_hasher)]
 pub fn commit_tree<DS: DataStore>(
     ds: &mut DS,
-    tree: Key,
-    mut parents: Vec<Key>,
+    tree: TypedKey<dir::FSItem>,
+    mut parents: Vec<TypedKey<Commit>>,
     attrs: CommitAttrs,
-) -> Result<Key, CommitTreeError> {
+) -> Result<TypedKey<Commit>, CommitTreeError> {
     parents.sort();
 
     let commit = Commit {
@@ -112,5 +128,5 @@ pub fn commit_tree<DS: DataStore>(
 
     let ret = ds.put_obj(&val)?;
 
-    Ok(ret)
+    Ok(ret.into())
 }

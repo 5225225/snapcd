@@ -11,7 +11,7 @@ pub enum ShowError {
 }
 
 pub fn display_obj(ds: &mut impl DataStore, key: Key) -> Result<(), ShowError> {
-    let obj = ds.get_obj(key).unwrap();
+    let obj = ds.get_obj(key).unwrap().into_owned();
 
     use object::ObjType;
 
@@ -38,7 +38,7 @@ pub fn display_obj(ds: &mut impl DataStore, key: Key) -> Result<(), ShowError> {
             println!();
 
             let parent = commit_obj.parents().get(0).copied();
-            let parent_obj = ds.get_obj(parent.unwrap()).unwrap();
+            let parent_obj = ds.get_obj(parent.unwrap().inner()).unwrap();
 
             let parent_cmt: commit::Commit = parent_obj
                 .into_owned()
@@ -46,7 +46,7 @@ pub fn display_obj(ds: &mut impl DataStore, key: Key) -> Result<(), ShowError> {
                 .expect("failed to convert commit obj");
 
 
-            let dr = diff::compare(ds, diff::DiffTarget::Database(commit_obj.tree()), Some(parent_cmt.tree()), None).unwrap();
+            let dr = diff::compare(ds, diff::DiffTarget::Database(commit_obj.tree().into()), Some(parent_cmt.tree().into()), None).unwrap();
 
             diff::print_patch_diff_result(ds, dr);
         }

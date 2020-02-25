@@ -298,7 +298,7 @@ fn ref_update(state: &mut State, args: RefUpdateArgs) -> CMDResult {
     };
 
     let log = Reflog {
-        key,
+        key: key.into(),
         refname,
         remote: None,
     };
@@ -407,7 +407,7 @@ fn debug_reflog_push(state: &mut State, args: ReflogPushArgs) -> CMDResult {
     let key = ds_state.ds.canonicalize(args.key)?;
 
     let log = Reflog {
-        key,
+        key: key.into(),
         refname: args.refname,
         remote: args.remote,
     };
@@ -595,7 +595,8 @@ fn checkout(state: &mut State, _args: CheckoutArgs) -> CMDResult {
 
     let filter = filter::make_filter_fn(&state.common.exclude, ds_state.db_folder_path.clone());
 
-    dir::checkout_fs_item(&ds_state.ds, key, &ds_state.repo_path, &filter)?;
+    let tree_key = commit::Commit::from_key(ds_state.ds, key).tree();
+    dir::checkout_fs_item(&ds_state.ds, tree_key, &ds_state.repo_path, &filter)?;
     Ok(())
 }
 
@@ -608,6 +609,8 @@ fn checkout_head(state: &mut State, args: CheckoutHeadArgs) -> CMDResult {
 
     let ref_key = ds_state.ds.reflog_get(&reflog, None).ok();
 
+    let tree_key = ref_key.map(|key| commit::Commit::from_key(ds_state.ds, key).tree());
+
     let result = diff::compare(
         &mut ds_state.ds,
         diff::DiffTarget::FileSystem(
@@ -615,7 +618,7 @@ fn checkout_head(state: &mut State, args: CheckoutHeadArgs) -> CMDResult {
             state.common.exclude.clone(),
             ds_state.db_folder_path.clone(),
         ),
-        ref_key,
+        tree_key,
         &mut state.cache,
     )?;
 

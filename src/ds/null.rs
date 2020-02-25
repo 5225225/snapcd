@@ -5,6 +5,8 @@ use crate::ds::{
 };
 use crate::{Key, Reflog};
 use std::borrow::Cow;
+use crate::key::TypedKey;
+use crate::commit;
 
 pub struct NullDS;
 
@@ -29,14 +31,14 @@ impl crate::DataStore for NullDS {
     fn reflog_push(&self, _data: &Reflog) -> Result<(), ReflogPushError> {
         Ok(())
     }
-    fn reflog_get(&self, _refname: &str, _remote: Option<&str>) -> Result<Key, GetReflogError> {
+    fn reflog_get(&self, _refname: &str, _remote: Option<&str>) -> Result<TypedKey<commit::Commit>, GetReflogError> {
         unimplemented!("null datastore, no data")
     }
     fn reflog_walk(
         &self,
         _refname: &str,
         _remote: Option<&str>,
-    ) -> Result<Vec<Key>, WalkReflogError> {
+    ) -> Result<Vec<TypedKey<commit::Commit>>, WalkReflogError> {
         unimplemented!("null datastore, no data")
     }
 

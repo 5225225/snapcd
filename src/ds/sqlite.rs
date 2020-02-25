@@ -5,6 +5,8 @@ use rusqlite::OptionalExtension;
 use std::borrow::Cow;
 
 use crate::ds;
+use crate::key::TypedKey;
+use crate::commit;
 use crate::ds::{
     BeginTransError, CommitTransError, DataStore, GetReflogError, RawBetweenError, RawExistsError,
     RawGetError, RawGetStateError, RawPutError, RawPutStateError, ReflogPushError,
@@ -79,7 +81,7 @@ impl ds::Transactional for SqliteDS {
 }
 
 impl DataStore for SqliteDS {
-    fn reflog_get(&self, refname: &str, remote: Option<&str>) -> Result<Key, GetReflogError> {
+    fn reflog_get(&self, refname: &str, remote: Option<&str>) -> Result<TypedKey<commit::Commit>, GetReflogError> {
         log::trace!("reflog_get({:?}, {:?})", refname, remote);
 
         // We have to use `remote IS ?` here because we want NULL = NULL (it is not remote).
@@ -93,7 +95,7 @@ impl DataStore for SqliteDS {
             .optional();
 
         match query {
-            Ok(Some(k)) => Ok(Key::from_db_key(&k)?),
+            Ok(Some(k)) => Ok(Key::from_db_key(&k)?.into()),
             Ok(None) => Err(GetReflogError::NotFound),
             Err(e) => Err(e.to_ds().into()),
         }
@@ -103,7 +105,7 @@ impl DataStore for SqliteDS {
         self.conn
             .execute(
                 "INSERT INTO reflog(refname, remote, key) VALUES (?, ?, ?)",
-                params![data.refname, data.remote, data.key.as_db_key(),],
+                params![data.refname, data.remote, data.key.inner().as_db_key(),],
             )
             .to_ds_r()?;
 
@@ -114,7 +116,7 @@ impl DataStore for SqliteDS {
         &self,
         refname: &str,
         remote: Option<&str>,
-    ) -> Result<Vec<Key>, WalkReflogError> {
+    ) -> Result<Vec<TypedKey<commit::Commit>>, WalkReflogError> {
         let mut statement = self
             .conn
             .prepare("SELECT key FROM reflog WHERE refname=? AND remote IS ? ORDER BY id DESC")
@@ -126,7 +128,7 @@ impl DataStore for SqliteDS {
 
         while let Some(row) = rows.next().unwrap() {
             let buf: Vec<u8> = row.get(0).unwrap();
-            keys.push(Key::from_db_key(&buf)?);
+            keys.push(Key::from_db_key(&buf)?.into());
         }
 
         Ok(keys)

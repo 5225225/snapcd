@@ -1,6 +1,6 @@
 use crate::object::ObjType;
 use crate::{cache, ds};
-use crate::{cache::Cache, cache::CacheKey, file, DataStore, Key, Object};
+use crate::{cache::Cache, cache::CacheKey, file, DataStore, Key, Object, key::TypedKey};
 use std::collections::{HashMap, HashSet};
 use std::convert::TryInto;
 use std::fs::DirEntry;
@@ -13,7 +13,7 @@ pub struct FSItem {
     itemtype: FSItemType,
     children_names: Vec<PathBuf>,
     #[serde(skip)]
-    children: Vec<Key>,
+    children: Vec<TypedKey<FSItem>>,
 }
 
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
@@ -35,7 +35,7 @@ impl TryInto<Object<'static>> for FSItem {
             FSItemType::File => ObjType::FSItemFile,
         };
 
-        Ok(Object::new_owned(obj, self.children, objtype))
+        Ok(Object::new_owned(obj, self.children.iter().map(|&x| x.into()).collect(), objtype))
     }
 }
 
@@ -47,7 +47,7 @@ impl<'a> TryInto<FSItem> for Object<'a> {
 
         let mut fsitem: FSItem = serde_cbor::value::from_value(item)?;
 
-        fsitem.children = self.keys().to_vec();
+        fsitem.children = self.keys().iter().map(|&x| x.into()).collect();
 
         Ok(fsitem)
     }
@@ -96,7 +96,7 @@ pub fn put_fs_item<DS: DataStore>(
         let size = result.len() as u64;
 
         let obj = FSItem {
-            children: result,
+            children: result.iter().map(|&x| x.into()).collect(),
             children_names: result_names,
             itemtype: FSItemType::Dir,
             size,
@@ -115,7 +115,7 @@ pub fn put_fs_item<DS: DataStore>(
         let hash = file::put_data(ds, reader)?;
 
         let obj = FSItem {
-            children: vec![hash],
+            children: vec![hash.into()],
             children_names: vec![],
             itemtype: FSItemType::File,
             size: meta.len(),
@@ -178,7 +178,7 @@ pub fn hash_fs_item<DS: DataStore, C: Cache>(
         let hash = file::put_data(ds, reader)?;
 
         let obj = FSItem {
-            children: vec![hash],
+            children: vec![hash.into()],
             children_names: vec![],
             itemtype: FSItemType::File,
             size: meta.len(),
@@ -219,8 +219,8 @@ pub enum GetFsItemError {
     DecodeError(#[from] serde_cbor::error::Error),
 }
 
-pub fn get_fs_item<DS: DataStore>(ds: &DS, key: Key, path: &Path) -> Result<(), GetFsItemError> {
-    let obj = ds.get_obj(key)?;
+pub fn get_fs_item<DS: DataStore>(ds: &DS, key: TypedKey<FSItem>, path: &Path) -> Result<(), GetFsItemError> {
+    let obj = ds.get_obj(key.into())?;
 
     let fsobj: FSItem = obj.try_into()?;
 
@@ -240,7 +240,7 @@ pub fn get_fs_item<DS: DataStore>(ds: &DS, key: Key, path: &Path) -> Result<(), 
                 .create_new(true)
                 .open(path)?;
 
-            file::read_data(ds, fsobj.children[0], &mut f)?;
+            file::read_data(ds, fsobj.children[0].into(), &mut f)?;
         }
     }
 
@@ -267,11 +267,11 @@ pub enum CheckoutFsItemError {
 
 pub fn checkout_fs_item<DS: DataStore>(
     ds: &DS,
-    key: Key,
+    key: TypedKey<FSItem>,
     path: &Path,
     filter: &dyn Fn(&DirEntry) -> bool,
 ) -> Result<(), CheckoutFsItemError> {
-    let obj = ds.get_obj(key)?;
+    let obj = ds.get_obj(key.into())?;
 
     let fsobj: FSItem = obj.try_into()?;
 
@@ -316,7 +316,7 @@ pub fn checkout_fs_item<DS: DataStore>(
 
             assert!(path.starts_with("/home/jess/src/snapcd/repo"));
 
-            file::read_data(ds, fsobj.children[0], &mut f)?;
+            file::read_data(ds, fsobj.children[0].into(), &mut f)?;
         }
     }
 
@@ -334,19 +334,19 @@ pub enum WalkFsItemsError {
 
 pub fn walk_fs_items<DS: DataStore>(
     ds: &DS,
-    key: Key,
-) -> Result<HashMap<PathBuf, (Key, bool)>, WalkFsItemsError> {
+    key: TypedKey<FSItem>,
+) -> Result<HashMap<PathBuf, (TypedKey<FSItem>, bool)>, WalkFsItemsError> {
     internal_walk_fs_items(ds, key, &PathBuf::new())
 }
 
 pub fn internal_walk_fs_items<DS: DataStore>(
     ds: &DS,
-    key: Key,
+    key: TypedKey<FSItem>,
     path: &Path,
-) -> Result<HashMap<PathBuf, (Key, bool)>, WalkFsItemsError> {
+) -> Result<HashMap<PathBuf, (TypedKey<FSItem>, bool)>, WalkFsItemsError> {
     let mut results = HashMap::new();
 
-    let obj = ds.get_obj(key)?;
+    let obj = ds.get_obj(key.inner())?;
 
     let fsobj: FSItem = obj.try_into()?;
 
@@ -355,11 +355,11 @@ pub fn internal_walk_fs_items<DS: DataStore>(
             // Same as internal_walk_real_fs_items, we don't want to add an empty entry for the
             // root.
             if !path.as_os_str().is_empty() {
-                results.insert(path.to_path_buf(), (key, true));
+                results.insert(path.to_path_buf(), (key.into(), true));
             }
 
             for (&child, name) in fsobj.children.iter().zip(fsobj.children_names.iter()) {
-                results.extend(internal_walk_fs_items(ds, child, &path.join(&name))?);
+                results.extend(internal_walk_fs_items(ds, child.into(), &path.join(&name))?);
             }
         }
         FSItemType::File => {
