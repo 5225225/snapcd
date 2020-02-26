@@ -4,15 +4,15 @@ use rusqlite::params;
 use rusqlite::OptionalExtension;
 use std::borrow::Cow;
 
-use crate::ds;
-use crate::key::{TypedKey, Key};
 use crate::commit;
+use crate::ds;
 use crate::ds::{
     BeginTransError, CommitTransError, DataStore, GetReflogError, RawBetweenError, RawExistsError,
     RawGetError, RawGetStateError, RawPutError, RawPutStateError, ReflogPushError,
     RollbackTransError, WalkReflogError,
 };
 use crate::ds::{ToDSError, ToDSErrorResult};
+use crate::key::{Key, TypedKey};
 use crate::Reflog;
 use thiserror::Error;
 
@@ -81,7 +81,11 @@ impl ds::Transactional for SqliteDS {
 }
 
 impl DataStore for SqliteDS {
-    fn reflog_get(&self, refname: &str, remote: Option<&str>) -> Result<TypedKey<commit::Commit>, GetReflogError> {
+    fn reflog_get(
+        &self,
+        refname: &str,
+        remote: Option<&str>,
+    ) -> Result<TypedKey<commit::Commit>, GetReflogError> {
         log::trace!("reflog_get({:?}, {:?})", refname, remote);
 
         // We have to use `remote IS ?` here because we want NULL = NULL (it is not remote).

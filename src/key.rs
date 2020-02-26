@@ -7,9 +7,7 @@ pub enum Key {
     Blake3B([u8; 32]),
 }
 
-#[derive(
-    serde::Serialize, serde::Deserialize
-)]
+#[derive(serde::Serialize, serde::Deserialize)]
 pub struct TypedKey<T> {
     inner: Key,
 
@@ -18,31 +16,40 @@ pub struct TypedKey<T> {
 }
 
 impl<T> std::fmt::Debug for TypedKey<T> {
-    fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> { 
+    fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
         self.inner.fmt(fmt)
     }
 }
 impl<T> std::clone::Clone for TypedKey<T> {
-    fn clone(&self) -> Self {*self}
+    fn clone(&self) -> Self {
+        *self
+    }
 }
 impl<T> std::cmp::PartialEq for TypedKey<T> {
-    fn eq(&self, other: &Self) -> bool {self.inner.eq(&other.inner)}
+    fn eq(&self, other: &Self) -> bool {
+        self.inner.eq(&other.inner)
+    }
 }
 impl<T> std::cmp::Eq for TypedKey<T> {}
 
 impl<T> std::cmp::PartialOrd for TypedKey<T> {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {self.inner.partial_cmp(&other.inner)}
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        self.inner.partial_cmp(&other.inner)
+    }
 }
 impl<T> std::cmp::Ord for TypedKey<T> {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {self.inner.cmp(&other.inner)}
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.inner.cmp(&other.inner)
+    }
 }
 
 impl<T> std::hash::Hash for TypedKey<T> {
- fn hash<H>(&self, state: &mut H)
+    fn hash<H>(&self, state: &mut H)
     where
-        H: std::hash::Hasher {
+        H: std::hash::Hasher,
+    {
         self.inner.hash(state)
-        }
+    }
 }
 impl<T> std::marker::Copy for TypedKey<T> {}
 

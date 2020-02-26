@@ -1,6 +1,6 @@
 use colored::*;
 
-use crate::{commit, file, object, DataStore, key::Key, diff};
+use crate::{commit, diff, file, key::Key, object, DataStore};
 use std::convert::TryInto;
 use thiserror::Error;
 
@@ -45,8 +45,13 @@ pub fn display_obj(ds: &mut impl DataStore, key: Key) -> Result<(), ShowError> {
                 .try_into()
                 .expect("failed to convert commit obj");
 
-
-            let dr = diff::compare(ds, diff::DiffTarget::Database(commit_obj.tree().into()), Some(parent_cmt.tree().into()), None).unwrap();
+            let dr = diff::compare(
+                ds,
+                diff::DiffTarget::Database(commit_obj.tree()),
+                Some(parent_cmt.tree()),
+                None,
+            )
+            .unwrap();
 
             diff::print_patch_diff_result(ds, dr);
         }

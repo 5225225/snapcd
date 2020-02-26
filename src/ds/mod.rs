@@ -9,12 +9,12 @@ use std::borrow::Cow;
 
 use thiserror::Error;
 
+use crate::commit;
 use crate::key;
 use crate::key::Key;
+use crate::key::TypedKey;
 use crate::Keyish;
 use crate::Object;
-use crate::key::TypedKey;
-use crate::commit;
 
 #[derive(Debug, Error)]
 pub enum CanonicalizeError {
@@ -230,9 +230,16 @@ pub trait DataStore: Transactional {
     }
 
     fn reflog_push(&self, data: &Reflog) -> Result<(), ReflogPushError>;
-    fn reflog_get(&self, refname: &str, remote: Option<&str>) -> Result<TypedKey<commit::Commit>, GetReflogError>;
-    fn reflog_walk(&self, refname: &str, remote: Option<&str>)
-        -> Result<Vec<TypedKey<commit::Commit>>, WalkReflogError>;
+    fn reflog_get(
+        &self,
+        refname: &str,
+        remote: Option<&str>,
+    ) -> Result<TypedKey<commit::Commit>, GetReflogError>;
+    fn reflog_walk(
+        &self,
+        refname: &str,
+        remote: Option<&str>,
+    ) -> Result<Vec<TypedKey<commit::Commit>>, WalkReflogError>;
 
     fn raw_between(
         &self,
@@ -274,8 +281,10 @@ pub trait DataStore: Transactional {
             #[allow(clippy::option_unwrap_used)]
             1 => Ok(key::Key::from_db_key(&results.pop().unwrap())?),
             _ => {
-                let strs: Result<_, _> =
-                    results.into_iter().map(|x| key::Key::from_db_key(&x)).collect();
+                let strs: Result<_, _> = results
+                    .into_iter()
+                    .map(|x| key::Key::from_db_key(&x))
+                    .collect();
                 Err(CanonicalizeError::Ambigious(err_str, strs?))
             }
         }

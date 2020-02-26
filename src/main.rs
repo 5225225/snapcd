@@ -9,16 +9,16 @@ use snapcd::{
     ds::Transactional, filter, DataStore, Keyish, Reflog,
 };
 
-pub use thiserror::Error;
 use colored::*;
+pub use thiserror::Error;
 
 use std::path::{Path, PathBuf};
 use structopt::StructOpt;
 
 type CMDResult = Result<(), anyhow::Error>;
 
-use structopt::clap::AppSettings;
 use std::convert::TryInto;
+use structopt::clap::AppSettings;
 
 #[derive(StructOpt, Debug)]
 #[structopt(global_setting=AppSettings::ColoredHelp)]
@@ -274,14 +274,15 @@ fn ref_log(state: &mut State, args: RefLogArgs) -> CMDResult {
         None => ds_state.ds.get_head()?.ok_or(NoHeadError)?,
     };
 
-    let keys = ds_state
-        .ds
-        .reflog_walk(&refname, args.remote.as_deref())?;
+    let keys = ds_state.ds.reflog_walk(&refname, args.remote.as_deref())?;
 
-    println!("{}", "log entries are printed with most recent at top".bright_black());
+    println!(
+        "{}",
+        "log entries are printed with most recent at top".bright_black()
+    );
 
     for (idx, key) in keys.iter().enumerate() {
-        println!("{}: {}", keys.len()-idx, key);
+        println!("{}: {}", keys.len() - idx, key);
     }
 
     Ok(())
@@ -363,7 +364,7 @@ fn debug_pretty_print(state: &mut State, args: PrettyPrintArgs) -> CMDResult {
 
     let item = ds_state.ds.get_obj(key)?;
 
-    item.debug_pretty_print();
+    item.debug_pretty_print()?;
 
     Ok(())
 }
@@ -382,7 +383,12 @@ fn debug_commit_tree(state: &mut State, args: CommitTreeArgs) -> CMDResult {
 
     let attrs = commit::CommitAttrs::default();
 
-    let commit = commit::commit_tree(&mut ds_state.ds, tree.into(), parents.iter().map(|&x| x.into()).collect(), attrs)?;
+    let commit = commit::commit_tree(
+        &mut ds_state.ds,
+        tree.into(),
+        parents.iter().map(|&x| x.into()).collect(),
+        attrs,
+    )?;
 
     println!("{}", commit);
 
@@ -532,8 +538,6 @@ fn compare(state: &mut State, args: CompareArgs) -> CMDResult {
         None => &ds_state.repo_path,
     };
 
-    
-
     let result = diff::compare(
         &mut ds_state.ds,
         diff::DiffTarget::FileSystem(
@@ -572,7 +576,13 @@ fn status(state: &mut State, _args: StatusArgs) -> CMDResult {
         }
     }
 
-    let obj: commit::Commit = ds_state.ds.get_obj(ref_key.unwrap().into()).unwrap().into_owned().try_into().unwrap();
+    let obj: commit::Commit = ds_state
+        .ds
+        .get_obj(ref_key.unwrap().into())
+        .unwrap()
+        .into_owned()
+        .try_into()
+        .unwrap();
 
     let result = diff::compare(
         &mut ds_state.ds,

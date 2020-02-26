@@ -1,11 +1,11 @@
+use crate::key::TypedKey;
 use std::collections::HashMap;
 use std::convert::TryInto;
 use thiserror::Error;
-use crate::key::TypedKey;
 
 use serde::{Deserialize, Serialize};
 
-use crate::{DataStore, key::Key, Object};
+use crate::{key::Key, DataStore, Object};
 
 use crate::ds::PutObjError;
 use crate::object::ObjType;
@@ -36,7 +36,11 @@ impl CommitAttrs {
 
 impl Commit {
     pub fn from_key(ds: &impl DataStore, key: TypedKey<Commit>) -> Self {
-        ds.get_obj(key.inner()).unwrap().into_owned().try_into().unwrap()
+        ds.get_obj(key.inner())
+            .unwrap()
+            .into_owned()
+            .try_into()
+            .unwrap()
     }
 
     pub fn parents(&self) -> &[TypedKey<Commit>] {

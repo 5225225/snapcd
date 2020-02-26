@@ -44,13 +44,13 @@ impl Object {
     pub fn new_owned(data: Vec<u8>, keys: Vec<Key>, objtype: ObjType) -> Self {
         Self {
             data: serde_bytes::ByteBuf::from(data),
-            keys: keys,
+            keys,
             objtype,
         }
     }
 
-    pub fn debug_pretty_print(&self) {
-        pretty_print(self, std::io::stdout().lock());
+    pub fn debug_pretty_print(&self) -> Result<(), std::io::Error> {
+        pretty_print(self, std::io::stdout().lock())
     }
 
     pub fn objtype(&self) -> ObjType {
@@ -81,6 +81,8 @@ fn pretty_print(
     if !obj.keys.is_empty() {
         for key in obj.keys.iter() {
             writeln!(to, "{}", key)?;
+            writeln!(to, "{:?}", key)?;
+            writeln!(to)?;
         }
     }
     writeln!(to, "-/keys--")?;

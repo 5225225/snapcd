@@ -1,11 +1,11 @@
-use crate::{cache, dir, file, filter};
-use crate::key::{TypedKey, Key};
-use std::io::BufRead;
+use crate::key::TypedKey;
 use crate::DataStore;
+use crate::{cache, dir, file, filter};
+use colored::*;
 use std::collections::{HashMap, HashSet};
+use std::io::BufRead;
 use std::path::PathBuf;
 use thiserror::Error;
-use colored::*;
 
 pub enum DiffTarget {
     FileSystem(PathBuf, Vec<String>, PathBuf),
@@ -94,7 +94,11 @@ pub fn compare<'a, DS: DataStore>(
                 |y| {
                     if !y[x] {
                         // this is a file
-                        match dir::hash_fs_item(ds, x, *cache.expect("you must pass a cache if you're hashing the fs")) {
+                        match dir::hash_fs_item(
+                            ds,
+                            x,
+                            *cache.expect("you must pass a cache if you're hashing the fs"),
+                        ) {
                             Ok(h) => Some(h.into()),
                             Err(e) => panic!(e),
                         }
@@ -135,7 +139,8 @@ pub fn compare<'a, DS: DataStore>(
                         .expect("should have been populated")
                         .join(path),
                     *cache.expect("you must pass a cache if you're hashing the fs"),
-                )?.into();
+                )?
+                .into();
             }
             either::Right(db_items) => f = db_items[path].0,
         }
@@ -144,8 +149,8 @@ pub fn compare<'a, DS: DataStore>(
 
         if f != t.0 {
             let dr = ModifiedDiffResult {
-                original_key: f,
-                new_key: t.0,
+                original_key: t.0,
+                new_key: f,
                 path: path.clone(),
             };
 
@@ -247,7 +252,7 @@ pub fn print_patch_diff_result(ds: &impl DataStore, r: DiffResult) {
             let mut data = Vec::new();
             file::read_data(ds, k.into(), &mut data).unwrap();
 
-            let mut cursor = std::io::Cursor::new(data);
+            let cursor = std::io::Cursor::new(data);
 
             for line_r in cursor.lines() {
                 let line = line_r.unwrap();
@@ -263,7 +268,7 @@ pub fn print_patch_diff_result(ds: &impl DataStore, r: DiffResult) {
             let mut data = Vec::new();
             file::read_data(ds, k.into(), &mut data).unwrap();
 
-            let mut cursor = std::io::Cursor::new(data);
+            let cursor = std::io::Cursor::new(data);
 
             for line_r in cursor.lines() {
                 let line = line_r.unwrap();
@@ -274,6 +279,9 @@ pub fn print_patch_diff_result(ds: &impl DataStore, r: DiffResult) {
 
     for modified in r.modified {
         let mut before = Vec::new();
+
+        ldbg!(&modified);
+
         file::read_data(ds, modified.original_key.into(), &mut before).unwrap();
 
         let mut after = Vec::new();
@@ -282,17 +290,29 @@ pub fn print_patch_diff_result(ds: &impl DataStore, r: DiffResult) {
         let before_str = String::from_utf8_lossy(&before);
         let after_str = String::from_utf8_lossy(&after);
 
-        let lines = diff::lines(&before_str, &after_str);
+        let lines = difference::Changeset::new(&before_str, &after_str, "\n");
 
         let mut removed: usize = 0;
         let mut added: usize = 0;
-        for item in lines {
+
+        for item in lines.diffs {
             match item {
-                diff::Result::Left(s) => println!("{}", format!("+{}", s).green()),
-                diff::Result::Right(s) => println!("{}", format!("-{}", s).red()),
-                diff::Result::Both(l, r) => {
-                    println!("{}", format!("-{}", l).red());
-                    println!("{}", format!("+{}", r).green());
+                difference::Difference::Add(s) => {
+                    for line in s.split('\n') {
+                        added += 1;
+                        println!("{}", format!("+{}", line).green())
+                    }
+                }
+                difference::Difference::Rem(s) => {
+                    for line in s.split('\n') {
+                        removed += 1;
+                        println!("{}", format!("-{}", line).red())
+                    }
+                }
+                difference::Difference::Same(s) => {
+                    for line in s.split('\n') {
+                        println!(" {}", line);
+                    }
                 }
             }
         }

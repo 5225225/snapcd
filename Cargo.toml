@@ -26,6 +26,7 @@ diff = "0.1.12"
 anyhow = "1.0.26"
 
 simplelog = {version = "0.7.4", optional = true}
+difference = "2.0.0"
 
 [features]
 default = ["logging"]

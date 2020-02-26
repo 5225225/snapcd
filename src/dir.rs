@@ -1,6 +1,12 @@
 use crate::object::ObjType;
 use crate::{cache, ds};
-use crate::{cache::Cache, cache::CacheKey, file, DataStore, Object, key::{TypedKey, Key}};
+use crate::{
+    cache::Cache,
+    cache::CacheKey,
+    file,
+    key::{Key, TypedKey},
+    DataStore, Object,
+};
 use std::collections::{HashMap, HashSet};
 use std::convert::TryInto;
 use std::fs::DirEntry;
@@ -35,7 +41,11 @@ impl TryInto<Object> for FSItem {
             FSItemType::File => ObjType::FSItemFile,
         };
 
-        Ok(Object::new_owned(obj, self.children.iter().map(|&x| x.into()).collect(), objtype))
+        Ok(Object::new_owned(
+            obj,
+            self.children.iter().map(|&x| x.into()).collect(),
+            objtype,
+        ))
     }
 }
 
@@ -219,7 +229,11 @@ pub enum GetFsItemError {
     DecodeError(#[from] serde_cbor::error::Error),
 }
 
-pub fn get_fs_item<DS: DataStore>(ds: &DS, key: TypedKey<FSItem>, path: &Path) -> Result<(), GetFsItemError> {
+pub fn get_fs_item<DS: DataStore>(
+    ds: &DS,
+    key: TypedKey<FSItem>,
+    path: &Path,
+) -> Result<(), GetFsItemError> {
     let obj = ds.get_obj(key.into())?;
 
     let fsobj: FSItem = obj.try_into()?;
@@ -355,11 +369,11 @@ pub fn internal_walk_fs_items<DS: DataStore>(
             // Same as internal_walk_real_fs_items, we don't want to add an empty entry for the
             // root.
             if !path.as_os_str().is_empty() {
-                results.insert(path.to_path_buf(), (key.into(), true));
+                results.insert(path.to_path_buf(), (key, true));
             }
 
             for (&child, name) in fsobj.children.iter().zip(fsobj.children_names.iter()) {
-                results.extend(internal_walk_fs_items(ds, child.into(), &path.join(&name))?);
+                results.extend(internal_walk_fs_items(ds, child, &path.join(&name))?);
             }
         }
         FSItemType::File => {

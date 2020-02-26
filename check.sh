@@ -1,4 +1,4 @@
-cargo clean -p snapcd;
+cargo clean -p snapcd
 
-cargo test;
-cargo clippy;
+cargo clippy && \
+cargo test
