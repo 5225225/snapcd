@@ -1,5 +1,3 @@
-use crate::Key;
-
 use crate::ds::ToDSErrorResult;
 use rusqlite::{params, OptionalExtension};
 use std::path::Path;
@@ -45,7 +43,7 @@ pub trait Cache: ds::Transactional {
     fn raw_get(&self, cachekey: &[u8]) -> Result<Option<Vec<u8>>, RawGetCacheError>;
     fn raw_put(&self, cachekey: &[u8], value: &[u8]) -> Result<(), RawPutCacheError>;
 
-    fn get(&self, cachekey: CacheKey) -> Result<Option<Key>, GetCacheError> {
+    fn get(&self, cachekey: CacheKey) -> Result<Option<key::Key>, GetCacheError> {
         let mut data = Vec::with_capacity(8 * 3);
         data.extend(cachekey.inode.to_le_bytes().iter());
         data.extend(cachekey.mtime.to_le_bytes().iter());
@@ -55,16 +53,14 @@ pub trait Cache: ds::Transactional {
 
         match cache_result {
             Some(data) => {
-                let key = Key::from_db_key(&data)?;
+                let key = key::Key::from_db_key(&data)?;
                 Ok(Some(key))
             }
             None => Ok(None),
         }
-
-        // Ok(cache_result.map(|x| Key::from_db_key(&x)))
     }
 
-    fn put(&self, cachekey: CacheKey, value: Key) -> Result<(), PutCacheError> {
+    fn put(&self, cachekey: CacheKey, value: key::Key) -> Result<(), PutCacheError> {
         let mut data = Vec::with_capacity(8 * 3);
 
         data.extend(cachekey.inode.to_le_bytes().iter());

@@ -1,7 +1,7 @@
 use crate::{cache, dir, file, filter};
-use crate::key::TypedKey;
+use crate::key::{TypedKey, Key};
 use std::io::BufRead;
-use crate::{DataStore, Key};
+use crate::DataStore;
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use thiserror::Error;

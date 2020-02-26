@@ -166,7 +166,7 @@ impl<T> std::fmt::Display for TypedKey<T> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{Key, Keyish};
+    use crate::{key::Key, Keyish};
     use std::str::FromStr;
 
     proptest::proptest! {

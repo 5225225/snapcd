@@ -5,7 +5,7 @@ use crate::key::TypedKey;
 
 use serde::{Deserialize, Serialize};
 
-use crate::{DataStore, Key, Object};
+use crate::{DataStore, key::Key, Object};
 
 use crate::ds::PutObjError;
 use crate::object::ObjType;
@@ -56,10 +56,10 @@ impl Commit {
     }
 }
 
-impl TryInto<Object<'static>> for Commit {
+impl TryInto<Object> for Commit {
     type Error = serde_cbor::error::Error;
 
-    fn try_into(self) -> Result<Object<'static>, serde_cbor::error::Error> {
+    fn try_into(self) -> Result<Object, serde_cbor::error::Error> {
         let attrs = serde_cbor::to_vec(&self.attrs)?;
 
         let mut keys: Vec<Key> = vec![];
@@ -74,7 +74,7 @@ impl TryInto<Object<'static>> for Commit {
     }
 }
 
-impl TryInto<Commit> for Object<'static> {
+impl TryInto<Commit> for Object {
     type Error = serde_cbor::error::Error;
 
     fn try_into(self) -> Result<Commit, serde_cbor::error::Error> {

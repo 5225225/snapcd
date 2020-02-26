@@ -1,10 +1,10 @@
-use crate::Key;
-use std::borrow::Cow;
+use crate::key::Key;
+use std::borrow::ToOwned;
 
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
-pub struct Object<'a> {
-    data: Cow<'a, serde_bytes::Bytes>,
-    keys: Cow<'a, [Key]>,
+pub struct Object {
+    data: serde_bytes::ByteBuf,
+    keys: Vec<Key>,
     objtype: ObjType,
 }
 
@@ -28,31 +28,23 @@ pub enum ObjectShowFormat {
     Full,
 }
 
-impl<'a> Object<'a> {
-    pub fn into_owned(self) -> Object<'static> {
-        let obj: Object<'static> = Object::<'static> {
-            data: Cow::Owned::<'static>(self.data.into_owned()),
-            keys: Cow::Owned::<'static>(self.keys.into_owned()),
-            objtype: self.objtype,
-        };
-
-        obj
+impl Object {
+    pub fn into_owned(self) -> Object {
+        self
     }
-}
 
-impl<'a> Object<'a> {
-    pub fn new(data: &'a [u8], keys: &'a [Key], objtype: ObjType) -> Self {
+    pub fn new(data: &[u8], keys: &[Key], objtype: ObjType) -> Self {
         Self {
-            data: Cow::Borrowed(serde_bytes::Bytes::new(data)),
-            keys: Cow::Borrowed(keys),
+            data: serde_bytes::ByteBuf::from(data),
+            keys: keys.to_owned(),
             objtype,
         }
     }
 
     pub fn new_owned(data: Vec<u8>, keys: Vec<Key>, objtype: ObjType) -> Self {
         Self {
-            data: Cow::Owned(serde_bytes::ByteBuf::from(data)),
-            keys: Cow::Owned(keys),
+            data: serde_bytes::ByteBuf::from(data),
+            keys: keys,
             objtype,
         }
     }

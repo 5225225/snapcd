@@ -1,6 +1,6 @@
 use crate::object::ObjType;
 use crate::{cache, ds};
-use crate::{cache::Cache, cache::CacheKey, file, DataStore, Key, Object, key::TypedKey};
+use crate::{cache::Cache, cache::CacheKey, file, DataStore, Object, key::{TypedKey, Key}};
 use std::collections::{HashMap, HashSet};
 use std::convert::TryInto;
 use std::fs::DirEntry;
@@ -22,10 +22,10 @@ enum FSItemType {
     File,
 }
 
-impl TryInto<Object<'static>> for FSItem {
+impl TryInto<Object> for FSItem {
     type Error = serde_cbor::error::Error;
 
-    fn try_into(self) -> Result<Object<'static>, serde_cbor::error::Error> {
+    fn try_into(self) -> Result<Object, serde_cbor::error::Error> {
         let value = serde_cbor::value::to_value(&self)?;
 
         let obj = serde_cbor::to_vec(&value)?;
@@ -39,7 +39,7 @@ impl TryInto<Object<'static>> for FSItem {
     }
 }
 
-impl<'a> TryInto<FSItem> for Object<'a> {
+impl TryInto<FSItem> for Object {
     type Error = serde_cbor::error::Error;
 
     fn try_into(self) -> Result<FSItem, serde_cbor::error::Error> {

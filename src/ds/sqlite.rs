@@ -5,7 +5,7 @@ use rusqlite::OptionalExtension;
 use std::borrow::Cow;
 
 use crate::ds;
-use crate::key::TypedKey;
+use crate::key::{TypedKey, Key};
 use crate::commit;
 use crate::ds::{
     BeginTransError, CommitTransError, DataStore, GetReflogError, RawBetweenError, RawExistsError,
@@ -13,7 +13,7 @@ use crate::ds::{
     RollbackTransError, WalkReflogError,
 };
 use crate::ds::{ToDSError, ToDSErrorResult};
-use crate::{Key, Reflog};
+use crate::Reflog;
 use thiserror::Error;
 
 pub struct SqliteDS {

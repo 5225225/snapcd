@@ -10,7 +10,7 @@ use std::borrow::Cow;
 use thiserror::Error;
 
 use crate::key;
-use crate::Key;
+use crate::key::Key;
 use crate::Keyish;
 use crate::Object;
 use crate::key::TypedKey;
@@ -25,7 +25,7 @@ pub enum CanonicalizeError {
     NotFound(String),
 
     #[error("Object '{_0}' is ambiguous")]
-    Ambigious(String, Vec<Key>),
+    Ambigious(String, Vec<key::Key>),
 
     #[error("error when converting db key: {_0}")]
     FromDbKeyError(#[from] key::FromDbKeyError),
@@ -196,18 +196,18 @@ pub trait DataStore: Transactional {
     fn raw_get_state<'a>(&'a self, key: &[u8]) -> Result<Option<Vec<u8>>, RawGetStateError>;
     fn raw_put_state<'a>(&'a self, key: &[u8], data: &[u8]) -> Result<(), RawPutStateError>;
 
-    fn get(&self, key: Key) -> Result<Cow<'_, [u8]>, RawGetError> {
+    fn get(&self, key: key::Key) -> Result<Cow<'_, [u8]>, RawGetError> {
         let results = self.raw_get(&key.as_db_key())?;
 
         Ok(results)
     }
 
-    fn hash(&self, data: &[u8]) -> Key {
+    fn hash(&self, data: &[u8]) -> key::Key {
         let b3 = hash(data);
-        Key::Blake3B(*b3.as_bytes())
+        key::Key::Blake3B(*b3.as_bytes())
     }
 
-    fn put(&self, data: Vec<u8>) -> Result<Key, RawPutError> {
+    fn put(&self, data: Vec<u8>) -> Result<key::Key, RawPutError> {
         let keybuf = self.hash(&data);
 
         self.raw_put(&keybuf.as_db_key(), &data)?;
@@ -240,7 +240,7 @@ pub trait DataStore: Transactional {
         end: Option<&[u8]>,
     ) -> Result<Vec<Vec<u8>>, RawBetweenError>;
 
-    fn canonicalize(&self, search: Keyish) -> Result<Key, CanonicalizeError> {
+    fn canonicalize(&self, search: Keyish) -> Result<key::Key, CanonicalizeError> {
         let mut results: Vec<Vec<u8>> = Vec::new();
 
         let err_str;
@@ -272,10 +272,10 @@ pub trait DataStore: Transactional {
             0 => Err(CanonicalizeError::NotFound(err_str)),
             // This is okay since we know it will have one item.
             #[allow(clippy::option_unwrap_used)]
-            1 => Ok(Key::from_db_key(&results.pop().unwrap())?),
+            1 => Ok(key::Key::from_db_key(&results.pop().unwrap())?),
             _ => {
                 let strs: Result<_, _> =
-                    results.into_iter().map(|x| Key::from_db_key(&x)).collect();
+                    results.into_iter().map(|x| key::Key::from_db_key(&x)).collect();
                 Err(CanonicalizeError::Ambigious(err_str, strs?))
             }
         }

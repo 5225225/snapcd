@@ -1,6 +1,6 @@
 use colored::*;
 
-use crate::{commit, file, object, DataStore, Key, diff};
+use crate::{commit, file, object, DataStore, key::Key, diff};
 use std::convert::TryInto;
 use thiserror::Error;
 

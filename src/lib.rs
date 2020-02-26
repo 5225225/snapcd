@@ -13,6 +13,5 @@ pub mod object;
 
 pub use ds::DataStore;
 pub use ds::{GetReflogError, Reflog, WalkReflogError};
-pub use key::Key;
 pub use keyish::Keyish;
 pub use object::Object;

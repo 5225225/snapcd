@@ -1,6 +1,6 @@
 use crate::ds;
 use crate::object::ObjType;
-use crate::{DataStore, Key, Object};
+use crate::{ds::DataStore, key::Key, object::Object};
 use std::io::prelude::*;
 use thiserror::Error;
 

@@ -3,7 +3,7 @@ use crate::ds::{
     GetReflogError, RawBetweenError, RawExistsError, RawGetError, RawGetStateError, RawPutError,
     RawPutStateError, ReflogPushError, WalkReflogError,
 };
-use crate::{Key, Reflog};
+use crate::Reflog;
 use std::borrow::Cow;
 use crate::key::TypedKey;
 use crate::commit;
