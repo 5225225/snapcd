@@ -7,6 +7,7 @@ use std::io::BufRead;
 use std::path::PathBuf;
 use thiserror::Error;
 
+#[derive(Debug)]
 pub enum DiffTarget {
     FileSystem(PathBuf, Vec<String>, PathBuf),
     Database(TypedKey<dir::FSItem>),
@@ -325,6 +326,7 @@ pub fn print_patch_diff_result(ds: &impl DataStore, r: DiffResult) {
     }
 }
 
+#[derive(Debug)]
 pub struct LineStatResult {
     items: Vec<FileStatResult>,
 }

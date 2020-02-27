@@ -8,6 +8,7 @@ use crate::key::TypedKey;
 use crate::Reflog;
 use std::borrow::Cow;
 
+#[derive(Debug)]
 pub struct NullDS;
 
 impl ds::Transactional for NullDS {}

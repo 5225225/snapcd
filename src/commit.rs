@@ -12,13 +12,14 @@ use crate::object::ObjType;
 
 use crate::dir;
 
+#[derive(Debug)]
 pub struct Commit {
     tree: TypedKey<dir::FSItem>,
     parents: Vec<TypedKey<Commit>>,
     attrs: CommitAttrs,
 }
 
-#[derive(Serialize, Deserialize, Default)]
+#[derive(Debug, Serialize, Deserialize, Default)]
 pub struct CommitAttrs {
     message: String,
     extra: HashMap<String, serde_cbor::Value>,

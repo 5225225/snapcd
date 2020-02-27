@@ -20,7 +20,7 @@ pub enum ObjType {
     Unknown,
 }
 
-#[derive(Copy, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub enum ObjectShowFormat {
     Oneline,
     Message,
@@ -71,10 +71,7 @@ const DISPLAY_CHUNK_SIZE: usize = 20;
 // In tests, you should force the color output to be true or not
 // This will assume `to` is stdout and will color based on that (and envars)
 // see: https://docs.rs/colored/1.9.2/colored/control/index.html
-fn pretty_print(
-    obj: &Object,
-    mut to: impl std::io::Write,
-) -> std::result::Result<(), std::io::Error> {
+fn pretty_print(obj: &Object, mut to: impl std::io::Write) -> Result<(), std::io::Error> {
     writeln!(to, "--type: {:?}--", obj.objtype)?;
 
     writeln!(to, "--keys--")?;

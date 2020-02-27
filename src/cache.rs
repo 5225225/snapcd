@@ -73,6 +73,7 @@ pub trait Cache: ds::Transactional {
     }
 }
 
+#[derive(Debug)]
 pub struct SqliteCache {
     conn: rusqlite::Connection,
 }

@@ -16,6 +16,7 @@ use crate::key::{Key, TypedKey};
 use crate::Reflog;
 use thiserror::Error;
 
+#[derive(Debug)]
 pub struct SqliteDS {
     conn: rusqlite::Connection,
 }

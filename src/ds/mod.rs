@@ -11,7 +11,6 @@ use thiserror::Error;
 
 use crate::commit;
 use crate::key;
-use crate::key::Key;
 use crate::key::TypedKey;
 use crate::Keyish;
 use crate::Object;
@@ -34,6 +33,7 @@ pub enum CanonicalizeError {
     GetReflogError(#[from] GetReflogError),
 }
 
+#[derive(Debug)]
 pub struct Reflog {
     pub refname: String,
     pub key: TypedKey<commit::Commit>,
@@ -290,13 +290,13 @@ pub trait DataStore: Transactional {
         }
     }
 
-    fn get_obj(&self, key: Key) -> Result<Object, GetObjError> {
+    fn get_obj(&self, key: key::Key) -> Result<Object, GetObjError> {
         let data = self.get(key)?;
 
         Ok(serde_cbor::from_slice(&data)?)
     }
 
-    fn put_obj(&self, data: &Object) -> Result<Key, PutObjError> {
+    fn put_obj(&self, data: &Object) -> Result<key::Key, PutObjError> {
         let data = serde_cbor::to_vec(data)?;
 
         Ok(self.put(data)?)
