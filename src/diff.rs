@@ -311,8 +311,23 @@ pub fn print_patch_diff_result(ds: &impl DataStore, r: DiffResult) {
                     }
                 }
                 difference::Difference::Same(s) => {
-                    for line in s.split('\n') {
-                        println!(" {}", line);
+                    match s.len() {
+                        0..=7 => {
+                            for line in s.split('\n') {
+                                println!(" {}", line);
+                            }
+                        }
+                        _ => {
+                            for line in s.split('\n').take(3) {
+                                println!(" {}", line);
+                            }
+
+                            println!("{}", format!(" ({} lines skipped)", s.len() - 6).bright_black());
+
+                            for line in s.split('\n').rev().take(3).collect::<Vec<_>>().into_iter().rev() {
+                                println!(" {}", line);
+                            }
+                        }
                     }
                 }
             }
