@@ -570,32 +570,32 @@ fn status(state: &mut State, _args: StatusArgs) -> CMDResult {
     match &ref_key {
         Some(k) => {
             println!("HEAD: {} [{}]", reflog, &k.inner().as_user_key()[0..8]);
+
+            let obj: commit::Commit = ds_state
+                .ds
+                .get_obj(k.inner())
+                .unwrap()
+                .into_owned()
+                .try_into()
+                .unwrap();
+
+            let result = diff::compare(
+                &mut ds_state.ds,
+                diff::DiffTarget::FileSystem(
+                    path.to_path_buf(),
+                    state.common.exclude.clone(),
+                    ds_state.db_folder_path.clone(),
+                ),
+                Some(obj.tree()),
+                &mut state.cache,
+            )?;
+
+            diff::print_diff_result(result);
         }
         None => {
             println!("HEAD: {} (no commits on {})", reflog, reflog);
         }
     }
-
-    let obj: commit::Commit = ds_state
-        .ds
-        .get_obj(ref_key.unwrap().into())
-        .unwrap()
-        .into_owned()
-        .try_into()
-        .unwrap();
-
-    let result = diff::compare(
-        &mut ds_state.ds,
-        diff::DiffTarget::FileSystem(
-            path.to_path_buf(),
-            state.common.exclude.clone(),
-            ds_state.db_folder_path.clone(),
-        ),
-        Some(obj.tree()),
-        &mut state.cache,
-    )?;
-
-    diff::print_diff_result(result);
 
     Ok(())
 }

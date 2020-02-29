@@ -38,17 +38,25 @@ pub fn display_obj(ds: &mut impl DataStore, key: Key) -> Result<(), ShowError> {
             println!();
 
             let parent = commit_obj.parents().get(0).copied();
-            let parent_obj = ds.get_obj(parent.unwrap().inner()).unwrap();
 
-            let parent_cmt: commit::Commit = parent_obj
-                .into_owned()
-                .try_into()
-                .expect("failed to convert commit obj");
+            let tree;
+            if let Some(p) = parent {
+                let parent_obj = ds.get_obj(p.inner()).unwrap();
+
+                let parent_cmt: commit::Commit = parent_obj
+                    .into_owned()
+                    .try_into()
+                    .expect("failed to convert commit obj");
+
+                tree = Some(parent_cmt.tree());
+            } else {
+                tree = None;
+            }
 
             let dr = diff::compare(
                 ds,
                 diff::DiffTarget::Database(commit_obj.tree()),
-                Some(parent_cmt.tree()),
+                tree,
                 None,
             )
             .unwrap();
