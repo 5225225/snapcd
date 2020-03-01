@@ -41,3 +41,40 @@ fn sanity_check() {
     internal_test(&mut sqlite_ds, 1 << 14, 8, 64);
     internal_test(&mut sqlite_ds, 1 << 10, 64, 128);
 }
+
+proptest::proptest! {
+    #[test]
+    fn identity_read_write(value: Vec<u8>) {
+        let mut ds = SqliteDS::new(":memory:").unwrap();
+
+        let key = put_data(&mut ds, &value[..]).unwrap();
+
+        let mut to = Vec::new();
+
+        read_data(&ds, key, &mut to).unwrap();
+
+        assert_eq!(value, to);
+    }
+
+    #[test]
+    fn between_test(keys: Vec<Vec<u8>>, start: Vec<u8>, end: Option<Vec<u8>>) {
+        let ds = SqliteDS::new(":memory:").unwrap();
+
+        for key in &keys {
+            ds.raw_put(key, key).expect("failed to put key");
+        }
+
+        let mut expected_keys: Vec<Vec<u8>> = if let Some(e) = &end {
+            keys.iter().filter(|x| (&start..&e).contains(x)).cloned().collect()
+        } else {
+            keys.iter().filter(|x| (&start..).contains(x)).cloned().collect()
+        };
+
+        let mut got_keys = ds.raw_between(&start, end.as_deref()).expect("failed to get keys between");
+
+        expected_keys.sort();
+        got_keys.sort();
+
+        assert_eq!(expected_keys, got_keys);
+    }
+}
