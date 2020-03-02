@@ -2,6 +2,7 @@ use rand::prelude::*;
 use rand_chacha::ChaChaRng;
 use snapcd::file::{put_data, read_data};
 use snapcd::{ds::sqlite::SqliteDS, DataStore};
+use std::collections::HashSet;
 
 fn internal_test<T: DataStore, F: FnMut() -> T>(
     ctor: &mut F,
@@ -57,23 +58,22 @@ proptest::proptest! {
     }
 
     #[test]
-    fn between_test(keys: Vec<Vec<u8>>, start: Vec<u8>, end: Option<Vec<u8>>) {
+    fn between_test(mut keys: HashSet<Vec<u8>>, start: Vec<u8>, end: Option<Vec<u8>>) {
         let ds = SqliteDS::new(":memory:").unwrap();
+
+        keys.retain(|x| x.len() > 0);
 
         for key in &keys {
             ds.raw_put(key, key).expect("failed to put key");
         }
 
-        let mut expected_keys: Vec<Vec<u8>> = if let Some(e) = &end {
+        let expected_keys: HashSet<Vec<u8>> = if let Some(e) = &end {
             keys.iter().filter(|x| (&start..&e).contains(x)).cloned().collect()
         } else {
             keys.iter().filter(|x| (&start..).contains(x)).cloned().collect()
         };
 
-        let mut got_keys = ds.raw_between(&start, end.as_deref()).expect("failed to get keys between");
-
-        expected_keys.sort();
-        got_keys.sort();
+        let got_keys = ds.raw_between(&start, end.as_deref()).expect("failed to get keys between").into_iter().collect();
 
         assert_eq!(expected_keys, got_keys);
     }
