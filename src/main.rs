@@ -6,7 +6,7 @@
 
 use snapcd::{
     cache::SqliteCache, commit, diff, dir, display, ds::sqlite::SqliteDS, ds::GetReflogError,
-    ds::Transactional, filter, DataStore, Keyish, Reflog,
+    ds::Transactional, filter, key, DataStore, Keyish, Reflog,
 };
 
 use colored::*;
@@ -79,6 +79,9 @@ enum Command {
     /// Shows an object
     Show(ShowArgs),
 
+    /// Shows a log starting from a specific commit
+    Log(LogArgs),
+
     /// Compares a path with an object tree
     Compare(CompareArgs),
 
@@ -146,7 +149,13 @@ struct CommitArgs {
 #[derive(StructOpt, Debug)]
 struct ShowArgs {
     /// Object to show
-    key: Keyish,
+    key: Option<Keyish>,
+}
+
+#[derive(StructOpt, Debug)]
+struct LogArgs {
+    /// Object to show
+    key: Option<Keyish>,
 }
 
 #[derive(StructOpt, Debug)]
@@ -444,6 +453,13 @@ fn find_db_folder(name: &Path) -> Result<Option<PathBuf>, anyhow::Error> {
     }
 }
 
+fn get_head_key(ds: &impl DataStore) -> Result<key::TypedKey<commit::Commit>, anyhow::Error> {
+    let reflog = ds.get_head()?.ok_or(NoHeadError)?;
+    let key = ds.reflog_get(&reflog, None)?;
+
+    Ok(key)
+}
+
 fn init(state: &mut State, _args: InitArgs) -> CMDResult {
     std::fs::create_dir_all(&state.common.db_path)?;
     let ds = SqliteDS::new(&state.common.db_path.join("snapcd.db"))?;
@@ -498,9 +514,25 @@ fn commit_cmd(state: &mut State, args: CommitArgs) -> CMDResult {
 fn show(state: &mut State, args: ShowArgs) -> CMDResult {
     let ds_state = state.ds_state.as_mut().ok_or(DatabaseNotFoundError)?;
 
-    let key = ds_state.ds.canonicalize(args.key)?;
+    let key = match args.key {
+        Some(k) => ds_state.ds.canonicalize(k)?,
+        None => get_head_key(&ds_state.ds)?.inner(),
+    };
 
-    display::display_obj(&mut ds_state.ds, key)?;
+    display::display_obj(&mut ds_state.ds, key, display::Kind::Patch)?;
+
+    Ok(())
+}
+
+fn log(state: &mut State, args: LogArgs) -> CMDResult {
+    let ds_state = state.ds_state.as_mut().ok_or(DatabaseNotFoundError)?;
+
+    let key = match args.key {
+        Some(k) => ds_state.ds.canonicalize(k)?,
+        None => get_head_key(&ds_state.ds)?.inner(),
+    };
+
+    display::log_obj(&mut ds_state.ds, key, display::Kind::Stat)?;
 
     Ok(())
 }
@@ -745,6 +777,7 @@ fn main() -> CMDResult {
         Command::Init(args) => init(&mut state, args),
         Command::Commit(args) => commit_cmd(&mut state, args),
         Command::Show(args) => show(&mut state, args),
+        Command::Log(args) => log(&mut state, args),
         Command::Compare(args) => compare(&mut state, args),
         Command::Status(args) => status(&mut state, args),
         Command::Checkout(args) => checkout(&mut state, args),

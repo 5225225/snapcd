@@ -10,7 +10,50 @@ pub enum ShowError {
     DataReadError(#[from] file::ReadDataError),
 }
 
-pub fn display_obj(ds: &mut impl DataStore, key: Key) -> Result<(), ShowError> {
+#[derive(Debug, Clone, Copy)]
+pub enum Kind {
+    Stat,
+    Patch,
+}
+
+pub fn log_obj(ds: &mut impl DataStore, key: Key, kind: Kind) -> Result<(), ShowError> {
+    let obj = ds.get_obj(key).unwrap().into_owned();
+
+    match obj.objtype() {
+        object::ObjType::Commit => {
+            display_obj(ds, key, kind)?;
+
+            println!();
+            println!();
+
+            let mut obj = ds.get_obj(key).unwrap().into_owned();
+
+            let mut commit_obj: commit::Commit = obj
+                .into_owned()
+                .try_into()
+                .expect("failed to convert commit obj");
+
+            while let Some(p) = commit_obj.parents().get(0).copied() {
+                display_obj(ds, p.into(), kind)?;
+
+                println!();
+                println!();
+
+                obj = ds.get_obj(p.inner()).unwrap().into_owned();
+
+                commit_obj = obj
+                    .into_owned()
+                    .try_into()
+                    .expect("failed to convert commit obj");
+            }
+        }
+        _ => panic!("Invalid key type"),
+    }
+
+    Ok(())
+}
+
+pub fn display_obj(ds: &mut impl DataStore, key: Key, kind: Kind) -> Result<(), ShowError> {
     let obj = ds.get_obj(key).unwrap().into_owned();
 
     use object::ObjType;
@@ -21,7 +64,7 @@ pub fn display_obj(ds: &mut impl DataStore, key: Key) -> Result<(), ShowError> {
         }
         ObjType::FSItemFile => {
             assert!(obj.keys().len() == 1);
-            display_obj(ds, obj.keys()[0])?;
+            display_obj(ds, obj.keys()[0], kind)?;
         }
         ObjType::Commit => {
             println!("{}", format!("commit: {}", key).yellow());
@@ -61,9 +104,18 @@ pub fn display_obj(ds: &mut impl DataStore, key: Key) -> Result<(), ShowError> {
             )
             .unwrap();
 
-            diff::print_patch_diff_result(ds, dr);
+            match kind {
+                Kind::Stat => {
+                    diff::print_stat_diff_result(ds, dr);
+                }
+                Kind::Patch => {
+                    diff::print_patch_diff_result(ds, dr);
+                }
+            }
         }
-        ObjType::FSItemDir => todo!(),
+        ObjType::FSItemDir => {
+            println!("{}", format!("tree: {}", key).yellow());
+        }
         ObjType::Unknown => {
             panic!("cannot display unknown object");
         }

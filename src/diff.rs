@@ -16,6 +16,7 @@ pub enum DiffTarget {
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
 pub struct DeletedDiffResult {
     path: PathBuf,
+    is_dir: bool,
     original_key: Option<TypedKey<dir::FSItem>>,
 }
 
@@ -29,6 +30,7 @@ pub struct ModifiedDiffResult {
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
 pub struct AddedDiffResult {
     path: PathBuf,
+    is_dir: bool,
     new_key: Option<TypedKey<dir::FSItem>>,
 }
 
@@ -51,8 +53,8 @@ pub enum CompareError {
     RealWalkError(#[from] dir::WalkRealFsItemsError),
 }
 
-pub fn compare<'a, DS: DataStore>(
-    ds: &'a mut DS,
+pub fn compare<'a>(
+    ds: &'a mut impl DataStore,
     from: DiffTarget,
     to: Option<TypedKey<dir::FSItem>>,
     cache: impl Into<Option<&'a mut cache::SqliteCache>>,
@@ -110,6 +112,7 @@ pub fn compare<'a, DS: DataStore>(
                 },
                 |y| Some(y[x].0),
             ),
+            is_dir: from_map.as_ref().either(|y| y[x], |y| y[x].1),
         })
         .collect();
 
@@ -118,6 +121,7 @@ pub fn compare<'a, DS: DataStore>(
         .map(|x| DeletedDiffResult {
             path: x.clone(),
             original_key: Some(to_map[x].0),
+            is_dir: from_map.as_ref().either(|y| y[x], |y| y[x].1),
         })
         .collect();
 
@@ -245,35 +249,52 @@ pub fn print_stat_diff_result(ds: &impl DataStore, r: DiffResult) {
 
 pub fn print_patch_diff_result(ds: &impl DataStore, r: DiffResult) {
     let mut items = Vec::new();
+    ldbg!(&r);
 
     for added in r.added {
-        if let Some(k) = added.new_key {
-            println!("{}", added.path.to_string_lossy().bright_black());
+        if added.is_dir {
+            println!("+ {}/", added.path.to_string_lossy().green());
+        } else if let Some(k) = added.new_key {
+            println!("+ {}", added.path.to_string_lossy().green());
 
             let mut data = Vec::new();
             file::read_data(ds, k.into(), &mut data).unwrap();
 
-            let cursor = std::io::Cursor::new(data);
+            let is_utf8 = std::str::from_utf8(&data).is_ok();
 
-            for line_r in cursor.lines() {
-                let line = line_r.unwrap();
-                println!("{}", format!("+{}", line).green())
+            if is_utf8 {
+                let cursor = std::io::Cursor::new(data);
+
+                for line_r in cursor.lines() {
+                    let line = line_r.unwrap();
+                    println!("{}", format!("+{}", line).green());
+                }
+            } else {
+                println!("{}", "(invalid UTF8)".bright_black());
             }
         }
     }
 
     for removed in r.deleted {
-        if let Some(k) = removed.original_key {
-            println!("{}", removed.path.to_string_lossy().bright_black());
+        if removed.is_dir {
+            println!("- {}", removed.path.to_string_lossy().red());
+        } else if let Some(k) = removed.original_key {
+            println!("- {}", removed.path.to_string_lossy().red());
 
             let mut data = Vec::new();
             file::read_data(ds, k.into(), &mut data).unwrap();
 
-            let cursor = std::io::Cursor::new(data);
+            let is_utf8 = std::str::from_utf8(&data).is_ok();
 
-            for line_r in cursor.lines() {
-                let line = line_r.unwrap();
-                println!("{}", format!("-{}", line).red())
+            if is_utf8 {
+                let cursor = std::io::Cursor::new(data);
+
+                for line_r in cursor.lines() {
+                    let line = line_r.unwrap();
+                    println!("{}", format!("-{}", line).red())
+                }
+            } else {
+                println!("{}", "(invalid UTF8)".bright_black());
             }
         }
     }
@@ -362,9 +383,11 @@ pub struct FileStatResult {
 }
 
 pub fn line_stat(ds: &impl DataStore, r: DiffResult) -> LineStatResult {
+    ldbg!(&r);
+
     let mut items = Vec::new();
 
-    for added in r.added {
+    for added in r.added.into_iter().filter(|x| !x.is_dir) {
         if let Some(k) = added.new_key {
             items.push(FileStatResult {
                 fname: added.path,
@@ -374,7 +397,7 @@ pub fn line_stat(ds: &impl DataStore, r: DiffResult) -> LineStatResult {
         }
     }
 
-    for removed in r.deleted {
+    for removed in r.deleted.into_iter().filter(|x| !x.is_dir) {
         if let Some(k) = removed.original_key {
             items.push(FileStatResult {
                 fname: removed.path,
