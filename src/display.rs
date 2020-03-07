@@ -8,6 +8,9 @@ use thiserror::Error;
 pub enum ShowError {
     #[error("error reading data from db: {_0}")]
     DataReadError(#[from] file::ReadDataError),
+
+    #[error("error showing diff patch: {_0}")]
+    DiffPatch(#[from] diff::DiffPatchError),
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -109,7 +112,7 @@ pub fn display_obj(ds: &mut impl DataStore, key: Key, kind: Kind) -> Result<(), 
                     diff::print_stat_diff_result(ds, dr);
                 }
                 Kind::Patch => {
-                    diff::print_patch_diff_result(ds, dr);
+                    diff::print_patch_diff_result(ds, dr)?;
                 }
             }
         }

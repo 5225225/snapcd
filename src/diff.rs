@@ -1,12 +1,10 @@
 use crate::key::TypedKey;
 use crate::DataStore;
 use crate::{cache, dir, file, filter};
-use colored::*;
+use itertools::Itertools;
 use std::collections::{HashMap, HashSet};
-use std::io::BufRead;
 use std::path::PathBuf;
 use thiserror::Error;
-use itertools::Itertools;
 
 #[derive(Debug)]
 pub enum DiffTarget {
@@ -248,131 +246,10 @@ pub fn print_stat_diff_result(ds: &impl DataStore, r: DiffResult) {
     print_line_stat(stat);
 }
 
-pub fn print_patch_diff_result(ds: &impl DataStore, r: DiffResult) {
-    println!("{}", create_diff_patch_result(ds, r));
+pub fn print_patch_diff_result(ds: &impl DataStore, r: DiffResult) -> Result<(), DiffPatchError> {
+    println!("{}", create_diff_patch_result(ds, r)?);
 
-    return;
-
-    let mut items = Vec::new();
-    ldbg!(&r);
-
-    for added in r.added {
-        if added.is_dir {
-            println!("+ {}/", added.path.to_string_lossy().green());
-        } else if let Some(k) = added.new_key {
-            println!("+ {}", added.path.to_string_lossy().green());
-
-            let mut data = Vec::new();
-            file::read_data(ds, k.into(), &mut data).unwrap();
-
-            let is_utf8 = std::str::from_utf8(&data).is_ok();
-
-            if is_utf8 {
-                let cursor = std::io::Cursor::new(data);
-
-                for line_r in cursor.lines() {
-                    let line = line_r.unwrap();
-                    println!("{}", format!("+{}", line).green());
-                }
-            } else {
-                println!("{}", "(invalid UTF8)".bright_black());
-            }
-        }
-    }
-
-    for removed in r.deleted {
-        if removed.is_dir {
-            println!("- {}", removed.path.to_string_lossy().red());
-        } else if let Some(k) = removed.original_key {
-            println!("- {}", removed.path.to_string_lossy().red());
-
-            let mut data = Vec::new();
-            file::read_data(ds, k.into(), &mut data).unwrap();
-
-            let is_utf8 = std::str::from_utf8(&data).is_ok();
-
-            if is_utf8 {
-                let cursor = std::io::Cursor::new(data);
-
-                for line_r in cursor.lines() {
-                    let line = line_r.unwrap();
-                    println!("{}", format!("-{}", line).red())
-                }
-            } else {
-                println!("{}", "(invalid UTF8)".bright_black());
-            }
-        }
-    }
-
-    for modified in r.modified {
-        let mut before = Vec::new();
-
-        ldbg!(&modified);
-
-        file::read_data(ds, modified.original_key.into(), &mut before).unwrap();
-
-        let mut after = Vec::new();
-        file::read_data(ds, modified.new_key.into(), &mut after).unwrap();
-
-        let before_str = String::from_utf8_lossy(&before);
-        let after_str = String::from_utf8_lossy(&after);
-
-        let lines = difference::Changeset::new(&before_str, &after_str, "\n");
-
-        let mut removed: usize = 0;
-        let mut added: usize = 0;
-
-        for item in lines.diffs {
-            match item {
-                difference::Difference::Add(s) => {
-                    for line in s.split('\n') {
-                        added += 1;
-                        println!("{}", format!("+{}", line).green())
-                    }
-                }
-                difference::Difference::Rem(s) => {
-                    for line in s.split('\n') {
-                        removed += 1;
-                        println!("{}", format!("-{}", line).red())
-                    }
-                }
-                difference::Difference::Same(s) => match s.len() {
-                    0..=7 => {
-                        for line in s.split('\n') {
-                            println!(" {}", line);
-                        }
-                    }
-                    _ => {
-                        for line in s.split('\n').take(3) {
-                            println!(" {}", line);
-                        }
-
-                        println!(
-                            "{}",
-                            format!(" ({} lines skipped)", s.len() - 6).bright_black()
-                        );
-
-                        for line in s
-                            .split('\n')
-                            .rev()
-                            .take(3)
-                            .collect::<Vec<_>>()
-                            .into_iter()
-                            .rev()
-                        {
-                            println!(" {}", line);
-                        }
-                    }
-                },
-            }
-        }
-
-        items.push(FileStatResult {
-            fname: modified.path,
-            added,
-            removed,
-        });
-    }
+    Ok(())
 }
 
 #[derive(Debug)]
@@ -474,20 +351,34 @@ pub fn format_patch(p: &patch::Patch<'_>) -> String {
     format!("{}\n", p)
 }
 
-pub fn create_diff_patch_result(ds: &impl DataStore, r: DiffResult) -> String {
+const BEFORE_CONTEXT_LINES: usize = 3;
+const AFTER_CONTEXT_LINES: usize = 5;
+
+#[derive(Debug, Error)]
+pub enum DiffPatchError {
+    #[error("tried to make patch with non-UTF8 files")]
+    Binary,
+}
+
+pub fn create_diff_patch_result(
+    ds: &impl DataStore,
+    r: DiffResult,
+) -> Result<String, DiffPatchError> {
     let mut result = String::new();
 
     ldbg!(&r);
 
     for added in r.added {
-        if added.is_dir {}
-        else if let Some(k) = added.new_key {
-
+        if added.is_dir {
+        } else if let Some(k) = added.new_key {
             let path = added.path.to_string_lossy();
             let meta = None;
 
-            let old = patch::File {path: path.clone(), meta: meta.clone()};
-            let new = patch::File {path, meta}; // For now we're just saying old == new 
+            let old = patch::File {
+                path: path.clone(),
+                meta: meta.clone(),
+            };
+            let new = patch::File { path, meta }; // For now we're just saying old == new
 
             let mut hunks = Vec::new();
 
@@ -505,10 +396,7 @@ pub fn create_diff_patch_result(ds: &impl DataStore, r: DiffResult) -> String {
                     }
 
                     hunks.push(patch::Hunk {
-                        old_range: patch::Range {
-                            start: 0,
-                            count: 0,
-                        },
+                        old_range: patch::Range { start: 0, count: 0 },
                         new_range: patch::Range {
                             start: 0,
                             count: lines.len() as u64,
@@ -516,8 +404,8 @@ pub fn create_diff_patch_result(ds: &impl DataStore, r: DiffResult) -> String {
                         lines,
                     });
                 }
-                Err(_e) => {
-                    panic!("cannot create patch with binary output");
+                Err(_) => {
+                    return Err(DiffPatchError::Binary);
                 }
             }
 
@@ -540,8 +428,11 @@ pub fn create_diff_patch_result(ds: &impl DataStore, r: DiffResult) -> String {
             let path = removed.path.to_string_lossy();
             let meta = None;
 
-            let old = patch::File {path: path.clone(), meta: meta.clone()};
-            let new = patch::File {path, meta}; // For now we're just saying old == new 
+            let old = patch::File {
+                path: path.clone(),
+                meta: meta.clone(),
+            };
+            let new = patch::File { path, meta }; // For now we're just saying old == new
 
             let mut hunks = Vec::new();
             let mut data = Vec::new();
@@ -558,10 +449,7 @@ pub fn create_diff_patch_result(ds: &impl DataStore, r: DiffResult) -> String {
                     }
 
                     hunks.push(patch::Hunk {
-                        new_range: patch::Range {
-                            start: 0,
-                            count: 0,
-                        },
+                        new_range: patch::Range { start: 0, count: 0 },
                         old_range: patch::Range {
                             start: 0,
                             count: lines.len() as u64,
@@ -569,8 +457,8 @@ pub fn create_diff_patch_result(ds: &impl DataStore, r: DiffResult) -> String {
                         lines,
                     });
                 }
-                Err(_e) => {
-                    panic!("cannot create patch with binary output");
+                Err(_) => {
+                    return Err(DiffPatchError::Binary);
                 }
             }
 
@@ -600,103 +488,148 @@ pub fn create_diff_patch_result(ds: &impl DataStore, r: DiffResult) -> String {
         let before_str = String::from_utf8_lossy(&before);
         let after_str = String::from_utf8_lossy(&after);
 
-        let lines = difference::Changeset::new(&before_str, &after_str, "\n");
+        let patch_str =
+            patch_from_file_string(before_str.to_string(), after_str.to_string(), modified.path);
 
-        let mut before_lineno = 1;
-        let mut after_lineno = 1;
+        result.push_str(&patch_str);
+    }
 
-        let lines_ln: Vec<_> = lines.diffs.into_iter().map(|x| {
+    Ok(result)
+}
+
+fn patch_from_file_string(before_str: String, after_str: String, path: PathBuf) -> String {
+    let lines = difference::Changeset::new(&before_str, &after_str, "\n");
+
+    let mut before_lineno = 1;
+    let mut after_lineno = 1;
+
+    let lines_ln: Vec<_> = lines
+        .diffs
+        .into_iter()
+        .map(|x| {
             let mut result = Vec::new();
             match x {
-                difference::Difference::Add(s) => for line in s.split('\n') {
-                    result.push((before_lineno, after_lineno, difference::Difference::Add(line.to_string())));
-                    after_lineno += 1;
+                difference::Difference::Add(s) => {
+                    for line in s.split('\n') {
+                        result.push((
+                            before_lineno,
+                            after_lineno,
+                            difference::Difference::Add(line.to_string()),
+                        ));
+                        after_lineno += 1;
+                    }
                 }
-                difference::Difference::Same(s) => for line in s.split('\n') {
-                    result.push((before_lineno, after_lineno, difference::Difference::Same(line.to_string())));
-                    before_lineno += 1;
-                    after_lineno += 1;
+                difference::Difference::Same(s) => {
+                    for line in s.split('\n') {
+                        result.push((
+                            before_lineno,
+                            after_lineno,
+                            difference::Difference::Same(line.to_string()),
+                        ));
+                        before_lineno += 1;
+                        after_lineno += 1;
+                    }
                 }
-                difference::Difference::Rem(s) => for line in s.split('\n') {
-                    result.push((before_lineno, after_lineno, difference::Difference::Rem(line.to_string())));
-                    before_lineno += 1;
+                difference::Difference::Rem(s) => {
+                    for line in s.split('\n') {
+                        result.push((
+                            before_lineno,
+                            after_lineno,
+                            difference::Difference::Rem(line.to_string()),
+                        ));
+                        before_lineno += 1;
+                    }
                 }
             }
             result
-        }).flatten().collect();
+        })
+        .flatten()
+        .collect();
 
-        let BEFORE_CONTEXT_LINES = 3;
-        let AFTER_CONTEXT_LINES = 5;
+    let mut windows_vec = Vec::new();
+    for (idx, item) in lines_ln.iter().enumerate() {
+        let context = &lines_ln[(idx.saturating_sub(BEFORE_CONTEXT_LINES))
+            ..=(idx
+                .saturating_add(AFTER_CONTEXT_LINES)
+                .min(lines_ln.len() - 1))];
 
-        let mut windows_vec = Vec::new();
-        for (idx, item) in lines_ln.iter().enumerate() {
-            let context = &lines_ln[(idx.saturating_sub(BEFORE_CONTEXT_LINES))..=(idx.saturating_add(AFTER_CONTEXT_LINES).min(lines_ln.len()-1))];
-
-            windows_vec.push((item, context));
-        }
-
-        let groups = windows_vec.into_iter().group_by(|x| x.1.iter().any(|y| !matches!(y.2, difference::Difference::Same(_))));
-
-        let mut hunks = Vec::new();
-
-        for (key, group) in &groups {
-            if key == false {
-                continue;
-            }
-
-            let collected: Vec<_> = group.map(|x| x.0).collect();
-
-            assert!(collected.len() >= 1);
-
-            let (start_before, start_after, _) = collected.first().unwrap();
-            let (end_before, end_after, _) = collected.last().unwrap();
-            
-            let before_range = patch::Range {
-                start: *start_before,
-                count: *end_before - *start_before,
-            };
-
-            let after_range = patch::Range {
-                start: *start_after,
-                count: *end_after - *start_after,
-            };
-
-            let mut lines = Vec::new();
-
-            for item in collected.iter().map(|x| &x.2) {
-                let patch_item = match item {
-                    difference::Difference::Same(x) => patch::Line::Context(&x),
-                    difference::Difference::Add(x) => patch::Line::Add(&x),
-                    difference::Difference::Rem(x) => patch::Line::Remove(&x),
-                };
-
-                lines.push(patch_item);
-            }
-
-            let hunk = patch::Hunk {
-                old_range: before_range,
-                new_range: after_range,
-                lines,
-            };
-
-            hunks.push(hunk);
-        }
-
-        let patch = patch::Patch {
-            old: patch::File {
-                path: modified.path.to_string_lossy().into(),
-                meta: None,
-            },
-            new: patch::File {
-                path: modified.path.to_string_lossy().into(),
-                meta: None,
-            },
-            hunks,
-            end_newline: true,
-        };
-
-        result.push_str(&format_patch(&patch));
+        windows_vec.push((item, context));
     }
 
-    return result;
+    let groups = windows_vec.into_iter().group_by(|x| {
+        x.1.iter()
+            .any(|y| !matches!(y.2, difference::Difference::Same(_)))
+    });
+
+    let mut hunks = Vec::new();
+
+    for (key, group) in &groups {
+        if !key {
+            continue;
+        }
+
+        let collected: Vec<_> = group.map(|x| x.0).collect();
+
+        assert!(!collected.is_empty());
+
+        let (start_before, start_after, _) = collected.first().unwrap();
+        let (end_before, end_after, _) = collected.last().unwrap();
+
+        let before_range = patch::Range {
+            start: *start_before,
+            count: *end_before - *start_before,
+        };
+
+        let after_range = patch::Range {
+            start: *start_after,
+            count: *end_after - *start_after,
+        };
+
+        let mut lines = Vec::new();
+
+        for item in collected.iter().map(|x| &x.2) {
+            let patch_item = match item {
+                difference::Difference::Same(x) => patch::Line::Context(&x),
+                difference::Difference::Add(x) => patch::Line::Add(&x),
+                difference::Difference::Rem(x) => patch::Line::Remove(&x),
+            };
+
+            lines.push(patch_item);
+        }
+
+        let hunk = patch::Hunk {
+            old_range: before_range,
+            new_range: after_range,
+            lines,
+        };
+
+        hunks.push(hunk);
+    }
+
+    let patch = patch::Patch {
+        old: patch::File {
+            path: path.to_string_lossy(),
+            meta: None,
+        },
+        new: patch::File {
+            path: path.to_string_lossy(),
+            meta: None,
+        },
+        hunks,
+        end_newline: true,
+    };
+
+    format_patch(&patch)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    proptest::proptest! {
+        #[test]
+        fn patch_from_file_string_doesnt_panic(before: String, after: String, path: String) {
+            let _ = patch_from_file_string(before, after, path.into());
+        }
+    }
 }
