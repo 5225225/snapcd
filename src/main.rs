@@ -703,8 +703,6 @@ fn setup_logging(#[allow(unused_variables)] level: u64) {
             Err(TermLogError::SetLogger(_)) => {
                 panic!("logger has been already set, this is a bug.")
             }
-            Err(TermLogError::Term) => eprintln!("failed to open terminal for logging"),
-            // how are we printing this then?
         }
     }
 }

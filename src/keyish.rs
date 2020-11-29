@@ -1,7 +1,5 @@
 use thiserror::Error;
 
-use bitvec::prelude::*;
-
 #[derive(Debug)]
 pub enum Keyish {
     /// Strictly speaking, this is for prefix searches
@@ -105,7 +103,13 @@ impl std::str::FromStr for Keyish {
             } else {
                 let mut end = input;
 
-                end += bitvec![Msb0, u8; 1];
+                for idx in end.len()..0 {
+                    if end[idx] {
+                        *end.get_mut(idx).unwrap() = false;
+                    } else {
+                        break;
+                    }
+                }
 
                 let mut v = end.into_vec();
 
