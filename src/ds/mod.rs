@@ -11,7 +11,6 @@ use thiserror::Error;
 
 use crate::commit;
 use crate::key;
-use crate::key::TypedKey;
 use crate::Keyish;
 use crate::Object;
 
@@ -36,7 +35,7 @@ pub enum CanonicalizeError {
 #[derive(Debug)]
 pub struct Reflog {
     pub refname: String,
-    pub key: TypedKey<commit::Commit>,
+    pub key: key::Key,
     pub remote: Option<String>,
 }
 
@@ -230,16 +229,12 @@ pub trait DataStore: Transactional {
     }
 
     fn reflog_push(&self, data: &Reflog) -> Result<(), ReflogPushError>;
-    fn reflog_get(
-        &self,
-        refname: &str,
-        remote: Option<&str>,
-    ) -> Result<TypedKey<commit::Commit>, GetReflogError>;
+    fn reflog_get(&self, refname: &str, remote: Option<&str>) -> Result<key::Key, GetReflogError>;
     fn reflog_walk(
         &self,
         refname: &str,
         remote: Option<&str>,
-    ) -> Result<Vec<TypedKey<commit::Commit>>, WalkReflogError>;
+    ) -> Result<Vec<key::Key>, WalkReflogError>;
 
     fn raw_between(
         &self,
@@ -269,7 +264,7 @@ pub trait DataStore: Transactional {
                 remote,
                 keyname,
             } => match self.reflog_get(&keyname, remote.as_deref()) {
-                Ok(key) => return Ok(key.inner()),
+                Ok(key) => return Ok(key),
                 Err(GetReflogError::NotFound) => return Err(CanonicalizeError::NotFound(orig)),
                 Err(e) => return Err(e.into()),
             },

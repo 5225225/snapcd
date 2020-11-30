@@ -43,9 +43,7 @@ fn test_ldbg() {
 pub mod base32;
 pub mod cache;
 pub mod commit;
-pub mod diff;
 pub mod dir;
-pub mod display;
 pub mod ds;
 pub mod file;
 pub mod filter;

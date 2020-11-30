@@ -35,7 +35,7 @@ fn internal_test<T: DataStore, F: FnMut() -> T>(
 }
 
 #[test]
-fn sanity_check() {
+fn data_round_trip_test() {
     let mut sqlite_ds = || SqliteDS::new(":memory:").unwrap();
 
     internal_test(&mut sqlite_ds, 1 << 20, 0, 8);

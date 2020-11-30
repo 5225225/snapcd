@@ -1,5 +1,4 @@
 use crate::ds;
-use crate::object::ObjType;
 use crate::{ds::DataStore, key::Key, object::Object};
 use std::io::prelude::*;
 use thiserror::Error;
@@ -43,7 +42,9 @@ pub fn put_data<DS: DataStore, R: Read>(ds: &mut DS, mut data: R) -> Result<Key,
             debug_assert!(zeros >= BLOB_ZERO_COUNT || boundry == (1 << BLOB_ZERO_COUNT_MAX));
 
             if current_chunk.len() >= 1 << (BLOB_ZERO_COUNT_MAX) {
-                let key = ds.put_obj(&Object::new(&current_chunk, &[], ObjType::FileBlob))?;
+                let key = ds.put_obj(&Object::FileBlob {
+                    buf: current_chunk.clone(),
+                })?;
                 key_bufs[0].push(key);
                 current_chunk.clear();
 
@@ -52,11 +53,9 @@ pub fn put_data<DS: DataStore, R: Read>(ds: &mut DS, mut data: R) -> Result<Key,
                     if zeros > BLOB_ZERO_COUNT + (offset + 1) * PER_LEVEL_COUNT
                         || len >= 1 << PER_LEVEL_COUNT_MAX
                     {
-                        let key = ds.put_obj(&Object::new(
-                            &[],
-                            &key_bufs[offset as usize],
-                            ObjType::FileBlobTree,
-                        ))?;
+                        let key = ds.put_obj(&Object::FileBlobTree {
+                            keys: key_bufs[offset as usize].clone(),
+                        })?;
                         key_bufs[offset as usize].clear();
                         key_bufs[offset as usize + 1].push(key);
                     } else {
@@ -88,16 +87,22 @@ pub fn put_data<DS: DataStore, R: Read>(ds: &mut DS, mut data: R) -> Result<Key,
 
     if (0..4).all(|x| key_bufs[x].is_empty()) {
         // No chunks were made.
-        return Ok(ds.put_obj(&Object::new(&current_chunk, &[], ObjType::FileBlob))?);
+        return Ok(ds.put_obj(&Object::FileBlob {
+            buf: current_chunk.clone(),
+        })?);
     }
 
     if !current_chunk.is_empty() {
-        let key = ds.put_obj(&Object::new(&current_chunk, &[], ObjType::FileBlob))?;
+        let key = ds.put_obj(&Object::FileBlob {
+            buf: current_chunk.clone(),
+        })?;
         key_bufs[0].push(key);
     }
 
     for offset in 0..4 {
-        let key = ds.put_obj(&Object::new(&[], &key_bufs[offset], ObjType::FileBlobTree))?;
+        let key = ds.put_obj(&Object::FileBlobTree {
+            keys: key_bufs[offset].clone(),
+        })?;
 
         if key_bufs[offset].len() == 1 && (1 + offset..4).all(|x| key_bufs[x].is_empty()) {
             // We know this is safe because key_bufs[offset] has exactly 1 element
@@ -108,7 +113,9 @@ pub fn put_data<DS: DataStore, R: Read>(ds: &mut DS, mut data: R) -> Result<Key,
         key_bufs[offset + 1].push(key);
     }
 
-    Ok(ds.put_obj(&Object::new(&[], &key_bufs[4], ObjType::FileBlobTree))?)
+    Ok(ds.put_obj(&Object::FileBlobTree {
+        keys: key_bufs[4].clone(),
+    })?)
 }
 
 #[derive(Debug, Error)]
@@ -127,27 +134,20 @@ pub fn read_data<DS: DataStore, W: Write>(
 ) -> Result<(), ReadDataError> {
     let obj = ds.get_obj(key)?;
 
-    match obj.objtype() {
-        ObjType::FileBlobTree => {
-            for key in obj.keys().iter().copied() {
+    match obj {
+        Object::FileBlobTree { keys } => {
+            for key in keys {
                 read_data(ds, key, to)?;
             }
         }
-        ObjType::FileBlob => {
-            to.write_all(&obj.data())?;
+        Object::FileBlob { buf } => {
+            to.write_all(&buf)?;
         }
-        ObjType::FSItemFile => {
-            assert!(obj.keys().len() == 1);
-
-            let key = obj.keys()[0];
-            read_data(ds, key, to)?;
+        Object::FSItemFile { blob_tree, .. } => {
+            read_data(ds, blob_tree, to)?;
         }
         _ => {
-            panic!(
-                "found invalid object type {:?} when reading key {:?}",
-                obj.objtype(),
-                key
-            );
+            panic!("found invalid object {:?} when reading key {:?}", obj, key);
         }
     }
 

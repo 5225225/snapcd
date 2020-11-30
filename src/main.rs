@@ -5,8 +5,8 @@
 #![allow(clippy::needless_pass_by_value)]
 
 use snapcd::{
-    cache::SqliteCache, commit, diff, dir, display, ds::sqlite::SqliteDS, ds::GetReflogError,
-    ds::Transactional, filter, key, DataStore, Keyish, Reflog,
+    cache::SqliteCache, commit, dir, ds::sqlite::SqliteDS, ds::GetReflogError, ds::Transactional,
+    filter, key, object::Object, DataStore, Keyish, Reflog,
 };
 
 use colored::*;
@@ -76,22 +76,8 @@ enum Command {
     /// Initialises the database
     Init(InitArgs),
 
-    /// Shows an object
-    Show(ShowArgs),
-
-    /// Shows a log starting from a specific commit
-    Log(LogArgs),
-
-    /// Compares a path with an object tree
-    Compare(CompareArgs),
-
-    /// Gets status
-    Status(StatusArgs),
-
     /// Checks out
     Checkout(CheckoutArgs),
-
-    CheckoutHead(CheckoutHeadArgs),
 
     Ref(RefCommand),
 }
@@ -390,7 +376,7 @@ fn debug_commit_tree(state: &mut State, args: CommitTreeArgs) -> CMDResult {
         parents.push(key);
     }
 
-    let attrs = commit::CommitAttrs::default();
+    let attrs = snapcd::object::CommitAttrs::default();
 
     let commit = commit::commit_tree(
         &mut ds_state.ds,
@@ -453,7 +439,7 @@ fn find_db_folder(name: &Path) -> Result<Option<PathBuf>, anyhow::Error> {
     }
 }
 
-fn get_head_key(ds: &impl DataStore) -> Result<key::TypedKey<commit::Commit>, anyhow::Error> {
+fn get_head_key(ds: &impl DataStore) -> Result<key::Key, anyhow::Error> {
     let reflog = ds.get_head()?.ok_or(NoHeadError)?;
     let key = ds.reflog_get(&reflog, None)?;
 
@@ -494,9 +480,8 @@ fn commit_cmd(state: &mut State, args: CommitArgs) -> CMDResult {
 
     let key = dir::put_fs_item(&mut ds_state.ds, &commit_path, &filter)?;
 
-    let mut attrs = commit::CommitAttrs::default();
-
-    attrs.set_message(args.message);
+    let mut attrs = snapcd::object::CommitAttrs::default();
+    attrs.message = args.message;
 
     let commit_key = commit::commit_tree(&mut ds_state.ds, key.into(), parent_key, attrs)?;
 
@@ -507,32 +492,6 @@ fn commit_cmd(state: &mut State, args: CommitArgs) -> CMDResult {
     };
 
     ds_state.ds.reflog_push(&log)?;
-
-    Ok(())
-}
-
-fn show(state: &mut State, args: ShowArgs) -> CMDResult {
-    let ds_state = state.ds_state.as_mut().ok_or(DatabaseNotFoundError)?;
-
-    let key = match args.key {
-        Some(k) => ds_state.ds.canonicalize(k)?,
-        None => get_head_key(&ds_state.ds)?.inner(),
-    };
-
-    display::display_obj(&mut ds_state.ds, key, display::Kind::Patch)?;
-
-    Ok(())
-}
-
-fn log(state: &mut State, args: LogArgs) -> CMDResult {
-    let ds_state = state.ds_state.as_mut().ok_or(DatabaseNotFoundError)?;
-
-    let key = match args.key {
-        Some(k) => ds_state.ds.canonicalize(k)?,
-        None => get_head_key(&ds_state.ds)?.inner(),
-    };
-
-    display::log_obj(&mut ds_state.ds, key, display::Kind::Stat)?;
 
     Ok(())
 }
@@ -553,85 +512,6 @@ fn setup_sqlite_callback() -> rusqlite::Result<()> {
     Ok(())
 }
 
-fn compare(state: &mut State, args: CompareArgs) -> CMDResult {
-    let ds_state = state.ds_state.as_mut().ok_or(DatabaseNotFoundError)?;
-
-    let key = match args.key {
-        Some(k) => ds_state.ds.canonicalize(k)?.into(),
-        None => {
-            let reflog = ds_state.ds.get_head()?.ok_or(NoHeadError)?;
-            let key = ds_state.ds.reflog_get(&reflog, None)?;
-            commit::Commit::from_key(&ds_state.ds, key).tree()
-        }
-    };
-
-    let path = match &args.path {
-        Some(p) => p,
-        None => &ds_state.repo_path,
-    };
-
-    let result = diff::compare(
-        &mut ds_state.ds,
-        diff::DiffTarget::FileSystem(
-            path.clone(),
-            state.common.exclude.clone(),
-            ds_state.db_folder_path.clone(),
-        ),
-        Some(key),
-        &mut state.cache,
-    )?;
-
-    if args.stat {
-        diff::print_stat_diff_result(&ds_state.ds, result);
-    } else {
-        diff::print_diff_result(result);
-    }
-
-    Ok(())
-}
-
-fn status(state: &mut State, _args: StatusArgs) -> CMDResult {
-    let ds_state = state.ds_state.as_mut().ok_or(DatabaseNotFoundError)?;
-
-    let reflog = ds_state.ds.get_head()?.ok_or(NoHeadError)?;
-
-    let path = &ds_state.repo_path;
-
-    let ref_key = ds_state.ds.reflog_get(&reflog, None).ok();
-
-    match &ref_key {
-        Some(k) => {
-            println!("HEAD: {} [{}]", reflog, &k.inner().as_user_key()[0..8]);
-
-            let obj: commit::Commit = ds_state
-                .ds
-                .get_obj(k.inner())
-                .unwrap()
-                .into_owned()
-                .try_into()
-                .unwrap();
-
-            let result = diff::compare(
-                &mut ds_state.ds,
-                diff::DiffTarget::FileSystem(
-                    path.to_path_buf(),
-                    state.common.exclude.clone(),
-                    ds_state.db_folder_path.clone(),
-                ),
-                Some(obj.tree()),
-                &mut state.cache,
-            )?;
-
-            diff::print_diff_result(result);
-        }
-        None => {
-            println!("HEAD: {} (no commits on {})", reflog, reflog);
-        }
-    }
-
-    Ok(())
-}
-
 fn checkout(state: &mut State, _args: CheckoutArgs) -> CMDResult {
     let ds_state = state.ds_state.as_ref().ok_or(DatabaseNotFoundError)?;
 
@@ -640,44 +520,12 @@ fn checkout(state: &mut State, _args: CheckoutArgs) -> CMDResult {
 
     let filter = filter::make_filter_fn(&state.common.exclude, ds_state.db_folder_path.clone());
 
-    let tree_key = commit::Commit::from_key(&ds_state.ds, key).tree();
+    let tree_key = match ds_state.ds.get_obj(key)? {
+        Object::Commit { tree, .. } => tree,
+        _ => panic!("invalid reflog value"),
+    };
+
     dir::checkout_fs_item(&ds_state.ds, tree_key, &ds_state.repo_path, &filter)?;
-    Ok(())
-}
-
-fn checkout_head(state: &mut State, args: CheckoutHeadArgs) -> CMDResult {
-    let ds_state = state.ds_state.as_mut().ok_or(DatabaseNotFoundError)?;
-
-    let reflog = ds_state.ds.get_head()?.ok_or(NoHeadError)?;
-
-    let path = &ds_state.repo_path;
-
-    let ref_key = ds_state.ds.reflog_get(&reflog, None).ok();
-
-    let tree_key = ref_key.map(|key| commit::Commit::from_key(&ds_state.ds, key).tree());
-
-    let result = diff::compare(
-        &mut ds_state.ds,
-        diff::DiffTarget::FileSystem(
-            path.to_path_buf(),
-            state.common.exclude.clone(),
-            ds_state.db_folder_path.clone(),
-        ),
-        tree_key,
-        &mut state.cache,
-    )?;
-
-    if !diff::diff_result_empty(&result) {
-        println!("Cannot checkout: working directory is not clean");
-
-        diff::print_diff_result(result);
-        return Ok(());
-    }
-
-    ds_state.ds.put_head(&args.refname)?;
-
-    println!("Ok, new head.");
-
     Ok(())
 }
 
@@ -774,12 +622,7 @@ fn main() -> CMDResult {
         Command::Debug(args) => debug(&mut state, args),
         Command::Init(args) => init(&mut state, args),
         Command::Commit(args) => commit_cmd(&mut state, args),
-        Command::Show(args) => show(&mut state, args),
-        Command::Log(args) => log(&mut state, args),
-        Command::Compare(args) => compare(&mut state, args),
-        Command::Status(args) => status(&mut state, args),
         Command::Checkout(args) => checkout(&mut state, args),
-        Command::CheckoutHead(args) => checkout_head(&mut state, args),
         Command::Ref(args) => ref_cmd(&mut state, args),
     };
 

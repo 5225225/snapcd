@@ -82,11 +82,7 @@ impl ds::Transactional for SqliteDS {
 }
 
 impl DataStore for SqliteDS {
-    fn reflog_get(
-        &self,
-        refname: &str,
-        remote: Option<&str>,
-    ) -> Result<TypedKey<commit::Commit>, GetReflogError> {
+    fn reflog_get(&self, refname: &str, remote: Option<&str>) -> Result<Key, GetReflogError> {
         log::trace!("reflog_get({:?}, {:?})", refname, remote);
 
         // We have to use `remote IS ?` here because we want NULL = NULL (it is not remote).
@@ -110,7 +106,7 @@ impl DataStore for SqliteDS {
         self.conn
             .execute(
                 "INSERT INTO reflog(refname, remote, key) VALUES (?, ?, ?)",
-                params![data.refname, data.remote, data.key.inner().as_db_key(),],
+                params![data.refname, data.remote, data.key.as_db_key(),],
             )
             .to_ds_r()?;
 
@@ -121,7 +117,7 @@ impl DataStore for SqliteDS {
         &self,
         refname: &str,
         remote: Option<&str>,
-    ) -> Result<Vec<TypedKey<commit::Commit>>, WalkReflogError> {
+    ) -> Result<Vec<Key>, WalkReflogError> {
         let mut statement = self
             .conn
             .prepare("SELECT key FROM reflog WHERE refname=? AND remote IS ? ORDER BY id DESC")
