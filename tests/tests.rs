@@ -3,6 +3,7 @@ use rand_chacha::ChaChaRng;
 use snapcd::file::{put_data, read_data};
 use snapcd::{ds::sqlite::SqliteDS, DataStore};
 use std::collections::HashSet;
+use std::io::{Read, Write};
 
 fn internal_test<T: DataStore, F: FnMut() -> T>(
     ctor: &mut F,
@@ -77,4 +78,50 @@ proptest::proptest! {
 
         assert_eq!(expected_keys, got_keys);
     }
+
+    // for all valid keys in a data store containing only one item, any length prefix from 2 to the
+    // full key must be able to be canonicalized back into the original key
+    #[test]
+    fn keyish_truncation(value: u64) {
+        let sqlite_ds = SqliteDS::new(":memory:").unwrap();
+        let blob = value.to_ne_bytes().to_vec();
+        let key = sqlite_ds.put(blob).unwrap();
+
+        let keystr = key.to_string();
+
+        for chopped in 2..keystr.len() {
+            let s = &keystr[..chopped];
+
+            let keyish: snapcd::keyish::Keyish = s.parse().unwrap();
+            assert_eq!(sqlite_ds.canonicalize(keyish).unwrap(), key);
+        }
+    }
+
+    // TODO: write test for multiple keys existing
+    // there must be *some* valid prefix (and once it exists, all suffixes afterwards must be
+    // correct and find just that one key)
+}
+
+#[test]
+fn file_round_trip_test() {
+    let dir = tempfile::tempdir().unwrap();
+
+    let input_file_name = dir.path().join("input.bin");
+    let mut input_file = std::fs::File::create(&input_file_name).unwrap();
+
+    let mut v = Vec::new();
+    v.resize_with(fastrand::usize(0..1_000_000), || fastrand::u8(..));
+    input_file.write_all(&v).unwrap();
+
+    let mut sqlite_ds = SqliteDS::new(":memory:").unwrap();
+
+    let hash = snapcd::dir::put_fs_item(&mut sqlite_ds, &input_file_name, &|_| true).unwrap();
+
+    snapcd::dir::get_fs_item(&sqlite_ds, hash, &dir.path().join("output.bin")).unwrap();
+
+    let mut result = Vec::new();
+    let mut of = std::fs::File::open(&dir.path().join("output.bin")).unwrap();
+    of.read_to_end(&mut result).unwrap();
+
+    assert_eq!(&result, &v);
 }

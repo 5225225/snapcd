@@ -39,6 +39,8 @@ logging = ["simplelog"]
 criterion = "0.3.3"
 rand = "0.7.3"
 rand_chacha = "0.2.2"
+fastrand = "1.4.0"
+tempfile = "3.2.0"
 proptest = "0.10.1"
 proptest-derive = "0.2.0"
 

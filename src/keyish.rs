@@ -103,10 +103,11 @@ impl std::str::FromStr for Keyish {
             } else {
                 let mut end = input;
 
-                for idx in end.len()..0 {
+                for idx in (0..end.len()).rev() {
                     if end[idx] {
                         *end.get_mut(idx).unwrap() = false;
                     } else {
+                        *end.get_mut(idx).unwrap() = true;
                         break;
                     }
                 }
