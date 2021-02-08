@@ -1,5 +1,4 @@
 use crate::key::Key;
-use std::borrow::ToOwned;
 use std::collections::HashMap;
 use std::path::PathBuf;
 
@@ -40,11 +39,8 @@ impl Object {
     }
 }
 
-// In tests, you should force the color output to be true or not
-// This will assume `to` is stdout and will color based on that (and envars)
-// see: https://docs.rs/colored/1.9.2/colored/control/index.html
 fn pretty_print(obj: &Object, mut to: impl std::io::Write) -> Result<(), std::io::Error> {
-    writeln!(to, "{:#?}", obj);
+    writeln!(to, "{:#?}", obj)?;
 
     Ok(())
 }

@@ -1,4 +1,3 @@
-use crate::commit;
 use crate::ds;
 use crate::ds::{
     GetReflogError, RawBetweenError, RawExistsError, RawGetError, RawGetStateError, RawPutError,
@@ -23,10 +22,10 @@ impl crate::DataStore for NullDS {
     fn raw_exists(&self, _key: &[u8]) -> Result<bool, RawExistsError> {
         unimplemented!("null datastore, no data")
     }
-    fn raw_get_state<'a>(&'a self, _key: &[u8]) -> Result<Option<Vec<u8>>, RawGetStateError> {
+    fn raw_get_state(&self, _key: &[u8]) -> Result<Option<Vec<u8>>, RawGetStateError> {
         unimplemented!("null datastore, no data")
     }
-    fn raw_put_state<'a>(&'a self, _key: &[u8], _data: &[u8]) -> Result<(), RawPutStateError> {
+    fn raw_put_state(&self, _key: &[u8], _data: &[u8]) -> Result<(), RawPutStateError> {
         Ok(())
     }
     fn reflog_push(&self, _data: &Reflog) -> Result<(), ReflogPushError> {

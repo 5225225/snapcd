@@ -9,7 +9,6 @@ use std::borrow::Cow;
 
 use thiserror::Error;
 
-use crate::commit;
 use crate::key;
 use crate::Keyish;
 use crate::Object;
@@ -58,22 +57,22 @@ pub enum DSError {
 }
 
 pub trait ToDSError {
-    fn to_ds(self) -> DSError;
+    fn into_ds_e(self) -> DSError;
 }
 
 pub trait ToDSErrorResult<T> {
-    fn to_ds_r(self) -> Result<T, DSError>;
+    fn into_ds_r(self) -> Result<T, DSError>;
 }
 
 impl<T: Into<DSError>> ToDSError for T {
-    fn to_ds(self) -> DSError {
+    fn into_ds_e(self) -> DSError {
         self.into()
     }
 }
 
 impl<T, E: ToDSError> ToDSErrorResult<T> for Result<T, E> {
-    fn to_ds_r(self) -> Result<T, DSError> {
-        self.map_err(|x| x.to_ds())
+    fn into_ds_r(self) -> Result<T, DSError> {
+        self.map_err(|x| x.into_ds_e())
     }
 }
 
@@ -192,8 +191,8 @@ pub trait DataStore: Transactional {
 
     fn raw_exists(&self, key: &[u8]) -> Result<bool, RawExistsError>;
 
-    fn raw_get_state<'a>(&'a self, key: &[u8]) -> Result<Option<Vec<u8>>, RawGetStateError>;
-    fn raw_put_state<'a>(&'a self, key: &[u8], data: &[u8]) -> Result<(), RawPutStateError>;
+    fn raw_get_state(&self, key: &[u8]) -> Result<Option<Vec<u8>>, RawGetStateError>;
+    fn raw_put_state(&self, key: &[u8], data: &[u8]) -> Result<(), RawPutStateError>;
 
     fn get(&self, key: key::Key) -> Result<Cow<'_, [u8]>, RawGetError> {
         let results = self.raw_get(&key.as_db_key())?;

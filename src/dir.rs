@@ -46,8 +46,6 @@ pub fn put_fs_item<DS: DataStore>(
             }
         }
 
-        let size = result.len() as u64;
-
         let obj = Object::FSItemDir { children: result };
 
         return Ok(ds.put_obj(&obj)?);
@@ -166,7 +164,7 @@ pub fn get_fs_item<DS: DataStore>(ds: &DS, key: Key, path: &Path) -> Result<(), 
                 get_fs_item(ds, *key, &path.join(&name))?;
             }
         }
-        Object::FSItemFile { blob_tree, size } => {
+        Object::FSItemFile { blob_tree, size: _ } => {
             if let Some(parent) = path.parent() {
                 std::fs::create_dir_all(parent)?;
             }
@@ -246,7 +244,7 @@ pub fn checkout_fs_item<DS: DataStore>(
                 checkout_fs_item(ds, *key, &path.join(&name), filter)?;
             }
         }
-        Object::FSItemFile { blob_tree, size } => {
+        Object::FSItemFile { blob_tree, size: _ } => {
             let mut f = std::fs::File::create(path)?;
 
             assert!(path.starts_with("/home/jess/src/snapcd/repo"));
@@ -296,7 +294,7 @@ pub fn internal_walk_fs_items<DS: DataStore>(
                 results.extend(internal_walk_fs_items(ds, key, &path.join(&name))?);
             }
         }
-        Object::FSItemFile { size, blob_tree } => {
+        Object::FSItemFile { size: _, blob_tree } => {
             results.insert(path.to_path_buf(), (blob_tree, false));
         }
         _ => panic!("cannot handle this type"),

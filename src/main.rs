@@ -1,12 +1,11 @@
 // StructOpt generated code triggers this lint.
-#![allow(clippy::option_unwrap_used)]
-#![allow(clippy::result_unwrap_used)]
+#![allow(clippy::unwrap_used)]
 // I don't care.
 #![allow(clippy::needless_pass_by_value)]
 
 use snapcd::{
     cache::SqliteCache, commit, dir, ds::sqlite::SqliteDS, ds::GetReflogError, ds::Transactional,
-    filter, key, object::Object, DataStore, Keyish, Reflog,
+    filter, object::Object, DataStore, Keyish, Reflog,
 };
 
 use colored::*;
@@ -17,7 +16,6 @@ use structopt::StructOpt;
 
 type CMDResult = Result<(), anyhow::Error>;
 
-use std::convert::TryInto;
 use structopt::clap::AppSettings;
 
 #[derive(StructOpt, Debug)]
@@ -243,7 +241,7 @@ fn fetch(state: &mut State, args: FetchArgs) -> CMDResult {
 
     let key = ds_state.ds.canonicalize(args.key)?;
 
-    dir::get_fs_item(&ds_state.ds, key.into(), &args.dest)?;
+    dir::get_fs_item(&ds_state.ds, key, &args.dest)?;
 
     Ok(())
 }
@@ -294,7 +292,7 @@ fn ref_update(state: &mut State, args: RefUpdateArgs) -> CMDResult {
     };
 
     let log = Reflog {
-        key: key.into(),
+        key,
         refname,
         remote: None,
     };
@@ -333,7 +331,7 @@ fn debug_walk_tree(state: &mut State, args: WalkTreeArgs) -> CMDResult {
 
     let key = ds_state.ds.canonicalize(args.key)?;
 
-    let fs_items = dir::walk_fs_items(&ds_state.ds, key.into())?;
+    let fs_items = dir::walk_fs_items(&ds_state.ds, key)?;
 
     for item in fs_items {
         println!("{:?}", item)
@@ -378,12 +376,7 @@ fn debug_commit_tree(state: &mut State, args: CommitTreeArgs) -> CMDResult {
 
     let attrs = snapcd::object::CommitAttrs::default();
 
-    let commit = commit::commit_tree(
-        &mut ds_state.ds,
-        tree.into(),
-        parents.iter().map(|&x| x.into()).collect(),
-        attrs,
-    )?;
+    let commit = commit::commit_tree(&mut ds_state.ds, tree, parents, attrs)?;
 
     println!("{}", commit);
 
@@ -408,7 +401,7 @@ fn debug_reflog_push(state: &mut State, args: ReflogPushArgs) -> CMDResult {
     let key = ds_state.ds.canonicalize(args.key)?;
 
     let log = Reflog {
-        key: key.into(),
+        key,
         refname: args.refname,
         remote: args.remote,
     };
@@ -437,13 +430,6 @@ fn find_db_folder(name: &Path) -> Result<Option<PathBuf>, anyhow::Error> {
             None => return Ok(None),
         };
     }
-}
-
-fn get_head_key(ds: &impl DataStore) -> Result<key::Key, anyhow::Error> {
-    let reflog = ds.get_head()?.ok_or(NoHeadError)?;
-    let key = ds.reflog_get(&reflog, None)?;
-
-    Ok(key)
 }
 
 fn init(state: &mut State, _args: InitArgs) -> CMDResult {
@@ -480,10 +466,12 @@ fn commit_cmd(state: &mut State, args: CommitArgs) -> CMDResult {
 
     let key = dir::put_fs_item(&mut ds_state.ds, &commit_path, &filter)?;
 
-    let mut attrs = snapcd::object::CommitAttrs::default();
-    attrs.message = args.message;
+    let attrs = snapcd::object::CommitAttrs {
+        message: args.message,
+        ..Default::default()
+    };
 
-    let commit_key = commit::commit_tree(&mut ds_state.ds, key.into(), parent_key, attrs)?;
+    let commit_key = commit::commit_tree(&mut ds_state.ds, key, parent_key, attrs)?;
 
     let log = Reflog {
         key: commit_key,

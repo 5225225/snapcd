@@ -4,7 +4,6 @@ use rusqlite::params;
 use rusqlite::OptionalExtension;
 use std::borrow::Cow;
 
-use crate::commit;
 use crate::ds;
 use crate::ds::{
     BeginTransError, CommitTransError, DataStore, GetReflogError, RawBetweenError, RawExistsError,
@@ -12,7 +11,7 @@ use crate::ds::{
     RollbackTransError, WalkReflogError,
 };
 use crate::ds::{ToDSError, ToDSErrorResult};
-use crate::key::{Key, TypedKey};
+use crate::key::Key;
 use crate::Reflog;
 use thiserror::Error;
 
@@ -64,18 +63,18 @@ impl ds::Transactional for SqliteDS {
     fn begin_trans(&mut self) -> Result<(), BeginTransError> {
         self.conn
             .execute("BEGIN TRANSACTION", params![])
-            .to_ds_r()?;
+            .into_ds_r()?;
         Ok(())
     }
 
     fn commit(&mut self) -> Result<(), CommitTransError> {
-        self.conn.execute("COMMIT", params![]).to_ds_r()?;
+        self.conn.execute("COMMIT", params![]).into_ds_r()?;
 
         Ok(())
     }
 
     fn rollback(&mut self) -> Result<(), RollbackTransError> {
-        self.conn.execute("ROLLBACK", params![]).to_ds_r()?;
+        self.conn.execute("ROLLBACK", params![]).into_ds_r()?;
 
         Ok(())
     }
@@ -96,9 +95,9 @@ impl DataStore for SqliteDS {
             .optional();
 
         match query {
-            Ok(Some(k)) => Ok(Key::from_db_key(&k)?.into()),
+            Ok(Some(k)) => Ok(Key::from_db_key(&k)?),
             Ok(None) => Err(GetReflogError::NotFound),
-            Err(e) => Err(e.to_ds().into()),
+            Err(e) => Err(e.into_ds_e().into()),
         }
     }
 
@@ -108,7 +107,7 @@ impl DataStore for SqliteDS {
                 "INSERT INTO reflog(refname, remote, key) VALUES (?, ?, ?)",
                 params![data.refname, data.remote, data.key.as_db_key(),],
             )
-            .to_ds_r()?;
+            .into_ds_r()?;
 
         Ok(())
     }
@@ -121,7 +120,7 @@ impl DataStore for SqliteDS {
         let mut statement = self
             .conn
             .prepare("SELECT key FROM reflog WHERE refname=? AND remote IS ? ORDER BY id DESC")
-            .to_ds_r()?;
+            .into_ds_r()?;
 
         let mut rows = statement.query(params![refname, remote]).unwrap();
 
@@ -129,7 +128,7 @@ impl DataStore for SqliteDS {
 
         while let Some(row) = rows.next().unwrap() {
             let buf: Vec<u8> = row.get(0).unwrap();
-            keys.push(Key::from_db_key(&buf)?.into());
+            keys.push(Key::from_db_key(&buf)?);
         }
 
         Ok(keys)
@@ -141,7 +140,7 @@ impl DataStore for SqliteDS {
             .query_row("SELECT value FROM data WHERE key=?", params![key], |row| {
                 row.get(0)
             })
-            .to_ds_r()?;
+            .into_ds_r()?;
 
         Ok(Cow::Owned(results))
     }
@@ -149,14 +148,14 @@ impl DataStore for SqliteDS {
     fn raw_put<'a>(&'a self, key: &[u8], data: &[u8]) -> Result<(), RawPutError> {
         self.conn
             .prepare_cached("INSERT OR IGNORE INTO data VALUES (?, ?)")
-            .to_ds_r()?
+            .into_ds_r()?
             .execute(params![key, data])
-            .to_ds_r()?;
+            .into_ds_r()?;
 
         Ok(())
     }
 
-    fn raw_get_state<'a>(&'a self, key: &[u8]) -> Result<Option<Vec<u8>>, RawGetStateError> {
+    fn raw_get_state(&self, key: &[u8]) -> Result<Option<Vec<u8>>, RawGetStateError> {
         let results: Result<Option<Vec<u8>>, _> = self
             .conn
             .query_row("SELECT value FROM state WHERE key=?", params![key], |row| {
@@ -164,16 +163,16 @@ impl DataStore for SqliteDS {
             })
             .optional();
 
-        Ok(results.to_ds_r()?)
+        Ok(results.into_ds_r()?)
     }
 
-    fn raw_put_state<'a>(&'a self, key: &[u8], data: &[u8]) -> Result<(), RawPutStateError> {
+    fn raw_put_state(&self, key: &[u8], data: &[u8]) -> Result<(), RawPutStateError> {
         self.conn
             .execute(
                 "INSERT OR REPLACE INTO state VALUES (?, ?)",
                 params![key, data],
             )
-            .to_ds_r()?;
+            .into_ds_r()?;
 
         Ok(())
     }
@@ -186,7 +185,7 @@ impl DataStore for SqliteDS {
                 params![key],
                 |row| row.get(0),
             )
-            .to_ds_r()?;
+            .into_ds_r()?;
 
         assert!(count == 0 || count == 1);
 
@@ -205,26 +204,26 @@ impl DataStore for SqliteDS {
             let mut statement = self
                 .conn
                 .prepare("SELECT key FROM data WHERE key >= ? AND key < ?")
-                .to_ds_r()?;
+                .into_ds_r()?;
 
             let rows = statement
                 .query_map(params![start, e], |row| row.get(0))
-                .to_ds_r()?;
+                .into_ds_r()?;
 
             for row in rows {
-                results.push(row.to_ds_r()?);
+                results.push(row.into_ds_r()?);
             }
         } else {
             let mut statement = self
                 .conn
                 .prepare("SELECT key FROM data WHERE key >= ?")
-                .to_ds_r()?;
+                .into_ds_r()?;
             let rows = statement
                 .query_map(params![start], |row| row.get(0))
-                .to_ds_r()?;
+                .into_ds_r()?;
 
             for row in rows {
-                results.push(row.to_ds_r()?);
+                results.push(row.into_ds_r()?);
             }
         }
 

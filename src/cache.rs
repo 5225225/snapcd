@@ -110,23 +110,23 @@ impl ds::Transactional for SqliteCache {
     fn begin_trans(&mut self) -> Result<(), ds::BeginTransError> {
         self.conn
             .execute("BEGIN TRANSACTION", params![])
-            .to_ds_r()?;
+            .into_ds_r()?;
         Ok(())
     }
 
     fn commit(&mut self) -> Result<(), ds::CommitTransError> {
-        self.conn.execute("COMMIT", params![]).to_ds_r()?;
+        self.conn.execute("COMMIT", params![]).into_ds_r()?;
         Ok(())
     }
 
     fn rollback(&mut self) -> Result<(), ds::RollbackTransError> {
-        self.conn.execute("ROLLBACK", params![]).to_ds_r()?;
+        self.conn.execute("ROLLBACK", params![]).into_ds_r()?;
         Ok(())
     }
 }
 
 impl Cache for SqliteCache {
-    fn raw_get<'a>(&'a self, key: &[u8]) -> Result<Option<Vec<u8>>, RawGetCacheError> {
+    fn raw_get(&self, key: &[u8]) -> Result<Option<Vec<u8>>, RawGetCacheError> {
         let results: Result<Option<Vec<u8>>, _> = self
             .conn
             .query_row("SELECT value FROM cache WHERE key=?", params![key], |row| {
@@ -134,16 +134,16 @@ impl Cache for SqliteCache {
             })
             .optional();
 
-        Ok(results.to_ds_r()?)
+        Ok(results.into_ds_r()?)
     }
 
-    fn raw_put<'a>(&'a self, key: &[u8], data: &[u8]) -> Result<(), RawPutCacheError> {
+    fn raw_put(&self, key: &[u8], data: &[u8]) -> Result<(), RawPutCacheError> {
         self.conn
             .execute(
                 "INSERT OR IGNORE INTO cache VALUES (?, ?)",
                 params![key, data],
             )
-            .to_ds_r()?;
+            .into_ds_r()?;
 
         Ok(())
     }

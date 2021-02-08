@@ -35,31 +35,31 @@ impl std::str::FromStr for Keyish {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         if s.contains('/') {
-            return parse_from_ref(s);
+            return Ok(parse_from_ref(s));
         } else {
             return parse_from_base32(s);
         }
 
-        fn parse_from_ref(s: &str) -> Result<Keyish, KeyishParseError> {
+        fn parse_from_ref(s: &str) -> Keyish {
             let idx = s
                 .find('/')
                 .expect("should only be called if s contains a /");
 
             if idx == 0 {
-                Ok(Keyish::Reflog {
+                Keyish::Reflog {
                     orig: s.to_string(),
                     keyname: s[1..].to_string(),
                     remote: None,
-                })
+                }
             } else {
                 let remote = &s[0..idx];
                 let keyname = &s[idx + 1..];
 
-                Ok(Keyish::Reflog {
+                Keyish::Reflog {
                     orig: s.to_string(),
                     keyname: keyname.to_string(),
                     remote: Some(remote.to_string()),
-                })
+                }
             }
         }
 

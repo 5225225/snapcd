@@ -59,18 +59,18 @@ impl<T> TypedKey<T> {
     }
 }
 
-impl<T> Into<TypedKey<T>> for Key {
-    fn into(self) -> TypedKey<T> {
+impl<T> From<Key> for TypedKey<T> {
+    fn from(key: Key) -> TypedKey<T> {
         TypedKey {
-            inner: self,
+            inner: key,
             _marker: std::marker::PhantomData,
         }
     }
 }
 
-impl<T> Into<Key> for TypedKey<T> {
-    fn into(self) -> Key {
-        self.inner
+impl<T> From<TypedKey<T>> for Key {
+    fn from(key: TypedKey<T>) -> Key {
+        key.inner
     }
 }
 

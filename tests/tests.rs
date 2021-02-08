@@ -61,7 +61,7 @@ proptest::proptest! {
     fn between_test(mut keys: HashSet<Vec<u8>>, start: Vec<u8>, end: Option<Vec<u8>>) {
         let ds = SqliteDS::new(":memory:").unwrap();
 
-        keys.retain(|x| x.len() > 0);
+        keys.retain(|x| !x.is_empty());
 
         for key in &keys {
             ds.raw_put(key, key).expect("failed to put key");

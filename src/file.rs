@@ -87,15 +87,11 @@ pub fn put_data<DS: DataStore, R: Read>(ds: &mut DS, mut data: R) -> Result<Key,
 
     if (0..4).all(|x| key_bufs[x].is_empty()) {
         // No chunks were made.
-        return Ok(ds.put_obj(&Object::FileBlob {
-            buf: current_chunk.clone(),
-        })?);
+        return Ok(ds.put_obj(&Object::FileBlob { buf: current_chunk })?);
     }
 
     if !current_chunk.is_empty() {
-        let key = ds.put_obj(&Object::FileBlob {
-            buf: current_chunk.clone(),
-        })?;
+        let key = ds.put_obj(&Object::FileBlob { buf: current_chunk })?;
         key_bufs[0].push(key);
     }
 
@@ -106,7 +102,7 @@ pub fn put_data<DS: DataStore, R: Read>(ds: &mut DS, mut data: R) -> Result<Key,
 
         if key_bufs[offset].len() == 1 && (1 + offset..4).all(|x| key_bufs[x].is_empty()) {
             // We know this is safe because key_bufs[offset] has exactly 1 element
-            #[allow(clippy::option_unwrap_used)]
+            #[allow(clippy::unwrap_used)]
             return Ok(key_bufs[offset].pop().unwrap());
         }
 
