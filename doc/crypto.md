@@ -69,3 +69,15 @@ Once we get that, we might as well verify that the data is what we expect
 keyed blake3 just like you did to generate the hash in the first place.
 
 If there's a mismatch *here*, then you have a bad client.
+
+> If there's a mismatch here, then you need to delete the object from the server and re-get it, somehow. 
+
+# reflog
+
+Unlike in git, the mapping from branch name to commit id is done through an actual log.
+
+The details of this ~~are~~ will be detailed in reflog.md, but here I'll spec out the crypto here.
+
+It's an append only log of packets. Each packet is encrypted similary to above, using the same algorithm.
+
+TODO: does this need to use a different key?
