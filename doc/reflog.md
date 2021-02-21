@@ -11,6 +11,8 @@ struct Reflog {
 
 struct Packet {
     updates: Vec<Update>,
+    parent: Option<Blake3Hash>,
+    is_squash: bool,
 }
 
 struct Update {

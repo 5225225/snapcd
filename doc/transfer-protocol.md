@@ -29,8 +29,6 @@ Uploads an object by id.
 
 Gets a single reflog item from the server.
 
-If this is the last item, also returns a reflog modify token.
-
 ## `POST /reflog/append/<token>`
 
 Appends an item to the reflog using this token.
