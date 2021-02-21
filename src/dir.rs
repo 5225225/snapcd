@@ -8,7 +8,7 @@ use thiserror::Error;
 #[derive(Debug, Error)]
 pub enum PutFsItemError {
     #[error("io error: {_0}")]
-    IOError(#[from] std::io::Error),
+    IoError(#[from] std::io::Error),
 
     #[error("error putting object")]
     PutObjError(#[from] ds::PutObjError),
@@ -46,7 +46,7 @@ pub fn put_fs_item<DS: DataStore>(
             }
         }
 
-        let obj = Object::FSItemDir { children: result };
+        let obj = Object::FsItemDir { children: result };
 
         return Ok(ds.put_obj(&obj)?);
     }
@@ -58,7 +58,7 @@ pub fn put_fs_item<DS: DataStore>(
 
         let hash = file::put_data(ds, reader)?;
 
-        let obj = Object::FSItemFile {
+        let obj = Object::FsItemFile {
             blob_tree: hash,
             size: meta.len(),
         };
@@ -72,7 +72,7 @@ pub fn put_fs_item<DS: DataStore>(
 #[derive(Debug, Error)]
 pub enum HashFsItemError {
     #[error("io error: {_0}")]
-    IOError(#[from] std::io::Error),
+    IoError(#[from] std::io::Error),
 
     #[error("put obj error: {_0}")]
     PutObjError(#[from] ds::PutObjError),
@@ -117,7 +117,7 @@ pub fn hash_fs_item<DS: DataStore, C: Cache>(
 
         let hash = file::put_data(ds, reader)?;
 
-        let obj = Object::FSItemFile {
+        let obj = Object::FsItemFile {
             blob_tree: hash,
             size: meta.len(),
         };
@@ -143,7 +143,7 @@ pub fn hash_fs_item<DS: DataStore, C: Cache>(
 #[derive(Debug, Error)]
 pub enum GetFsItemError {
     #[error("io error: {_0}")]
-    IOError(#[from] std::io::Error),
+    IoError(#[from] std::io::Error),
 
     #[error("get obj error: {_0}")]
     GetObjError(#[from] ds::GetObjError),
@@ -159,12 +159,12 @@ pub fn get_fs_item<DS: DataStore>(ds: &DS, key: Key, path: &Path) -> Result<(), 
     let obj = ds.get_obj(key)?;
 
     match obj {
-        Object::FSItemDir { children } => {
+        Object::FsItemDir { children } => {
             for (name, key) in children.iter() {
                 get_fs_item(ds, *key, &path.join(&name))?;
             }
         }
-        Object::FSItemFile { blob_tree, size: _ } => {
+        Object::FsItemFile { blob_tree, size: _ } => {
             if let Some(parent) = path.parent() {
                 std::fs::create_dir_all(parent)?;
             }
@@ -185,7 +185,7 @@ pub fn get_fs_item<DS: DataStore>(ds: &DS, key: Key, path: &Path) -> Result<(), 
 #[derive(Debug, Error)]
 pub enum CheckoutFsItemError {
     #[error("io error: {_0}")]
-    IOError(#[from] std::io::Error),
+    IoError(#[from] std::io::Error),
 
     #[error("get obj error: {_0}")]
     GetObjError(#[from] ds::GetObjError),
@@ -209,7 +209,7 @@ pub fn checkout_fs_item<DS: DataStore>(
     let obj = ds.get_obj(key)?;
 
     match obj {
-        Object::FSItemDir { children } => {
+        Object::FsItemDir { children } => {
             let db_items: HashSet<PathBuf> = children.iter().map(|x| x.0.clone()).collect();
 
             let mut fs_items = HashSet::new();
@@ -244,7 +244,7 @@ pub fn checkout_fs_item<DS: DataStore>(
                 checkout_fs_item(ds, *key, &path.join(&name), filter)?;
             }
         }
-        Object::FSItemFile { blob_tree, size: _ } => {
+        Object::FsItemFile { blob_tree, size: _ } => {
             let mut f = std::fs::File::create(path)?;
 
             assert!(path.starts_with("/home/jess/src/snapcd/repo"));
@@ -283,7 +283,7 @@ pub fn internal_walk_fs_items<DS: DataStore>(
     let obj = ds.get_obj(key)?;
 
     match obj {
-        Object::FSItemDir { children } => {
+        Object::FsItemDir { children } => {
             // Same as internal_walk_real_fs_items, we don't want to add an empty entry for the
             // root.
             if !path.as_os_str().is_empty() {
@@ -294,7 +294,7 @@ pub fn internal_walk_fs_items<DS: DataStore>(
                 results.extend(internal_walk_fs_items(ds, key, &path.join(&name))?);
             }
         }
-        Object::FSItemFile { size: _, blob_tree } => {
+        Object::FsItemFile { size: _, blob_tree } => {
             results.insert(path.to_path_buf(), (blob_tree, false));
         }
         _ => panic!("cannot handle this type"),
@@ -306,7 +306,7 @@ pub fn internal_walk_fs_items<DS: DataStore>(
 #[derive(Debug, Error)]
 pub enum WalkRealFsItemsError {
     #[error("io error: {_0}")]
-    IOError(#[from] std::io::Error),
+    IoError(#[from] std::io::Error),
 
     #[error("found unimplemented file type")]
     UnimplementedFileTypeFound,

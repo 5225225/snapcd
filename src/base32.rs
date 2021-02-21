@@ -5,11 +5,11 @@ use thiserror::Error;
 fn pop_u5_from_bitvec(x: &mut BitVec<Msb0, u8>) -> u8 {
     let mut v = 0;
 
-    v |= (*x.get(0).unwrap_or(&false) as u8) << 4;
-    v |= (*x.get(1).unwrap_or(&false) as u8) << 3;
-    v |= (*x.get(2).unwrap_or(&false) as u8) << 2;
-    v |= (*x.get(3).unwrap_or(&false) as u8) << 1;
-    v |= (*x.get(4).unwrap_or(&false) as u8) << 0;
+    v |= (*x.get(0).as_deref().unwrap_or(&false) as u8) << 4;
+    v |= (*x.get(1).as_deref().unwrap_or(&false) as u8) << 3;
+    v |= (*x.get(2).as_deref().unwrap_or(&false) as u8) << 2;
+    v |= (*x.get(3).as_deref().unwrap_or(&false) as u8) << 1;
+    v |= (*x.get(4).as_deref().unwrap_or(&false) as u8) << 0;
 
     for _ in 0..5 {
         if !x.is_empty() {
@@ -105,7 +105,7 @@ mod tests {
         fn round_trip_base32(bytes: Vec<u8>) {
             let b32 = to_base32(&bytes);
             let restored = from_base32(&b32, bytes.len() * 8).unwrap();
-            assert_eq!(restored.as_slice(), &*bytes);
+            assert_eq!(restored.as_raw_slice(), &*bytes);
         }
 
         #[test]

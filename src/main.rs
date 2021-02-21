@@ -4,7 +4,7 @@
 #![allow(clippy::needless_pass_by_value)]
 
 use snapcd::{
-    cache::SqliteCache, commit, dir, ds::sqlite::SqliteDS, ds::GetReflogError, ds::Transactional,
+    cache::SqliteCache, commit, dir, ds::sqlite::SqliteDs, ds::GetReflogError, ds::Transactional,
     filter, object::Object, DataStore, Keyish, Reflog,
 };
 
@@ -14,7 +14,7 @@ pub use thiserror::Error;
 use std::path::{Path, PathBuf};
 use structopt::StructOpt;
 
-type CMDResult = Result<(), anyhow::Error>;
+type CmdResult = Result<(), anyhow::Error>;
 
 use structopt::clap::AppSettings;
 
@@ -52,7 +52,7 @@ struct State {
 }
 
 struct DsState {
-    ds: SqliteDS,
+    ds: SqliteDs,
     db_folder_path: PathBuf,
     repo_path: PathBuf,
 }
@@ -224,7 +224,7 @@ struct DatabaseNotFoundError;
 )]
 struct NoHeadError;
 
-fn insert(state: &mut State, args: InsertArgs) -> CMDResult {
+fn insert(state: &mut State, args: InsertArgs) -> CmdResult {
     let ds_state = state.ds_state.as_mut().ok_or(DatabaseNotFoundError)?;
 
     let filter = filter::make_filter_fn(&state.common.exclude, ds_state.db_folder_path.clone());
@@ -236,7 +236,7 @@ fn insert(state: &mut State, args: InsertArgs) -> CMDResult {
     Ok(())
 }
 
-fn fetch(state: &mut State, args: FetchArgs) -> CMDResult {
+fn fetch(state: &mut State, args: FetchArgs) -> CmdResult {
     let ds_state = state.ds_state.as_ref().ok_or(DatabaseNotFoundError)?;
 
     let key = ds_state.ds.canonicalize(args.key)?;
@@ -246,7 +246,7 @@ fn fetch(state: &mut State, args: FetchArgs) -> CMDResult {
     Ok(())
 }
 
-fn debug(state: &mut State, args: DebugCommand) -> CMDResult {
+fn debug(state: &mut State, args: DebugCommand) -> CmdResult {
     match args {
         DebugCommand::PrettyPrint(args) => debug_pretty_print(state, args),
         DebugCommand::CommitTree(args) => debug_commit_tree(state, args),
@@ -259,7 +259,7 @@ fn debug(state: &mut State, args: DebugCommand) -> CMDResult {
     }
 }
 
-fn ref_log(state: &mut State, args: RefLogArgs) -> CMDResult {
+fn ref_log(state: &mut State, args: RefLogArgs) -> CmdResult {
     let ds_state = state.ds_state.as_ref().ok_or(DatabaseNotFoundError)?;
 
     let refname = match args.refname {
@@ -281,7 +281,7 @@ fn ref_log(state: &mut State, args: RefLogArgs) -> CMDResult {
     Ok(())
 }
 
-fn ref_update(state: &mut State, args: RefUpdateArgs) -> CMDResult {
+fn ref_update(state: &mut State, args: RefUpdateArgs) -> CmdResult {
     let ds_state = state.ds_state.as_mut().ok_or(DatabaseNotFoundError)?;
 
     let key = ds_state.ds.canonicalize(args.key)?;
@@ -302,14 +302,14 @@ fn ref_update(state: &mut State, args: RefUpdateArgs) -> CMDResult {
     Ok(())
 }
 
-fn ref_cmd(state: &mut State, args: RefCommand) -> CMDResult {
+fn ref_cmd(state: &mut State, args: RefCommand) -> CmdResult {
     match args {
         RefCommand::Log(args) => ref_log(state, args),
         RefCommand::Update(args) => ref_update(state, args),
     }
 }
 
-fn debug_set_head(state: &mut State, args: SetHeadArgs) -> CMDResult {
+fn debug_set_head(state: &mut State, args: SetHeadArgs) -> CmdResult {
     let ds_state = state.ds_state.as_mut().ok_or(DatabaseNotFoundError)?;
 
     ds_state.ds.put_head(&args.refname)?;
@@ -317,7 +317,7 @@ fn debug_set_head(state: &mut State, args: SetHeadArgs) -> CMDResult {
     Ok(())
 }
 
-fn debug_get_head(state: &mut State, _args: GetHeadArgs) -> CMDResult {
+fn debug_get_head(state: &mut State, _args: GetHeadArgs) -> CmdResult {
     let ds_state = state.ds_state.as_mut().ok_or(DatabaseNotFoundError)?;
 
     let head = ds_state.ds.get_head()?;
@@ -326,7 +326,7 @@ fn debug_get_head(state: &mut State, _args: GetHeadArgs) -> CMDResult {
     Ok(())
 }
 
-fn debug_walk_tree(state: &mut State, args: WalkTreeArgs) -> CMDResult {
+fn debug_walk_tree(state: &mut State, args: WalkTreeArgs) -> CmdResult {
     let ds_state = state.ds_state.as_mut().ok_or(DatabaseNotFoundError)?;
 
     let key = ds_state.ds.canonicalize(args.key)?;
@@ -340,7 +340,7 @@ fn debug_walk_tree(state: &mut State, args: WalkTreeArgs) -> CMDResult {
     Ok(())
 }
 
-fn debug_walk_fs_tree(_state: &mut State, args: WalkFsTreeArgs) -> CMDResult {
+fn debug_walk_fs_tree(_state: &mut State, args: WalkFsTreeArgs) -> CmdResult {
     let fs_items = dir::walk_real_fs_items(&args.path, &|_| true)?;
 
     for item in fs_items {
@@ -350,7 +350,7 @@ fn debug_walk_fs_tree(_state: &mut State, args: WalkFsTreeArgs) -> CMDResult {
     Ok(())
 }
 
-fn debug_pretty_print(state: &mut State, args: PrettyPrintArgs) -> CMDResult {
+fn debug_pretty_print(state: &mut State, args: PrettyPrintArgs) -> CmdResult {
     let ds_state = state.ds_state.as_mut().ok_or(DatabaseNotFoundError)?;
 
     let key = ds_state.ds.canonicalize(args.key)?;
@@ -362,7 +362,7 @@ fn debug_pretty_print(state: &mut State, args: PrettyPrintArgs) -> CMDResult {
     Ok(())
 }
 
-fn debug_commit_tree(state: &mut State, args: CommitTreeArgs) -> CMDResult {
+fn debug_commit_tree(state: &mut State, args: CommitTreeArgs) -> CmdResult {
     let ds_state = state.ds_state.as_mut().ok_or(DatabaseNotFoundError)?;
 
     let tree = ds_state.ds.canonicalize(args.tree)?;
@@ -383,7 +383,7 @@ fn debug_commit_tree(state: &mut State, args: CommitTreeArgs) -> CMDResult {
     Ok(())
 }
 
-fn debug_reflog_get(state: &mut State, args: ReflogGetArgs) -> CMDResult {
+fn debug_reflog_get(state: &mut State, args: ReflogGetArgs) -> CmdResult {
     let ds_state = state.ds_state.as_mut().ok_or(DatabaseNotFoundError)?;
 
     let key = ds_state
@@ -395,7 +395,7 @@ fn debug_reflog_get(state: &mut State, args: ReflogGetArgs) -> CMDResult {
     Ok(())
 }
 
-fn debug_reflog_push(state: &mut State, args: ReflogPushArgs) -> CMDResult {
+fn debug_reflog_push(state: &mut State, args: ReflogPushArgs) -> CmdResult {
     let ds_state = state.ds_state.as_mut().ok_or(DatabaseNotFoundError)?;
 
     let key = ds_state.ds.canonicalize(args.key)?;
@@ -432,16 +432,16 @@ fn find_db_folder(name: &Path) -> Result<Option<PathBuf>, anyhow::Error> {
     }
 }
 
-fn init(state: &mut State, _args: InitArgs) -> CMDResult {
+fn init(state: &mut State, _args: InitArgs) -> CmdResult {
     std::fs::create_dir_all(&state.common.db_path)?;
-    let ds = SqliteDS::new(&state.common.db_path.join("snapcd.db"))?;
+    let ds = SqliteDs::new(&state.common.db_path.join("snapcd.db"))?;
 
     ds.put_head("master")?;
 
     Ok(())
 }
 
-fn commit_cmd(state: &mut State, args: CommitArgs) -> CMDResult {
+fn commit_cmd(state: &mut State, args: CommitArgs) -> CmdResult {
     let ds_state = state.ds_state.as_mut().ok_or(DatabaseNotFoundError)?;
 
     let filter = filter::make_filter_fn(&state.common.exclude, ds_state.db_folder_path.clone());
@@ -500,7 +500,7 @@ fn setup_sqlite_callback() -> rusqlite::Result<()> {
     Ok(())
 }
 
-fn checkout(state: &mut State, _args: CheckoutArgs) -> CMDResult {
+fn checkout(state: &mut State, _args: CheckoutArgs) -> CmdResult {
     let ds_state = state.ds_state.as_ref().ok_or(DatabaseNotFoundError)?;
 
     let reflog = ds_state.ds.get_head()?.ok_or(NoHeadError)?;
@@ -520,7 +520,7 @@ fn checkout(state: &mut State, _args: CheckoutArgs) -> CMDResult {
 fn setup_logging(#[allow(unused_variables)] level: u64) {
     #[cfg(feature = "logging")]
     {
-        use simplelog::{LevelFilter, TermLogError, TerminalMode};
+        use simplelog::{LevelFilter, TerminalMode};
 
         let filter = match level {
             0 => LevelFilter::Warn,
@@ -536,14 +536,14 @@ fn setup_logging(#[allow(unused_variables)] level: u64) {
 
         match simplelog::TermLogger::init(filter, log_config, TerminalMode::Stderr) {
             Ok(()) => {}
-            Err(TermLogError::SetLogger(_)) => {
-                panic!("logger has been already set, this is a bug.")
+            Err(err) => {
+                panic!("{}: logger has been already set, this is a bug.", err)
             }
         }
     }
 }
 
-fn main() -> CMDResult {
+fn main() -> CmdResult {
     let opt = Opt::from_args();
 
     setup_logging(opt.common.verbosity);
@@ -560,7 +560,7 @@ fn main() -> CMDResult {
                 .expect("failed to get parent of db folder?")
                 .into();
 
-            let ds = SqliteDS::new(x.join("snapcd.db"))?;
+            let ds = SqliteDs::new(x.join("snapcd.db"))?;
 
             Some(DsState {
                 db_folder_path,

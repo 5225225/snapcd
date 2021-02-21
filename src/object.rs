@@ -16,10 +16,10 @@ pub enum Object {
         parents: Vec<Key>, // Commit
         attrs: CommitAttrs,
     },
-    FSItemDir {
+    FsItemDir {
         children: Vec<(PathBuf, Key)>,
     },
-    FSItemFile {
+    FsItemFile {
         size: u64,
         blob_tree: Key, // this is either FileBlobTree or a FileBlob
     },

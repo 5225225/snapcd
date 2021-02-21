@@ -1,7 +1,7 @@
 use rand::prelude::*;
 use rand_chacha::ChaChaRng;
 use snapcd::file::{put_data, read_data};
-use snapcd::{ds::sqlite::SqliteDS, DataStore};
+use snapcd::{ds::sqlite::SqliteDs, DataStore};
 use std::collections::HashSet;
 use std::io::{Read, Write};
 
@@ -18,7 +18,7 @@ fn internal_test<T: DataStore, F: FnMut() -> T>(
 
         let mut test_vector = Vec::new();
 
-        test_vector.resize(rng.gen_range(1, size_upper_bound), 0);
+        test_vector.resize(rng.gen_range(1..size_upper_bound), 0);
 
         rng.fill(&mut test_vector[..]);
 
@@ -37,7 +37,7 @@ fn internal_test<T: DataStore, F: FnMut() -> T>(
 
 #[test]
 fn data_round_trip_test() {
-    let mut sqlite_ds = || SqliteDS::new(":memory:").unwrap();
+    let mut sqlite_ds = || SqliteDs::new(":memory:").unwrap();
 
     internal_test(&mut sqlite_ds, 1 << 20, 0, 8);
     internal_test(&mut sqlite_ds, 1 << 14, 8, 64);
@@ -47,7 +47,7 @@ fn data_round_trip_test() {
 proptest::proptest! {
     #[test]
     fn identity_read_write(value: Vec<u8>) {
-        let mut ds = SqliteDS::new(":memory:").unwrap();
+        let mut ds = SqliteDs::new(":memory:").unwrap();
 
         let key = put_data(&mut ds, &value[..]).unwrap();
 
@@ -60,7 +60,7 @@ proptest::proptest! {
 
     #[test]
     fn between_test(mut keys: HashSet<Vec<u8>>, start: Vec<u8>, end: Option<Vec<u8>>) {
-        let ds = SqliteDS::new(":memory:").unwrap();
+        let ds = SqliteDs::new(":memory:").unwrap();
 
         keys.retain(|x| !x.is_empty());
 
@@ -83,7 +83,7 @@ proptest::proptest! {
     // full key must be able to be canonicalized back into the original key
     #[test]
     fn keyish_truncation(value: u64) {
-        let sqlite_ds = SqliteDS::new(":memory:").unwrap();
+        let sqlite_ds = SqliteDs::new(":memory:").unwrap();
         let blob = value.to_ne_bytes().to_vec();
         let key = sqlite_ds.put(blob).unwrap();
 
@@ -113,7 +113,7 @@ fn file_round_trip_test() {
     v.resize_with(fastrand::usize(0..1_000_000), || fastrand::u8(..));
     input_file.write_all(&v).unwrap();
 
-    let mut sqlite_ds = SqliteDS::new(":memory:").unwrap();
+    let mut sqlite_ds = SqliteDs::new(":memory:").unwrap();
 
     let hash = snapcd::dir::put_fs_item(&mut sqlite_ds, &input_file_name, &|_| true).unwrap();
 

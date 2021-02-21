@@ -8,11 +8,11 @@ use crate::Reflog;
 use std::borrow::Cow;
 
 #[derive(Debug)]
-pub struct NullDS;
+pub struct NullDs;
 
-impl ds::Transactional for NullDS {}
+impl ds::Transactional for NullDs {}
 
-impl crate::DataStore for NullDS {
+impl crate::DataStore for NullDs {
     fn raw_get<'a>(&'a self, _key: &[u8]) -> Result<Cow<'a, [u8]>, RawGetError> {
         unimplemented!("null datastore, no data")
     }

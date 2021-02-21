@@ -9,7 +9,7 @@ pub enum PutDataError {
     PutObjError(#[from] ds::PutObjError),
 
     #[error("io error: {_0}")]
-    IOError(#[from] std::io::Error),
+    IoError(#[from] std::io::Error),
 }
 
 pub fn put_data<DS: DataStore, R: Read>(ds: &mut DS, mut data: R) -> Result<Key, PutDataError> {
@@ -120,7 +120,7 @@ pub enum ReadDataError {
     GetObjError(#[from] ds::GetObjError),
 
     #[error("io error: {_0}")]
-    IOError(#[from] std::io::Error),
+    IoError(#[from] std::io::Error),
 }
 
 pub fn read_data<DS: DataStore, W: Write>(
@@ -139,7 +139,7 @@ pub fn read_data<DS: DataStore, W: Write>(
         Object::FileBlob { buf } => {
             to.write_all(&buf)?;
         }
-        Object::FSItemFile { blob_tree, .. } => {
+        Object::FsItemFile { blob_tree, .. } => {
             read_data(ds, blob_tree, to)?;
         }
         _ => {

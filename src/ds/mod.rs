@@ -47,31 +47,31 @@ pub enum GetReflogError {
     FromDbKeyError(#[from] key::FromDbKeyError),
 
     #[error(transparent)]
-    DSerror(#[from] DSError),
+    DSerror(#[from] DsError),
 }
 
 #[derive(Debug, Error)]
-pub enum DSError {
+pub enum DsError {
     #[error("sqlite error: {_0}")]
     SqliteError(#[from] rusqlite::Error),
 }
 
-pub trait ToDSError {
-    fn into_ds_e(self) -> DSError;
+pub trait ToDsError {
+    fn into_ds_e(self) -> DsError;
 }
 
-pub trait ToDSErrorResult<T> {
-    fn into_ds_r(self) -> Result<T, DSError>;
+pub trait ToDsErrorResult<T> {
+    fn into_ds_r(self) -> Result<T, DsError>;
 }
 
-impl<T: Into<DSError>> ToDSError for T {
-    fn into_ds_e(self) -> DSError {
+impl<T: Into<DsError>> ToDsError for T {
+    fn into_ds_e(self) -> DsError {
         self.into()
     }
 }
 
-impl<T, E: ToDSError> ToDSErrorResult<T> for Result<T, E> {
-    fn into_ds_r(self) -> Result<T, DSError> {
+impl<T, E: ToDsError> ToDsErrorResult<T> for Result<T, E> {
+    fn into_ds_r(self) -> Result<T, DsError> {
         self.map_err(|x| x.into_ds_e())
     }
 }
@@ -79,70 +79,70 @@ impl<T, E: ToDSError> ToDSErrorResult<T> for Result<T, E> {
 #[derive(Debug, Error)]
 pub enum BeginTransError {
     #[error(transparent)]
-    DSerror(#[from] DSError),
+    DsError(#[from] DsError),
 }
 
 #[derive(Debug, Error)]
 pub enum RollbackTransError {
     #[error(transparent)]
-    DSerror(#[from] DSError),
+    DSerror(#[from] DsError),
 }
 
 #[derive(Debug, Error)]
 pub enum CommitTransError {
     #[error(transparent)]
-    DSerror(#[from] DSError),
+    DSerror(#[from] DsError),
 }
 
 #[derive(Debug, Error)]
 pub enum RawGetError {
     #[error(transparent)]
-    DSerror(#[from] DSError),
+    DSerror(#[from] DsError),
 }
 
 #[derive(Debug, Error)]
 pub enum RawPutError {
     #[error(transparent)]
-    DSerror(#[from] DSError),
+    DSerror(#[from] DsError),
 }
 
 #[derive(Debug, Error)]
 pub enum RawExistsError {
     #[error(transparent)]
-    DSerror(#[from] DSError),
+    DSerror(#[from] DsError),
 }
 
 #[derive(Debug, Error)]
 pub enum RawGetStateError {
     #[error(transparent)]
-    DSerror(#[from] DSError),
+    DSerror(#[from] DsError),
 }
 
 #[derive(Debug, Error)]
 pub enum RawPutStateError {
     #[error(transparent)]
-    DSerror(#[from] DSError),
+    DSerror(#[from] DsError),
 }
 
 #[derive(Debug, Error)]
 pub enum ReflogPushError {
     #[error(transparent)]
-    DSerror(#[from] DSError),
+    DSerror(#[from] DsError),
 }
 #[derive(Debug, Error)]
 pub enum RawBetweenError {
     #[error(transparent)]
-    DSerror(#[from] DSError),
+    DSerror(#[from] DsError),
 }
 #[derive(Debug, Error)]
 pub enum RawGetHeadError {
     #[error(transparent)]
-    DSerror(#[from] DSError),
+    DSerror(#[from] DsError),
 }
 #[derive(Debug, Error)]
 pub enum RawPutHeadError {
     #[error(transparent)]
-    DSerror(#[from] DSError),
+    DSerror(#[from] DsError),
 }
 
 #[derive(Debug, Error)]
@@ -303,5 +303,5 @@ pub enum WalkReflogError {
     FromDbKeyError(#[from] key::FromDbKeyError),
 
     #[error(transparent)]
-    DSerror(#[from] DSError),
+    DSerror(#[from] DsError),
 }

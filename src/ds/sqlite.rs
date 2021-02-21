@@ -10,13 +10,13 @@ use crate::ds::{
     RawGetError, RawGetStateError, RawPutError, RawPutStateError, ReflogPushError,
     RollbackTransError, WalkReflogError,
 };
-use crate::ds::{ToDSError, ToDSErrorResult};
+use crate::ds::{ToDsError, ToDsErrorResult};
 use crate::key::Key;
 use crate::Reflog;
 use thiserror::Error;
 
 #[derive(Debug)]
-pub struct SqliteDS {
+pub struct SqliteDs {
     conn: rusqlite::Connection,
 }
 
@@ -26,7 +26,7 @@ pub enum NewSqliteError {
     SqliteError(#[from] rusqlite::Error),
 }
 
-impl SqliteDS {
+impl SqliteDs {
     pub fn new<S: AsRef<Path>>(path: S) -> Result<Self, NewSqliteError> {
         let conn = rusqlite::Connection::open(path)?;
 
@@ -59,7 +59,7 @@ impl SqliteDS {
     }
 }
 
-impl ds::Transactional for SqliteDS {
+impl ds::Transactional for SqliteDs {
     fn begin_trans(&mut self) -> Result<(), BeginTransError> {
         self.conn
             .execute("BEGIN TRANSACTION", params![])
@@ -80,7 +80,7 @@ impl ds::Transactional for SqliteDS {
     }
 }
 
-impl DataStore for SqliteDS {
+impl DataStore for SqliteDs {
     fn reflog_get(&self, refname: &str, remote: Option<&str>) -> Result<Key, GetReflogError> {
         log::trace!("reflog_get({:?}, {:?})", refname, remote);
 

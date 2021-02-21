@@ -1,4 +1,4 @@
-use crate::ds::ToDSErrorResult;
+use crate::ds::ToDsErrorResult;
 use rusqlite::{params, OptionalExtension};
 use std::path::Path;
 use thiserror::Error;
@@ -15,13 +15,13 @@ pub struct CacheKey {
 #[derive(Debug, Error)]
 pub enum RawGetCacheError {
     #[error("data store error: {_0}")]
-    DSError(#[from] ds::DSError),
+    DsError(#[from] ds::DsError),
 }
 
 #[derive(Debug, Error)]
 pub enum RawPutCacheError {
     #[error("data store error: {_0}")]
-    DSError(#[from] ds::DSError),
+    DsError(#[from] ds::DsError),
 }
 
 #[derive(Debug, Error)]
