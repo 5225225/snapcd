@@ -1,3 +1,4 @@
+use proptest::prelude::*;
 use rand::prelude::*;
 use rand_chacha::ChaChaRng;
 use snapcd::file::{put_data, read_data};
@@ -44,7 +45,7 @@ fn data_round_trip_test() {
     internal_test(&mut sqlite_ds, 1 << 10, 64, 128);
 }
 
-proptest::proptest! {
+proptest! {
     #[test]
     fn identity_read_write(value: Vec<u8>) {
         let mut ds = SqliteDs::new(":memory:").unwrap();
@@ -96,10 +97,41 @@ proptest::proptest! {
             assert_eq!(sqlite_ds.canonicalize(keyish).unwrap(), key);
         }
     }
+}
 
-    // TODO: write test for multiple keys existing
-    // there must be *some* valid prefix (and once it exists, all suffixes afterwards must be
-    // correct and find just that one key)
+proptest! {
+    // this is a slower test but still good to run
+    #![proptest_config(ProptestConfig::with_cases(32))]
+    #[test]
+    fn keyishes_truncation(mut values: HashSet<u64>) {
+        let sqlite_ds = SqliteDs::new(":memory:").unwrap();
+
+        for value in &values {
+            let blob = value.to_ne_bytes().to_vec();
+            let key = sqlite_ds.put(blob).unwrap();
+            let keystr = key.to_string();
+
+            let mut found = false;
+
+            for chopped in 2..keystr.len() {
+                let s = &keystr[..chopped];
+
+                let keyish: snapcd::keyish::Keyish = s.parse().unwrap();
+                use snapcd::ds::CanonicalizeError;
+                match sqlite_ds.canonicalize(keyish) {
+                    Ok(k) => {
+                        assert_eq!(k, key);
+                        found = true;
+                    },
+                    Err(CanonicalizeError::Ambigious(_input, cands)) => {
+                        assert_eq!(found, false);
+                        assert!(cands.contains(&key));
+                    },
+                    Err(e) => panic!("other error: {}", e),
+                }
+            }
+        }
+    }
 }
 
 #[test]
