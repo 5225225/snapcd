@@ -50,6 +50,7 @@ pub mod filter;
 pub mod key;
 pub mod keyish;
 pub mod object;
+pub mod crypto;
 
 pub use ds::DataStore;
 pub use ds::{GetReflogError, Reflog, WalkReflogError};
