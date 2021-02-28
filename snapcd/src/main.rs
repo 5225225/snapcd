@@ -563,8 +563,8 @@ fn main() -> CmdResult {
             let ds = SqliteDs::new(x.join("snapcd.db"))?;
 
             Some(DsState {
-                db_folder_path,
                 ds,
+                db_folder_path,
                 repo_path,
             })
         }
