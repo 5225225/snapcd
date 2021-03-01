@@ -216,8 +216,6 @@ pub trait DataStore: Transactional {
     fn get_head(&self) -> Result<Option<String>, GetHeadError> {
         let bytes = self.raw_get_state(b"HEAD")?;
 
-        // https://github.com/rust-lang/rust-clippy/issues/6795
-        #[allow(clippy::manual_map)]
         Ok(match bytes {
             Some(b) => Some(String::from_utf8(b)?),
             None => None,
