@@ -188,7 +188,9 @@ static_assertions::assert_obj_safe!(DataStore);
 pub trait DataStore: Transactional {
     fn raw_get<'a>(&'a self, key: &[u8]) -> Result<Cow<'a, [u8]>, RawGetError>;
     fn raw_put<'a>(&'a self, key: &[u8], data: &[u8]) -> Result<(), RawPutError>;
-    fn get_repokey(&self) -> &crate::crypto::RepoKey;
+
+    fn get_encryption_key(&self) -> &crate::crypto::EncryptionKey;
+    fn get_gearhash_table(&self) -> &crate::crypto::GearHashTable;
 
     fn raw_exists(&self, key: &[u8]) -> Result<bool, RawExistsError>;
 
@@ -196,7 +198,7 @@ pub trait DataStore: Transactional {
     fn raw_put_state(&self, key: &[u8], data: &[u8]) -> Result<(), RawPutStateError>;
 
     fn get(&self, key: key::Key) -> Result<Cow<'_, [u8]>, RawGetError> {
-        let crypto_key = self.get_repokey().derive_encryption_key();
+        let crypto_key = self.get_encryption_key();
 
         let results = self.raw_get(&key.as_db_key())?;
         let plaintext = crypto_key.decrypt(&results);
@@ -210,7 +212,7 @@ pub trait DataStore: Transactional {
     }
 
     fn put(&self, data: Vec<u8>) -> Result<key::Key, RawPutError> {
-        let crypto_key = self.get_repokey().derive_encryption_key();
+        let crypto_key = self.get_encryption_key();
         let encrypted_data = crypto_key.encrypt(&data);
         let keybuf = self.hash(&encrypted_data);
 

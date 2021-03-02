@@ -9,11 +9,21 @@ use crate::Reflog;
 use std::borrow::Cow;
 
 #[derive(Debug)]
-pub struct NullDs(crypto::RepoKey);
+pub struct NullDs {
+    encryption_key: crypto::EncryptionKey,
+    gearhash_table: crypto::GearHashTable,
+}
 
 impl NullDs {
     pub fn new() -> Self {
-        NullDs(crypto::RepoKey::zero_key())
+        let zk = crypto::RepoKey::zero_key();
+        let encryption_key = zk.derive_encryption_key();
+        let gearhash_table = zk.derive_gearhash_table();
+
+        NullDs {
+            encryption_key,
+            gearhash_table,
+        }
     }
 }
 
@@ -26,8 +36,12 @@ impl Default for NullDs {
 impl ds::Transactional for NullDs {}
 
 impl crate::DataStore for NullDs {
-    fn get_repokey(&self) -> &crate::crypto::RepoKey {
-        &self.0
+    fn get_encryption_key(&self) -> &crypto::EncryptionKey {
+        &self.encryption_key
+    }
+
+    fn get_gearhash_table(&self) -> &crypto::GearHashTable {
+        &self.gearhash_table
     }
 
     fn raw_get<'a>(&'a self, _key: &[u8]) -> Result<Cow<'a, [u8]>, RawGetError> {

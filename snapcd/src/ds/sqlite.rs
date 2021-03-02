@@ -19,7 +19,8 @@ use thiserror::Error;
 #[derive(Debug)]
 pub struct SqliteDs {
     conn: rusqlite::Connection,
-    key: crypto::RepoKey,
+    encryption_key: crypto::EncryptionKey,
+    gearhash_table: crypto::GearHashTable,
 }
 
 #[derive(Debug, Error)]
@@ -57,9 +58,14 @@ impl SqliteDs {
         ",
         )?;
 
+        let zk = crypto::RepoKey::zero_key();
+        let encryption_key = zk.derive_encryption_key();
+        let gearhash_table = zk.derive_gearhash_table();
+
         Ok(Self {
             conn,
-            key: crypto::RepoKey::zero_key(),
+            encryption_key,
+            gearhash_table,
         })
     }
 }
@@ -86,8 +92,12 @@ impl ds::Transactional for SqliteDs {
 }
 
 impl DataStore for SqliteDs {
-    fn get_repokey(&self) -> &crypto::RepoKey {
-        &self.key
+    fn get_encryption_key(&self) -> &crypto::EncryptionKey {
+        &self.encryption_key
+    }
+
+    fn get_gearhash_table(&self) -> &crypto::GearHashTable {
+        &self.gearhash_table
     }
 
     fn reflog_get(&self, refname: &str, remote: Option<&str>) -> Result<Key, GetReflogError> {

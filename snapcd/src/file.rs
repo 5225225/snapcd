@@ -19,7 +19,7 @@ pub fn put_data<DS: DataStore, R: Read>(ds: &mut DS, mut data: R) -> Result<Key,
     let mut chunk_buffer: Vec<u8> = Vec::new();
     let mut current_chunk = Vec::new();
 
-    let table = ds.get_repokey().derive_gearhash_table();
+    let table = ds.get_gearhash_table();
 
     let mut hasher = gearhash::Hasher::new(&table.0);
 
