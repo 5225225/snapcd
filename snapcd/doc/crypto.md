@@ -13,7 +13,6 @@ The server is unable to change any client data without detection. Any attempt
 to do so will result in an error when the data is read. The server rolling back
 data to a previously valid state *is* possible.
 
-
 # Crypto
 
 Servers should not be able to know what data they are storing (even if the data is controlled by the server).

@@ -4,6 +4,7 @@ use rusqlite::params;
 use rusqlite::OptionalExtension;
 use std::borrow::Cow;
 
+use crate::crypto;
 use crate::ds;
 use crate::ds::{
     BeginTransError, CommitTransError, DataStore, GetReflogError, RawBetweenError, RawExistsError,
@@ -18,6 +19,7 @@ use thiserror::Error;
 #[derive(Debug)]
 pub struct SqliteDs {
     conn: rusqlite::Connection,
+    key: crypto::RepoKey,
 }
 
 #[derive(Debug, Error)]
@@ -55,7 +57,10 @@ impl SqliteDs {
         ",
         )?;
 
-        Ok(Self { conn })
+        Ok(Self {
+            conn,
+            key: crypto::RepoKey::zero_key(),
+        })
     }
 }
 
@@ -81,6 +86,10 @@ impl ds::Transactional for SqliteDs {
 }
 
 impl DataStore for SqliteDs {
+    fn get_repokey(&self) -> &crypto::RepoKey {
+        &self.key
+    }
+
     fn reflog_get(&self, refname: &str, remote: Option<&str>) -> Result<Key, GetReflogError> {
         log::trace!("reflog_get({:?}, {:?})", refname, remote);
 

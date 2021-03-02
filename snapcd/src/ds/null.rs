@@ -1,3 +1,4 @@
+use crate::crypto;
 use crate::ds;
 use crate::ds::{
     GetReflogError, RawBetweenError, RawExistsError, RawGetError, RawGetStateError, RawPutError,
@@ -8,11 +9,27 @@ use crate::Reflog;
 use std::borrow::Cow;
 
 #[derive(Debug)]
-pub struct NullDs;
+pub struct NullDs(crypto::RepoKey);
+
+impl NullDs {
+    pub fn new() -> Self {
+        NullDs(crypto::RepoKey::zero_key())
+    }
+}
+
+impl Default for NullDs {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl ds::Transactional for NullDs {}
 
 impl crate::DataStore for NullDs {
+    fn get_repokey(&self) -> &crate::crypto::RepoKey {
+        &self.0
+    }
+
     fn raw_get<'a>(&'a self, _key: &[u8]) -> Result<Cow<'a, [u8]>, RawGetError> {
         unimplemented!("null datastore, no data")
     }
