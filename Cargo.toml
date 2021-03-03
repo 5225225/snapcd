@@ -2,6 +2,7 @@
 
 members = [
     "snapcd",
+    "snapcdd",
 ]
 
 [profile.release]
