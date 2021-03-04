@@ -7,73 +7,6 @@ pub enum Key {
     Blake3B([u8; 32]),
 }
 
-#[derive(serde::Serialize, serde::Deserialize)]
-pub struct TypedKey<T> {
-    inner: Key,
-
-    #[serde(skip)]
-    _marker: std::marker::PhantomData<T>,
-}
-
-impl<T> std::fmt::Debug for TypedKey<T> {
-    fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
-        self.inner.fmt(fmt)
-    }
-}
-impl<T> Clone for TypedKey<T> {
-    fn clone(&self) -> Self {
-        *self
-    }
-}
-impl<T> PartialEq for TypedKey<T> {
-    fn eq(&self, other: &Self) -> bool {
-        self.inner.eq(&other.inner)
-    }
-}
-impl<T> Eq for TypedKey<T> {}
-
-impl<T> PartialOrd for TypedKey<T> {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        self.inner.partial_cmp(&other.inner)
-    }
-}
-impl<T> Ord for TypedKey<T> {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.inner.cmp(&other.inner)
-    }
-}
-
-impl<T> std::hash::Hash for TypedKey<T> {
-    fn hash<H>(&self, state: &mut H)
-    where
-        H: std::hash::Hasher,
-    {
-        self.inner.hash(state)
-    }
-}
-impl<T> Copy for TypedKey<T> {}
-
-impl<T> TypedKey<T> {
-    pub fn inner(&self) -> Key {
-        self.inner
-    }
-}
-
-impl<T> From<Key> for TypedKey<T> {
-    fn from(key: Key) -> TypedKey<T> {
-        TypedKey {
-            inner: key,
-            _marker: std::marker::PhantomData,
-        }
-    }
-}
-
-impl<T> From<TypedKey<T>> for Key {
-    fn from(key: TypedKey<T>) -> Key {
-        key.inner
-    }
-}
-
 #[derive(Debug, Error)]
 pub enum FromDbKeyError {
     #[error("Unknown hash id {_0}")]
@@ -162,12 +95,6 @@ impl Key {
 impl std::fmt::Display for Key {
     fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
         fmt.write_str(&self.as_user_key())
-    }
-}
-
-impl<T> std::fmt::Display for TypedKey<T> {
-    fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
-        fmt.write_str(&self.inner.as_user_key())
     }
 }
 
