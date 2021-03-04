@@ -1,6 +1,6 @@
-#![feature(proc_macro_hygiene, decl_macro)]
+#![allow(clippy::unit_arg)]
 
-#[macro_use] extern crate rocket;
+use rocket::{get, put, routes};
 
 #[get("/protocol_versions")]
 fn protocol_versions() -> &'static str {
@@ -9,12 +9,19 @@ fn protocol_versions() -> &'static str {
 
 #[get("/v1/object/by-id/<id>")]
 fn get_object(id: String) {
+    dbg!(&id);
 }
 
-#[put("/v1/object/by-id/<id>", data="<data>")]
+#[put("/v1/object/by-id/<id>", data = "<data>")]
 fn put_object(id: String, data: Vec<u8>) {
+    dbg!(&id, &data);
 }
 
-fn main() {
-    rocket::ignite().mount("/", routes![protocol_versions, get_object, put_object]).launch();
+#[tokio::main]
+async fn main() {
+    rocket::ignite()
+        .mount("/", routes![protocol_versions, get_object, put_object])
+        .launch()
+        .await
+        .expect("failed to launch");
 }
