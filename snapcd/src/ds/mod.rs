@@ -250,16 +250,13 @@ pub trait DataStore: Transactional {
     ) -> Result<Vec<Vec<u8>>, RawBetweenError>;
 
     fn canonicalize(&self, search: Keyish) -> Result<key::Key, CanonicalizeError> {
-        let mut results: Vec<Vec<u8>> = Vec::new();
+        let mut results: Vec<Vec<u8>>;
 
         let err_str;
 
         match search {
-            Keyish::Key(s, key) => {
-                err_str = s;
-
-                let k = self.raw_get(&key).unwrap();
-                results.push(k.to_vec());
+            Keyish::Key(_s, key) => {
+                return Ok(key::Key::from_db_key(&key).unwrap());
             }
             Keyish::Range(s, start, end) => {
                 err_str = s;
