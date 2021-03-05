@@ -2,11 +2,11 @@ kind: pipeline
 name: default
 
 steps:
-  - name: test
+  - name: rustfmt
     image: rust:latest
     commands:
-    - cargo build --verbose --all
-    - cargo test --verbose --all
+    - rustup component add rustfmt
+    - cargo fmt --all -- --check
 
   - name: clippy
     image: rust:latest
@@ -14,9 +14,9 @@ steps:
     - rustup component add clippy
     - cargo clippy --all-targets --all-features -- -D warnings
 
-  - name: rustfmt
+  - name: test
     image: rust:latest
     commands:
-    - rustup component add rustfmt
-    - cargo fmt --all -- --check
+    - cargo build --verbose --all
+    - cargo test --verbose --all
 
