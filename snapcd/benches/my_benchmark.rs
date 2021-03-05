@@ -79,11 +79,9 @@ fn aes_gcm_siv_encrypt(bench: &mut Criterion) {
     let enc = key.derive_encryption_key();
 
     g.bench_function("aes-gcm-siv-encrypt", |b| {
-        b.iter(
-            || {
-                enc.encrypt(&buf);
-            },
-        )
+        b.iter(|| {
+            enc.encrypt(&buf);
+        })
     });
 
     g.finish();
@@ -96,9 +94,6 @@ criterion_group!(
 );
 criterion_group!(null, perf_test_32B_null, perf_test_4MB_null);
 
-criterion_group!(
-    crypto,
-    aes_gcm_siv_encrypt
-);
+criterion_group!(crypto, aes_gcm_siv_encrypt);
 
 criterion_main!(sqlite, null, crypto);
