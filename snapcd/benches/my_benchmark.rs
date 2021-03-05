@@ -64,6 +64,31 @@ fn perf_test_4MB_null(bench: &mut Criterion) {
     inner_bench(&ctor, bench, 1 << 22, "put-data-4MB-null");
 }
 
+#[allow(non_snake_case)]
+fn aes_gcm_siv_encrypt(bench: &mut Criterion) {
+    let rng: Box<dyn RngCore> = Box::new(ChaChaRng::seed_from_u64(1));
+    let mut sample_data = rng.take(8192);
+    let mut buf = Vec::new();
+    io::copy(&mut sample_data, &mut buf).unwrap();
+
+    let mut g = bench.benchmark_group("crypto");
+
+    g.throughput(Throughput::Bytes(8192));
+
+    let key = snapcd::crypto::RepoKey::generate();
+    let enc = key.derive_encryption_key();
+
+    g.bench_function("aes-gcm-siv-encrypt", |b| {
+        b.iter(
+            || {
+                enc.encrypt(&buf);
+            },
+        )
+    });
+
+    g.finish();
+}
+
 criterion_group!(
     sqlite,
     perf_test_32B_sqlite_memory,
@@ -71,4 +96,9 @@ criterion_group!(
 );
 criterion_group!(null, perf_test_32B_null, perf_test_4MB_null);
 
-criterion_main!(sqlite, null);
+criterion_group!(
+    crypto,
+    aes_gcm_siv_encrypt
+);
+
+criterion_main!(sqlite, null, crypto);

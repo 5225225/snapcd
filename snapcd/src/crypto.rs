@@ -11,7 +11,7 @@ impl std::fmt::Debug for RepoKey {
     }
 }
 
-pub struct EncryptionKey([u8; 32]);
+pub struct EncryptionKey(Aes256GcmSiv);
 
 impl std::fmt::Debug for EncryptionKey {
     fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
@@ -43,7 +43,8 @@ impl RepoKey {
             &self.0,
             &mut output,
         );
-        EncryptionKey(output)
+
+        EncryptionKey(Aes256GcmSiv::new(&output.into()))
     }
 
     pub fn derive_gearhash_table(&self) -> GearHashTable {
@@ -70,17 +71,13 @@ const NONCE: [u8; 12] = [0_u8; 12_usize];
 
 impl EncryptionKey {
     pub fn encrypt(&self, data: &[u8]) -> Vec<u8> {
-        let cipher = Aes256GcmSiv::new(&self.0.into());
-
-        cipher
+        self.0
             .encrypt(&NONCE.into(), data)
             .expect("encryption failure!")
     }
 
     pub fn decrypt(&self, data: &[u8]) -> Vec<u8> {
-        let cipher = Aes256GcmSiv::new(&self.0.into());
-
-        cipher
+        self.0
             .decrypt(&NONCE.into(), data)
             .expect("decryption failure!")
     }
