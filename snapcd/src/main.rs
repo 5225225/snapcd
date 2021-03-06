@@ -3,23 +3,18 @@
 // I don't care.
 #![allow(clippy::needless_pass_by_value)]
 
-use snapcd::{
-    cache::SqliteCache, dir, ds::sqlite::SqliteDs, ds::GetReflogError, ds::Transactional,
-    filter, object::Object, DataStore, Keyish, Reflog,
-};
+use snapcd::{cache::SqliteCache, ds::sqlite::SqliteDs, ds::Transactional, Keyish};
 
-use snapcd::cmd::common::{State, Command, DsState, Opt};
-use snapcd::cmd::{insert, fetch, debug, init, commit, checkout, reflog};
+use snapcd::cmd::{DsState, Opt, State};
 
-use colored::*;
+use snapcd::cmd::CommandTrait;
+
 pub use thiserror::Error;
 
 use std::path::{Path, PathBuf};
 use structopt::StructOpt;
 
 type CmdResult = Result<(), anyhow::Error>;
-
-use structopt::clap::AppSettings;
 
 #[derive(StructOpt, Debug)]
 struct CheckoutHeadArgs {
@@ -179,15 +174,7 @@ fn main() -> CmdResult {
     state.ds_state.as_mut().map(|x| x.ds.begin_trans());
     state.cache.begin_trans()?;
 
-    let result = match opt.cmd {
-        Command::Insert(args) => insert::insert(&mut state, args),
-        Command::Fetch(args) => fetch::fetch(&mut state, args),
-        Command::Debug(args) => debug::debug(&mut state, args),
-        Command::Init(args) => init::init(&mut state, args),
-        Command::Commit(args) => commit::commit_cmd(&mut state, args),
-        Command::Checkout(args) => checkout::checkout(&mut state, args),
-        Command::Ref(args) => reflog::ref_cmd(&mut state, args),
-    };
+    let result = opt.cmd.execute(&mut state);
 
     if let Err(e) = result {
         log::debug!("error debug: {:?}", e);

@@ -1,11 +1,14 @@
+use crate::cmd::{CmdResult, CommandTrait, DatabaseNotFoundError, State};
+use crate::{commit, dir, DataStore, Keyish, Reflog};
 use std::path::PathBuf;
-use structopt::{StructOpt, clap::AppSettings};
-use crate::cmd::common::{State, CmdResult, DatabaseNotFoundError};
-use crate::{
-    cache::SqliteCache, commit, dir, ds::sqlite::SqliteDs, ds::GetReflogError, ds::Transactional,
-    filter, object::Object, DataStore, Keyish, Reflog,
-};
+use structopt::StructOpt;
 
+#[enum_dispatch::enum_dispatch]
+pub trait DebugCommandTrait {
+    fn execute(self, state: &mut State) -> CmdResult;
+}
+
+#[enum_dispatch::enum_dispatch(DebugCommandTrait)]
 #[derive(StructOpt, Debug)]
 pub enum DebugCommand {
     PrettyPrint(PrettyPrintArgs),
@@ -18,23 +21,36 @@ pub enum DebugCommand {
     GetHead(GetHeadArgs),
 }
 
-pub fn debug(state: &mut State, args: DebugCommand) -> CmdResult {
-    match args {
-        DebugCommand::PrettyPrint(args) => debug_pretty_print(state, args),
-        DebugCommand::CommitTree(args) => debug_commit_tree(state, args),
-        DebugCommand::ReflogGet(args) => debug_reflog_get(state, args),
-        DebugCommand::ReflogPush(args) => debug_reflog_push(state, args),
-        DebugCommand::WalkTree(args) => debug_walk_tree(state, args),
-        DebugCommand::WalkFsTree(args) => debug_walk_fs_tree(state, args),
-        DebugCommand::SetHead(args) => debug_set_head(state, args),
-        DebugCommand::GetHead(args) => debug_get_head(state, args),
+impl CommandTrait for DebugCommand {
+    fn execute(self, state: &mut State) -> CmdResult {
+        DebugCommandTrait::execute(self, state)
     }
 }
-
 
 #[derive(StructOpt, Debug)]
 pub struct SetHeadArgs {
     refname: String,
+}
+
+impl DebugCommandTrait for SetHeadArgs {
+    fn execute(self, state: &mut State) -> CmdResult {
+        let ds_state = state.ds_state.as_mut().ok_or(DatabaseNotFoundError)?;
+
+        ds_state.ds.put_head(&self.refname)?;
+
+        Ok(())
+    }
+}
+
+impl DebugCommandTrait for GetHeadArgs {
+    fn execute(self, state: &mut State) -> CmdResult {
+        let ds_state = state.ds_state.as_mut().ok_or(DatabaseNotFoundError)?;
+
+        let head = ds_state.ds.get_head()?;
+        println!("head: {:?}", head);
+
+        Ok(())
+    }
 }
 
 #[derive(StructOpt, Debug)]
@@ -74,104 +90,99 @@ pub struct CommitTreeArgs {
 #[derive(StructOpt, Debug)]
 pub struct GetHeadArgs {}
 
-fn debug_set_head(state: &mut State, args: SetHeadArgs) -> CmdResult {
-    let ds_state = state.ds_state.as_mut().ok_or(DatabaseNotFoundError)?;
+impl DebugCommandTrait for WalkFsTreeArgs {
+    fn execute(self, _state: &mut State) -> CmdResult {
+        let fs_items = dir::walk_real_fs_items(&self.path, &|_| true)?;
 
-    ds_state.ds.put_head(&args.refname)?;
+        for item in fs_items {
+            println!("{:?}, {}", item.0, item.1)
+        }
 
-    Ok(())
-}
-
-fn debug_get_head(state: &mut State, _args: GetHeadArgs) -> CmdResult {
-    let ds_state = state.ds_state.as_mut().ok_or(DatabaseNotFoundError)?;
-
-    let head = ds_state.ds.get_head()?;
-    println!("head: {:?}", head);
-
-    Ok(())
-}
-
-fn debug_walk_tree(state: &mut State, args: WalkTreeArgs) -> CmdResult {
-    let ds_state = state.ds_state.as_mut().ok_or(DatabaseNotFoundError)?;
-
-    let key = ds_state.ds.canonicalize(args.key)?;
-
-    let fs_items = dir::walk_fs_items(&ds_state.ds, key)?;
-
-    for item in fs_items {
-        println!("{:?}", item)
+        Ok(())
     }
-
-    Ok(())
 }
 
-fn debug_walk_fs_tree(_state: &mut State, args: WalkFsTreeArgs) -> CmdResult {
-    let fs_items = dir::walk_real_fs_items(&args.path, &|_| true)?;
+impl DebugCommandTrait for PrettyPrintArgs {
+    fn execute(self, state: &mut State) -> CmdResult {
+        let ds_state = state.ds_state.as_mut().ok_or(DatabaseNotFoundError)?;
 
-    for item in fs_items {
-        println!("{:?}, {}", item.0, item.1)
+        let key = ds_state.ds.canonicalize(self.key)?;
+
+        let item = ds_state.ds.get_obj(key)?;
+
+        item.debug_pretty_print()?;
+
+        Ok(())
     }
-
-    Ok(())
 }
 
-fn debug_pretty_print(state: &mut State, args: PrettyPrintArgs) -> CmdResult {
-    let ds_state = state.ds_state.as_mut().ok_or(DatabaseNotFoundError)?;
+impl DebugCommandTrait for CommitTreeArgs {
+    fn execute(self, state: &mut State) -> CmdResult {
+        let ds_state = state.ds_state.as_mut().ok_or(DatabaseNotFoundError)?;
 
-    let key = ds_state.ds.canonicalize(args.key)?;
+        let tree = ds_state.ds.canonicalize(self.tree)?;
 
-    let item = ds_state.ds.get_obj(key)?;
+        let mut parents = Vec::with_capacity(self.parents.len());
 
-    item.debug_pretty_print()?;
+        for parent in self.parents {
+            let key = ds_state.ds.canonicalize(parent)?;
+            parents.push(key);
+        }
 
-    Ok(())
-}
+        let attrs = crate::object::CommitAttrs::default();
 
-fn debug_commit_tree(state: &mut State, args: CommitTreeArgs) -> CmdResult {
-    let ds_state = state.ds_state.as_mut().ok_or(DatabaseNotFoundError)?;
+        let commit = commit::commit_tree(&mut ds_state.ds, tree, parents, attrs)?;
 
-    let tree = ds_state.ds.canonicalize(args.tree)?;
+        println!("{}", commit);
 
-    let mut parents = Vec::with_capacity(args.parents.len());
-
-    for parent in args.parents {
-        let key = ds_state.ds.canonicalize(parent)?;
-        parents.push(key);
+        Ok(())
     }
-
-    let attrs = crate::object::CommitAttrs::default();
-
-    let commit = commit::commit_tree(&mut ds_state.ds, tree, parents, attrs)?;
-
-    println!("{}", commit);
-
-    Ok(())
 }
 
-fn debug_reflog_get(state: &mut State, args: ReflogGetArgs) -> CmdResult {
-    let ds_state = state.ds_state.as_mut().ok_or(DatabaseNotFoundError)?;
+impl DebugCommandTrait for WalkTreeArgs {
+    fn execute(self, state: &mut State) -> CmdResult {
+        let ds_state = state.ds_state.as_mut().ok_or(DatabaseNotFoundError)?;
 
-    let key = ds_state
-        .ds
-        .reflog_get(&args.refname, args.remote.as_deref())?;
+        let key = ds_state.ds.canonicalize(self.key)?;
 
-    println!("{}", key);
+        let fs_items = dir::walk_fs_items(&ds_state.ds, key)?;
 
-    Ok(())
+        for item in fs_items {
+            println!("{:?}", item)
+        }
+
+        Ok(())
+    }
 }
 
-fn debug_reflog_push(state: &mut State, args: ReflogPushArgs) -> CmdResult {
-    let ds_state = state.ds_state.as_mut().ok_or(DatabaseNotFoundError)?;
+impl DebugCommandTrait for ReflogGetArgs {
+    fn execute(self, state: &mut State) -> CmdResult {
+        let ds_state = state.ds_state.as_mut().ok_or(DatabaseNotFoundError)?;
 
-    let key = ds_state.ds.canonicalize(args.key)?;
+        let key = ds_state
+            .ds
+            .reflog_get(&self.refname, self.remote.as_deref())?;
 
-    let log = Reflog {
-        key,
-        refname: args.refname,
-        remote: args.remote,
-    };
+        println!("{}", key);
 
-    ds_state.ds.reflog_push(&log)?;
+        Ok(())
+    }
+}
 
-    Ok(())
+impl DebugCommandTrait for ReflogPushArgs {
+    fn execute(self, state: &mut State) -> CmdResult {
+        let ds_state = state.ds_state.as_mut().ok_or(DatabaseNotFoundError)?;
+
+        let key = ds_state.ds.canonicalize(self.key)?;
+
+        let log = Reflog {
+            key,
+            refname: self.refname,
+            remote: self.remote,
+        };
+
+        ds_state.ds.reflog_push(&log)?;
+
+        Ok(())
+    }
 }

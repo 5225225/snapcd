@@ -1,21 +1,7 @@
+use crate::cmd::{CmdResult, CommandTrait, DatabaseNotFoundError, State};
+use crate::{dir, DataStore, Keyish};
 use std::path::PathBuf;
-use structopt::{StructOpt, clap::AppSettings};
-use crate::cmd::common::{State, CmdResult, DatabaseNotFoundError};
-use crate::{
-    cache::SqliteCache, commit, dir, ds::sqlite::SqliteDs, ds::GetReflogError, ds::Transactional,
-    filter, object::Object, DataStore, Keyish, Reflog,
-};
-
-
-pub fn fetch(state: &mut State, args: FetchArgs) -> CmdResult {
-    let ds_state = state.ds_state.as_ref().ok_or(DatabaseNotFoundError)?;
-
-    let key = ds_state.ds.canonicalize(args.key)?;
-
-    dir::get_fs_item(&ds_state.ds, key, &args.dest)?;
-
-    Ok(())
-}
+use structopt::StructOpt;
 
 #[derive(StructOpt, Debug)]
 pub struct FetchArgs {
@@ -26,3 +12,14 @@ pub struct FetchArgs {
     dest: PathBuf,
 }
 
+impl CommandTrait for FetchArgs {
+    fn execute(self, state: &mut State) -> CmdResult {
+        let ds_state = state.ds_state.as_ref().ok_or(DatabaseNotFoundError)?;
+
+        let key = ds_state.ds.canonicalize(self.key)?;
+
+        dir::get_fs_item(&ds_state.ds, key, &self.dest)?;
+
+        Ok(())
+    }
+}
