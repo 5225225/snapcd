@@ -37,6 +37,15 @@ impl Object {
     pub fn debug_pretty_print(&self) -> Result<(), std::io::Error> {
         pretty_print(self, std::io::stdout().lock())
     }
+
+    pub fn tree(&self, from: Key) -> Option<Key> {
+        match self {
+            Object::Commit { tree, .. } => Some(*tree),
+            Object::FsItemDir { .. } => Some(from),
+            Object::FsItemFile { .. } => Some(from),
+            _ => None,
+        }
+    }
 }
 
 fn pretty_print(obj: &Object, mut to: impl std::io::Write) -> Result<(), std::io::Error> {

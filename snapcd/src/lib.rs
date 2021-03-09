@@ -45,6 +45,7 @@ pub mod cache;
 pub mod cmd;
 pub mod commit;
 pub mod crypto;
+pub mod diff;
 pub mod dir;
 pub mod ds;
 pub mod file;
@@ -52,7 +53,6 @@ pub mod filter;
 pub mod key;
 pub mod keyish;
 pub mod object;
-pub mod diff;
 
 pub use ds::DataStore;
 pub use ds::{GetReflogError, Reflog, WalkReflogError};

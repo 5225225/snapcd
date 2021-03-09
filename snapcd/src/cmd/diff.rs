@@ -3,9 +3,9 @@ use crate::{diff, DataStore};
 use structopt::StructOpt;
 
 #[derive(StructOpt, Debug)]
-pub struct StatusArgs {}
+pub struct DiffArgs {}
 
-impl CommandTrait for StatusArgs {
+impl CommandTrait for DiffArgs {
     fn execute(self, state: &mut State) -> CmdResult {
         let ds_state = state.ds_state.as_mut().ok_or(DatabaseNotFoundError)?;
 
@@ -17,8 +17,6 @@ impl CommandTrait for StatusArgs {
 
         match &ref_key {
             Some(k) => {
-                println!("HEAD: {} [{}]", reflog, &k.as_user_key()[0..8]);
-
                 let obj = ds_state
                     .ds
                     .get_obj(*k)

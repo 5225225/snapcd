@@ -101,7 +101,7 @@ pub fn compare<'a>(
                             x,
                             *cache.expect("you must pass a cache if you're hashing the fs"),
                         ) {
-                            Ok(h) => Some(h.into()),
+                            Ok(h) => Some(h),
                             Err(e) => panic!("{}", e),
                         }
                     } else {
@@ -143,8 +143,7 @@ pub fn compare<'a>(
                         .expect("should have been populated")
                         .join(path),
                     *cache.expect("you must pass a cache if you're hashing the fs"),
-                )?
-                .into();
+                )?;
             }
             either::Right(db_items) => f = db_items[path].0,
         }
@@ -291,10 +290,10 @@ pub fn line_stat(ds: &impl DataStore, r: DiffResult) -> LineStatResult {
 
     for modified in r.modified {
         let mut before = Vec::new();
-        file::read_data(ds, modified.original_key.into(), &mut before).unwrap();
+        file::read_data(ds, modified.original_key, &mut before).unwrap();
 
         let mut after = Vec::new();
-        file::read_data(ds, modified.new_key.into(), &mut after).unwrap();
+        file::read_data(ds, modified.new_key, &mut after).unwrap();
 
         let before_str = String::from_utf8_lossy(&before);
         let after_str = String::from_utf8_lossy(&after);
@@ -336,7 +335,7 @@ pub fn print_line_stat(mut lsr: LineStatResult) {
 
 pub fn line_ct(ds: &impl DataStore, key: Key) -> usize {
     let mut data = Vec::new();
-    file::read_data(ds, key.into(), &mut data).unwrap();
+    file::read_data(ds, key, &mut data).unwrap();
 
     #[allow(clippy::naive_bytecount)]
     // This whole function will be cached in the store at some point, this is just for testing
@@ -383,7 +382,7 @@ pub fn create_diff_patch_result(
             let mut hunks = Vec::new();
 
             let mut data = Vec::new();
-            file::read_data(ds, k.into(), &mut data).unwrap();
+            file::read_data(ds, k, &mut data).unwrap();
 
             let data = std::str::from_utf8(&data);
 
@@ -436,7 +435,7 @@ pub fn create_diff_patch_result(
 
             let mut hunks = Vec::new();
             let mut data = Vec::new();
-            file::read_data(ds, k.into(), &mut data).unwrap();
+            file::read_data(ds, k, &mut data).unwrap();
 
             let data = std::str::from_utf8(&data);
 
@@ -480,10 +479,10 @@ pub fn create_diff_patch_result(
 
         ldbg!(&modified);
 
-        file::read_data(ds, modified.original_key.into(), &mut before).unwrap();
+        file::read_data(ds, modified.original_key, &mut before).unwrap();
 
         let mut after = Vec::new();
-        file::read_data(ds, modified.new_key.into(), &mut after).unwrap();
+        file::read_data(ds, modified.new_key, &mut after).unwrap();
 
         let before_str = String::from_utf8_lossy(&before);
         let after_str = String::from_utf8_lossy(&after);

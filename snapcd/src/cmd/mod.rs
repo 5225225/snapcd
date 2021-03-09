@@ -4,6 +4,7 @@
 pub mod checkout;
 pub mod commit;
 pub mod debug;
+pub mod diff;
 pub mod fetch;
 pub mod init;
 pub mod insert;
@@ -85,6 +86,8 @@ pub enum Command {
     Ref(reflog::RefCommand),
 
     Status(status::StatusArgs),
+
+    Diff(diff::DiffArgs),
 }
 
 #[derive(Debug)]
