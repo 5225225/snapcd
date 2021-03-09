@@ -52,6 +52,7 @@ pub mod filter;
 pub mod key;
 pub mod keyish;
 pub mod object;
+pub mod diff;
 
 pub use ds::DataStore;
 pub use ds::{GetReflogError, Reflog, WalkReflogError};

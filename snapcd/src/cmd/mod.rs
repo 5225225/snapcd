@@ -8,6 +8,7 @@ pub mod fetch;
 pub mod init;
 pub mod insert;
 pub mod reflog;
+pub mod status;
 
 use structopt::{clap::AppSettings, StructOpt};
 use thiserror::Error;
@@ -82,6 +83,8 @@ pub enum Command {
     Checkout(checkout::CheckoutArgs),
 
     Ref(reflog::RefCommand),
+
+    Status(status::StatusArgs),
 }
 
 #[derive(Debug)]
