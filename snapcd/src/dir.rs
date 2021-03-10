@@ -294,8 +294,8 @@ pub fn internal_walk_fs_items<DS: DataStore>(
                 results.extend(internal_walk_fs_items(ds, key, &path.join(&name))?);
             }
         }
-        Object::FsItemFile { size: _, blob_tree } => {
-            results.insert(path.to_path_buf(), (blob_tree, false));
+        Object::FsItemFile { .. } => {
+            results.insert(path.to_path_buf(), (key, false));
         }
         _ => panic!("cannot handle this type"),
     }
