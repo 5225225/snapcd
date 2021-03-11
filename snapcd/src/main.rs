@@ -11,7 +11,7 @@ fn main() -> CmdResult {
 
     setup_logging(opt.common.verbosity);
 
-    // This is safe because we won't run this in parallel with any SQLite commands or itself.
+    // This is safe because we won't run this in parallel with any SQLite commands.
     unsafe {
         setup_sqlite_callback();
     }
