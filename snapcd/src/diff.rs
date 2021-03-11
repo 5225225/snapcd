@@ -158,7 +158,12 @@ pub fn compare<'a>(
                 path: path.clone(),
             };
 
-            log::debug!("diff: pushing {:?} to modified because {} != {}", dr, f, t.0);
+            log::debug!(
+                "diff: pushing {:?} to modified because {} != {}",
+                dr,
+                f,
+                t.0
+            );
 
             modified.push(dr);
         }
