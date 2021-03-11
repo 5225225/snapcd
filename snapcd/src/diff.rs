@@ -121,7 +121,7 @@ pub fn compare<'a>(
         .map(|x| DeletedDiffResult {
             path: x.clone(),
             original_key: Some(to_map[x].0),
-            is_dir: from_map.as_ref().either(|y| y[x], |y| y[x].1),
+            is_dir: to_map[x].1,
         })
         .collect();
 
