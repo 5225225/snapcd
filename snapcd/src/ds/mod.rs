@@ -310,3 +310,24 @@ pub enum WalkReflogError {
     #[error(transparent)]
     DSerror(#[from] DsError),
 }
+
+pub fn find_db_folder(name: &std::path::Path) -> Result<Option<std::path::PathBuf>, anyhow::Error> {
+    let cwd = std::env::current_dir()?;
+
+    let mut d = &*cwd;
+
+    loop {
+        let mut check = d.to_path_buf();
+
+        check.push(&name);
+
+        if check.exists() {
+            return Ok(Some(check));
+        }
+
+        d = match d.parent() {
+            Some(p) => p,
+            None => return Ok(None),
+        };
+    }
+}

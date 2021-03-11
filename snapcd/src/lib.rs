@@ -52,6 +52,7 @@ pub mod file;
 pub mod filter;
 pub mod key;
 pub mod keyish;
+pub mod logging;
 pub mod object;
 
 pub use ds::DataStore;
