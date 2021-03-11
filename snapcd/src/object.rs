@@ -33,9 +33,19 @@ pub struct CommitAttrs {
     pub extra: HashMap<String, serde_cbor::Value>,
 }
 
+struct Stdout;
+
+impl std::fmt::Write for Stdout {
+    fn write_str(&mut self, s: &str) -> Result<(), std::fmt::Error> {
+        print!("{}", s);
+
+        Ok(())
+    }
+}
+
 impl Object {
-    pub fn debug_pretty_print(&self) -> Result<(), std::io::Error> {
-        pretty_print(self, std::io::stdout().lock())
+    pub fn debug_pretty_print(&self) -> Result<(), std::fmt::Error> {
+        pretty_print(self, Stdout)
     }
 
     pub fn tree(&self, from: Key) -> Option<Key> {
@@ -48,8 +58,43 @@ impl Object {
     }
 }
 
-fn pretty_print(obj: &Object, mut to: impl std::io::Write) -> Result<(), std::io::Error> {
-    writeln!(to, "{:#?}", obj)?;
+fn pretty_print(obj: &Object, mut to: impl std::fmt::Write) -> Result<(), std::fmt::Error> {
+    match obj {
+        Object::FileBlobTree { keys } => {
+            writeln!(to, "FileBlobTree:")?;
+            for key in keys {
+                writeln!(to, "    {}", key)?;
+            }
+        }
+        Object::FileBlob { buf } => {
+            writeln!(to, "FileBlob:")?;
+            pretty_hex::pretty_hex_write(&mut to, &buf)?;
+        }
+        Object::Commit {
+            tree,
+            parents,
+            attrs,
+        } => {
+            writeln!(to, "FileBlob:")?;
+            writeln!(to, "Tree: {}", tree)?;
+            writeln!(to, "Parents:")?;
+            for key in parents {
+                writeln!(to, "    {}", key)?;
+            }
+            writeln!(to, "Attrs: {:?}", attrs)?;
+        }
+        Object::FsItemDir { children } => {
+            writeln!(to, "FsItemDir:")?;
+            for (path, key) in children {
+                writeln!(to, "{}: {}", path.display(), key)?;
+            }
+        }
+        Object::FsItemFile { size, blob_tree } => {
+            writeln!(to, "FsItemFile:")?;
+            writeln!(to, "Size: {}", size)?;
+            writeln!(to, "Key: {}", blob_tree)?;
+        }
+    }
 
     Ok(())
 }
