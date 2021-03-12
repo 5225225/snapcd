@@ -34,6 +34,9 @@ rand = "0.8.3"
 aes-gcm-siv = "0.9.0"
 enum_dispatch = "0.3.5"
 pretty-hex = "0.2.1"
+assert_fs = "1.0.1"
+assert_cmd = "1.0.3"
+indoc = "1.0.3"
 
 [features]
 default = ["logging"]
