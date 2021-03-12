@@ -126,7 +126,7 @@ pub fn hash_fs_item<DS: DataStore, C: Cache>(
 
         match cache.put(cache_key, obj_hash) {
             Ok(()) => {}
-            Err(e) => log::warn!(
+            Err(e) => tracing::warn!(
                 "Error {:?} putting cache entry {:?} as {}",
                 e,
                 cache_key,

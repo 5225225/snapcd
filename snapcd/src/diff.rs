@@ -67,7 +67,6 @@ pub fn compare<'a>(
             let exclude = filter::make_filter_fn(&filters, folder_path);
             let fs_items = dir::walk_real_fs_items(&path, &exclude)?;
             from_path = Some(path);
-            log::debug!("{:?}", fs_items);
             either::Left(fs_items)
         }
         DiffTarget::Database(key) => {
@@ -158,7 +157,7 @@ pub fn compare<'a>(
                 path: path.clone(),
             };
 
-            log::debug!(
+            tracing::debug!(
                 "diff: pushing {:?} to modified because {} != {}",
                 dr,
                 f,

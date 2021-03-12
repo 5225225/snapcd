@@ -7,7 +7,7 @@ pub unsafe fn setup_sqlite_callback() {
     static ONCE: std::sync::Once = std::sync::Once::new();
 
     fn sqlite_logging_callback(err_code: i32, err_msg: &str) {
-        log::warn!("sqlite error {}: {}", err_code, err_msg);
+        tracing::warn!("sqlite error {}: {}", err_code, err_msg);
     }
 
     // This is unsafe because it is not thread safe ("No other SQLite calls may be made while
@@ -21,24 +21,18 @@ pub unsafe fn setup_sqlite_callback() {
 }
 
 pub fn setup_logging(level: u64) {
-    use simplelog::{LevelFilter, TerminalMode};
+    use tracing_subscriber::filter::LevelFilter;
 
     let filter = match level {
-        0 => LevelFilter::Warn,
-        1 => LevelFilter::Info,
-        2 => LevelFilter::Debug,
-        3..=std::u64::MAX => LevelFilter::Trace,
+        0 => LevelFilter::WARN,
+        1 => LevelFilter::INFO,
+        2 => LevelFilter::DEBUG,
+        3..=std::u64::MAX => LevelFilter::TRACE,
     };
 
-    let log_config = simplelog::ConfigBuilder::new()
-        .set_time_level(LevelFilter::Debug)
-        .set_time_to_local(true)
-        .build();
+    tracing_log::LogTracer::init().expect("failed to set tracing-log log subscriber");
 
-    match simplelog::TermLogger::init(filter, log_config, TerminalMode::Stderr) {
-        Ok(()) => {}
-        Err(err) => {
-            panic!("{}: logger has been already set, this is a bug.", err)
-        }
-    }
+    let collector = tracing_subscriber::fmt().with_max_level(filter).finish();
+
+    tracing::subscriber::set_global_default(collector).expect("failed to set tracing subscriber");
 }

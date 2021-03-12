@@ -16,7 +16,7 @@ fn main() -> CmdResult {
         setup_sqlite_callback();
     }
 
-    log::debug!("parsed command line: {:?}", opt);
+    tracing::debug!("parsed command line: {:?}", opt);
 
     let ds_state: Option<DsState> = match snapcd::ds::find_db_folder(&opt.common.db_path) {
         Ok(Some(x)) => {
@@ -38,25 +38,25 @@ fn main() -> CmdResult {
         Err(x) => return Err(x),
     };
 
-    log::info!(
+    tracing::info!(
         "using db folder path {:?}",
         ds_state.as_ref().map(|x| &x.db_folder_path)
     );
-    log::info!(
+    tracing::info!(
         "using repo path {:?}",
         ds_state.as_ref().map(|x| &x.repo_path)
     );
 
     let cache = match dirs::cache_dir() {
         Some(mut d) => {
-            log::info!("using cache dir {}", d.display());
+            tracing::info!("using cache dir {}", d.display());
             d.push("snapcd");
             std::fs::create_dir_all(&d)?;
             d.push("cache.db");
             SqliteCache::new(d)?
         }
         None => {
-            log::warn!("cache not found, using in memory cache");
+            tracing::warn!("cache not found, using in memory cache");
             SqliteCache::new(":memory:")?
         }
     };
@@ -73,7 +73,7 @@ fn main() -> CmdResult {
     let result = opt.cmd.execute(&mut state);
 
     if let Err(e) = result {
-        log::debug!("error debug: {:?}", e);
+        tracing::debug!("error debug: {:?}", e);
 
         println!("fatal: {}", e);
 

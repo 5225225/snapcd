@@ -13,14 +13,14 @@
 
 macro_rules! ldbg {
     () => {
-        log::trace!("");
+        tracing::trace!("");
     };
     ($val:expr) => {
         // Use of `match` here is intentional because it affects the lifetimes
         // of temporaries - https://stackoverflow.com/a/48732525/1063961
         match $val {
             tmp => {
-                log::trace!("{} = {:?}", stringify!($val), &tmp);
+                tracing::trace!("{} = {:?}", stringify!($val), &tmp);
                 tmp
             }
         }

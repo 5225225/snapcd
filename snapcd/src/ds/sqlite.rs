@@ -101,8 +101,6 @@ impl DataStore for SqliteDs {
     }
 
     fn reflog_get(&self, refname: &str, remote: Option<&str>) -> Result<Key, GetReflogError> {
-        log::trace!("reflog_get({:?}, {:?})", refname, remote);
-
         // We have to use `remote IS ?` here because we want NULL = NULL (it is not remote).
         let query: Result<Option<Vec<u8>>, rusqlite::Error> = self
             .conn
@@ -216,8 +214,6 @@ impl DataStore for SqliteDs {
         start: &[u8],
         end: Option<&[u8]>,
     ) -> Result<Vec<Vec<u8>>, RawBetweenError> {
-        log::trace!("raw_between({:?}, {:?})", start, end);
-
         let mut results = Vec::new();
         if let Some(e) = end {
             let mut statement = self
@@ -246,7 +242,7 @@ impl DataStore for SqliteDs {
             }
         }
 
-        log::trace!("... got results {:?}", &results);
+        tracing::trace!("... got results {:?}", &results);
         Ok(results)
     }
 }
