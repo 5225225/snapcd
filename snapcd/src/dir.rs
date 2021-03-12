@@ -297,7 +297,7 @@ pub fn internal_walk_fs_items<DS: DataStore>(
         Object::FsItemFile { .. } => {
             results.insert(path.to_path_buf(), (key, false));
         }
-        _ => panic!("cannot handle this type"),
+        e => panic!("cannot handle object {:?}", e),
     }
 
     Ok(results)
