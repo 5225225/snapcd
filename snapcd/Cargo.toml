@@ -6,10 +6,10 @@ edition = "2018"
 
 [dependencies]
 serde_cbor = "0.11.1"
-serde = { version = "1.0.123", features = ["derive"] }
+serde = { version = "1.0.124", features = ["derive"] }
 structopt = "0.3.21"
 rusqlite = { version = "0.24.2", features = ["trace"] }
-bitvec = "0.21.0"
+bitvec = "0.21.1"
 globset = "0.4.6"
 dirs = "3.0.1"
 either = "1.6.1"
@@ -21,7 +21,7 @@ blake3 = "0.3.7"
 thiserror = "1.0.24"
 clap = "2.33.3"
 diff = "0.1.12"
-anyhow = "1.0.38"
+anyhow = "1.0.39"
 difference = "2.0.0"
 patch = "0.5.0"
 itertools = "0.10.0"
@@ -31,7 +31,7 @@ aes-gcm-siv = "0.9.0"
 enum_dispatch = "0.3.5"
 pretty-hex = "0.2.1"
 tracing = "0.1.25"
-tracing-subscriber = "0.2.16"
+tracing-subscriber = "0.2.17"
 tracing-log = "0.1.2"
 ureq = "2.0.2"
 

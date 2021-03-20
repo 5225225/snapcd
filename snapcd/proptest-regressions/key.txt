@@ -6,3 +6,5 @@
 # everyone who runs the test benefits from these saved cases.
 cc 3741d168e507f16dbd5d54c23473c8047589a6108695969165c1e4cf60133d87 # shrinks to bytes = []
 cc abd5f4fac81bde6430776deb7885eeb9bcd60492129b827acf2d2b8634f05158 # shrinks to bytes = []
+cc 783717ba9e72d31cfc5dd9757665bd9b0c6178ec15335779fc8d4c1dc408b84f # shrinks to s = "a"
+cc 6f8060cf4aab573d13636107f03290ff6c797b809b9f3b4d3ce1f2f600373e4b # shrinks to s = "b"

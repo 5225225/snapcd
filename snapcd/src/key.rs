@@ -28,10 +28,13 @@ pub enum FromDbKeyError {
 #[derive(Debug, Error)]
 pub enum FromUserKeyError {
     #[error("Unknown hash id {_0}")]
-    UnknownHashId(u8),
+    UnknownHashPrefix(char),
 
     #[error("No bytes were given")]
     Empty,
+
+    #[error("Invalid base32")]
+    FromBase32(#[from] crate::base32::FromBase32Error),
 
     #[error("Incorrect length, got {got} hash bytes")]
     IncorrectLength {
@@ -48,15 +51,31 @@ impl std::str::FromStr for Key {
         // All prefixes and base32 will be in ASCII, so this is fine for indexing.
         let s_bytes: &[u8] = s.as_ref();
 
-        let (prefix, bytes) = (s_bytes.get(0), s.get(1..).ok_or(FromUserKeyError::Empty)?);
+        let (prefix, bytes) = (
+            *s_bytes.get(0).ok_or(FromUserKeyError::Empty)?,
+            s.get(1..).ok_or(FromUserKeyError::Empty)?,
+        );
 
-        assert_eq!(prefix, Some(&b'b'));
+        match prefix as char {
+            'b' => {
+                let hash_bytes = crate::base32::from_base32(bytes, 32 * 8)?.into_vec();
 
-        let arr = crate::base32::from_base32(bytes, 32 * 8)
-            .unwrap()
-            .into_vec();
+                let hash_arr = match (&hash_bytes[..]).try_into() {
+                    Ok(a) => a,
+                    Err(e) => {
+                        return Err(FromUserKeyError::IncorrectLength {
+                            got: hash_bytes.len(),
+                            source: e,
+                        })
+                    }
+                };
 
-        Ok(Self::Blake3B(arr.try_into().unwrap()))
+                Ok(Self::Blake3B(hash_arr))
+            }
+            c => {
+                return Err(FromUserKeyError::UnknownHashPrefix(c));
+            }
+        }
     }
 }
 
@@ -142,6 +161,19 @@ mod tests {
         #[test]
         fn from_db_key_doesnt_panic(bytes: Vec<u8>) {
             let _ = Key::from_db_key(&bytes);
+        }
+
+        #[test]
+        fn parse_doesnt_panic(s: String) {
+            let _ = Key::from_str(&s);
+        }
+
+        #[test]
+        fn round_trip_blake3b_user(bytes: [u8; 32]) {
+            let k = Key::Blake3B(bytes);
+            let as_db = k.as_user_key();
+            let from_db = Key::from_str(&as_db);
+            assert_eq!(k, from_db.expect("failed to parse db key"));
         }
 
         #[test]
