@@ -1,3 +1,5 @@
+use std::convert::TryInto;
+
 use thiserror::Error;
 
 #[derive(
@@ -23,6 +25,41 @@ pub enum FromDbKeyError {
     },
 }
 
+#[derive(Debug, Error)]
+pub enum FromUserKeyError {
+    #[error("Unknown hash id {_0}")]
+    UnknownHashId(u8),
+
+    #[error("No bytes were given")]
+    Empty,
+
+    #[error("Incorrect length, got {got} hash bytes")]
+    IncorrectLength {
+        got: usize,
+        #[source]
+        source: std::array::TryFromSliceError,
+    },
+}
+
+impl std::str::FromStr for Key {
+    type Err = FromUserKeyError;
+
+    fn from_str(s: &str) -> Result<Self, FromUserKeyError> {
+        // All prefixes and base32 will be in ASCII, so this is fine for indexing.
+        let s_bytes: &[u8] = s.as_ref();
+
+        let (prefix, bytes) = (s_bytes.get(0), s.get(1..).ok_or(FromUserKeyError::Empty)?);
+
+        assert_eq!(prefix, Some(&b'b'));
+
+        let arr = crate::base32::from_base32(bytes, 32 * 8)
+            .unwrap()
+            .into_vec();
+
+        Ok(Self::Blake3B(arr.try_into().unwrap()))
+    }
+}
+
 impl Key {
     fn hash_id(&self) -> u8 {
         match self {
@@ -37,8 +74,6 @@ impl Key {
     }
 
     pub fn from_db_key(x: &[u8]) -> Result<Self, FromDbKeyError> {
-        use std::convert::TryInto;
-
         if x.is_empty() {
             return Err(FromDbKeyError::Empty);
         }

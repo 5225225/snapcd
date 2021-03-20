@@ -8,6 +8,7 @@ pub mod diff;
 pub mod fetch;
 pub mod init;
 pub mod insert;
+pub mod net;
 pub mod reflog;
 pub mod status;
 
@@ -88,6 +89,8 @@ pub enum Command {
     Status(status::StatusArgs),
 
     Diff(diff::DiffArgs),
+
+    Net(net::NetCommand),
 }
 
 #[derive(Debug)]
