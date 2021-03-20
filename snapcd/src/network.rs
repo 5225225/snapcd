@@ -12,9 +12,11 @@ impl Connection {
         serde_cbor::from_reader(result).unwrap()
     }
 
-    pub fn put(&self, key: crate::key::Key, data: crate::object::Object) {
+    pub fn put(&self, key: crate::key::Key, data: &crate::object::Object) {
         let u = format!("{}/v1/object/by-id/{}", self.url, key.as_user_key());
+
         let body = serde_cbor::to_vec(&data).unwrap();
+        dbg!(body.len());
 
         ureq::put(&u).send_bytes(&body).unwrap();
     }

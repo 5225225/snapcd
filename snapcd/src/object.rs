@@ -56,6 +56,23 @@ impl Object {
             _ => None,
         }
     }
+
+    pub fn links(&self) -> Vec<Key> {
+        match self {
+            Object::FileBlobTree { keys } => {
+                keys.clone()
+            }
+            Object::FileBlob { .. } => vec![],
+            Object::Commit {tree, parents, ..} => {
+                let mut ret = Vec::new();
+                ret.push(*tree);
+                ret.extend(parents);
+                ret
+            }
+            Object::FsItemDir { children } => children.iter().map(|x| x.1).collect(),
+            Object::FsItemFile { blob_tree, ..} => vec![*blob_tree],
+        }
+    }
 }
 
 fn pretty_print(obj: &Object, mut to: impl std::fmt::Write) -> Result<(), std::fmt::Error> {

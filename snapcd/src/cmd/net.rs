@@ -23,11 +23,17 @@ impl CommandTrait for NetCommand {
 #[derive(StructOpt, Debug)]
 pub struct GetCommand {
     key: crate::key::Key,
+
+    #[structopt(short, long)]
+    recursive: bool,
 }
 
 #[derive(StructOpt, Debug)]
 pub struct PutCommand {
     key: crate::keyish::Keyish,
+
+    #[structopt(short, long)]
+    recursive: bool,
 }
 
 impl NetCommandTrait for GetCommand {
@@ -38,11 +44,21 @@ impl NetCommandTrait for GetCommand {
             url: "http://localhost:8000".to_string(),
         };
 
-        let data = conn.get(self.key);
-
-        ds_state.ds.put_obj(&data).unwrap();
+        get(&conn, &ds_state.ds, self.key, self.recursive);
 
         Ok(())
+    }
+}
+
+fn get(conn: &crate::network::Connection, state: &dyn DataStore, key: crate::key::Key, recursive: bool) {
+    let obj = conn.get(key);
+
+    state.put_obj(&obj).unwrap();
+
+    if recursive {
+        for key in obj.links() {
+            get(conn, state, key, true);
+        }
     }
 }
 
@@ -56,10 +72,20 @@ impl NetCommandTrait for PutCommand {
 
         let k = ds_state.ds.canonicalize(self.key).unwrap();
 
-        let obj = ds_state.ds.get_obj(k).unwrap();
-
-        conn.put(k, obj);
+        put(&conn, &ds_state.ds, k, self.recursive);
 
         Ok(())
+    }
+}
+
+fn put(conn: &crate::network::Connection, state: &dyn DataStore, key: crate::key::Key, recursive: bool) {
+    let obj = state.get_obj(key).unwrap();
+
+    conn.put(key, &obj);
+
+    if recursive {
+        for key in obj.links() {
+            put(conn, state, key, true);
+        }
     }
 }
