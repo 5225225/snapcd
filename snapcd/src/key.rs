@@ -72,9 +72,7 @@ impl std::str::FromStr for Key {
 
                 Ok(Self::Blake3B(hash_arr))
             }
-            c => {
-                return Err(FromUserKeyError::UnknownHashPrefix(c));
-            }
+            c => Err(FromUserKeyError::UnknownHashPrefix(c)),
         }
     }
 }

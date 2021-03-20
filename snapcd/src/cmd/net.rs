@@ -50,7 +50,12 @@ impl NetCommandTrait for GetCommand {
     }
 }
 
-fn get(conn: &crate::network::Connection, state: &dyn DataStore, key: crate::key::Key, recursive: bool) {
+fn get(
+    conn: &crate::network::Connection,
+    state: &dyn DataStore,
+    key: crate::key::Key,
+    recursive: bool,
+) {
     let obj = conn.get(key);
 
     state.put_obj(&obj).unwrap();
@@ -78,7 +83,12 @@ impl NetCommandTrait for PutCommand {
     }
 }
 
-fn put(conn: &crate::network::Connection, state: &dyn DataStore, key: crate::key::Key, recursive: bool) {
+fn put(
+    conn: &crate::network::Connection,
+    state: &dyn DataStore,
+    key: crate::key::Key,
+    recursive: bool,
+) {
     let obj = state.get_obj(key).unwrap();
 
     conn.put(key, &obj);
