@@ -43,7 +43,7 @@ pub struct DiffResult {
 #[derive(Debug, Error)]
 pub enum CompareError {
     #[error("io error: {_0}")]
-    IOError(#[from] std::io::Error),
+    IoError(#[from] std::io::Error),
     #[error("error when hashing fs item: {_0}")]
     HashError(#[from] dir::HashFsItemError),
     #[error("error when walking database items: {_0}")]
