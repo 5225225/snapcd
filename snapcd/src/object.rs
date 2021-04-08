@@ -62,8 +62,7 @@ impl Object {
             Object::FileBlobTree { keys } => keys.clone(),
             Object::FileBlob { .. } => vec![],
             Object::Commit { tree, parents, .. } => {
-                let mut ret = Vec::new();
-                ret.push(*tree);
+                let mut ret = vec![*tree];
                 ret.extend(parents);
                 ret
             }

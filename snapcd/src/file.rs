@@ -1,3 +1,4 @@
+use crate::crypto::GearHashTable;
 use crate::ds;
 use crate::{ds::DataStore, key::Key, object::Object};
 use std::io::prelude::*;
@@ -12,14 +13,32 @@ pub enum PutDataError {
     IoError(#[from] std::io::Error),
 }
 
-pub fn put_data<DS: DataStore, R: Read>(ds: &mut DS, mut data: R) -> Result<Key, PutDataError> {
+pub fn put_data<DS: DataStore, R: Read>(ds: &mut DS, data: R) -> Result<Key, PutDataError> {
+    let table = ds.get_gearhash_table();
+
+    inner_put_data(
+        data,
+        table,
+        &mut |data: &[u8]| ds.put_obj(&Object::FileBlob { buf: data.to_vec() }),
+        &mut |keys: &[Key]| {
+            ds.put_obj(&Object::FileBlobTree {
+                keys: keys.to_vec(),
+            })
+        },
+    )
+}
+
+pub fn inner_put_data<R: Read>(
+    mut data: R,
+    table: &GearHashTable,
+    mut put_data: impl FnMut(&[u8]) -> Result<Key, ds::PutObjError>,
+    mut put_keys: impl FnMut(&[Key]) -> Result<Key, ds::PutObjError>,
+) -> Result<Key, PutDataError> {
     let mut key_bufs: [Vec<Key>; 5] = Default::default();
 
     let mut read_buffer = [0u8; 1 << 16usize];
     let mut chunk_buffer: Vec<u8> = Vec::new();
     let mut current_chunk = Vec::new();
-
-    let table = ds.get_gearhash_table();
 
     let mut hasher = gearhash::Hasher::new(&table.0);
 
@@ -44,9 +63,7 @@ pub fn put_data<DS: DataStore, R: Read>(ds: &mut DS, mut data: R) -> Result<Key,
             debug_assert!(zeros >= BLOB_ZERO_COUNT || boundry == (1 << BLOB_ZERO_COUNT_MAX));
 
             if current_chunk.len() >= 1 << (BLOB_ZERO_COUNT_MAX) {
-                let key = ds.put_obj(&Object::FileBlob {
-                    buf: current_chunk.clone(),
-                })?;
+                let key = put_data(&current_chunk)?;
                 key_bufs[0].push(key);
                 current_chunk.clear();
 
@@ -55,9 +72,7 @@ pub fn put_data<DS: DataStore, R: Read>(ds: &mut DS, mut data: R) -> Result<Key,
                     if zeros > BLOB_ZERO_COUNT + (offset + 1) * PER_LEVEL_COUNT
                         || len >= 1 << PER_LEVEL_COUNT_MAX
                     {
-                        let key = ds.put_obj(&Object::FileBlobTree {
-                            keys: key_bufs[offset as usize].clone(),
-                        })?;
+                        let key = put_keys(&key_bufs[offset as usize])?;
                         key_bufs[offset as usize].clear();
                         key_bufs[offset as usize + 1].push(key);
                     } else {
@@ -89,18 +104,16 @@ pub fn put_data<DS: DataStore, R: Read>(ds: &mut DS, mut data: R) -> Result<Key,
 
     if (0..4).all(|x| key_bufs[x].is_empty()) {
         // No chunks were made.
-        return Ok(ds.put_obj(&Object::FileBlob { buf: current_chunk })?);
+        return Ok(put_data(&current_chunk)?);
     }
 
     if !current_chunk.is_empty() {
-        let key = ds.put_obj(&Object::FileBlob { buf: current_chunk })?;
+        let key = put_data(&current_chunk)?;
         key_bufs[0].push(key);
     }
 
     for offset in 0..4 {
-        let key = ds.put_obj(&Object::FileBlobTree {
-            keys: key_bufs[offset].clone(),
-        })?;
+        let key = put_keys(&key_bufs[offset])?;
 
         if key_bufs[offset].len() == 1 && (1 + offset..4).all(|x| key_bufs[x].is_empty()) {
             // We know this is safe because key_bufs[offset] has exactly 1 element
@@ -111,9 +124,7 @@ pub fn put_data<DS: DataStore, R: Read>(ds: &mut DS, mut data: R) -> Result<Key,
         key_bufs[offset + 1].push(key);
     }
 
-    Ok(ds.put_obj(&Object::FileBlobTree {
-        keys: key_bufs[4].clone(),
-    })?)
+    Ok(put_keys(&key_bufs[4])?)
 }
 
 #[derive(Debug, Error)]
