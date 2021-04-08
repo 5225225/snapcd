@@ -46,11 +46,11 @@ pub fn inner_put_data<R: Read>(
         let m = {
             let hasher_match = hasher.next_match(&chunk_buffer, BLOB_ZERO_COUNT_BITMASK);
 
-            if chunk_buffer.len() > 1 << BLOB_ZERO_COUNT_MAX {
+            if current_chunk.len() > 1 << BLOB_ZERO_COUNT_MAX {
                 // We've gone on too long, force a cut here.
-                Some(1 << BLOB_ZERO_COUNT_MAX)
+                Some(((1 << BLOB_ZERO_COUNT_MAX) as usize).saturating_sub(current_chunk.len()))
             } else {
-                hasher_match
+                hasher_match.map(|x| x.min((1 << BLOB_ZERO_COUNT_MAX) - current_chunk.len()))
             }
         };
 
@@ -62,28 +62,32 @@ pub fn inner_put_data<R: Read>(
 
             debug_assert!(zeros >= BLOB_ZERO_COUNT || boundry == (1 << BLOB_ZERO_COUNT_MAX));
 
-            if current_chunk.len() >= 1 << (BLOB_ZERO_COUNT_MAX) {
-                let key = put_data(&current_chunk)?;
-                key_bufs[0].push(key);
-                current_chunk.clear();
+            debug_assert!(current_chunk.len() <= 1<<BLOB_ZERO_COUNT_MAX, "tried to put a too long chunk in, it was {} bytes, we need it to be less than or equal to {}", current_chunk.len(), 1<<BLOB_ZERO_COUNT_MAX);
+            let key = put_data(&current_chunk)?;
 
-                for offset in 0..4 {
-                    let len = key_bufs[offset as usize].len();
-                    if zeros > BLOB_ZERO_COUNT + (offset + 1) * PER_LEVEL_COUNT
-                        || len >= 1 << PER_LEVEL_COUNT_MAX
-                    {
-                        let key = put_keys(&key_bufs[offset as usize])?;
-                        key_bufs[offset as usize].clear();
-                        key_bufs[offset as usize + 1].push(key);
-                    } else {
-                        break;
-                    }
+            key_bufs[0].push(key);
+            current_chunk.clear();
+
+            for offset in 0..4 {
+                let len = key_bufs[offset as usize].len();
+                if zeros > BLOB_ZERO_COUNT + (offset + 1) * PER_LEVEL_COUNT
+                    || len >= 1 << PER_LEVEL_COUNT_MAX
+                {
+                    let key = put_keys(&key_bufs[offset as usize])?;
+                    key_bufs[offset as usize].clear();
+                    key_bufs[offset as usize + 1].push(key);
+                } else {
+                    break;
                 }
             }
         } else {
             use std::io::ErrorKind;
-            current_chunk.extend_from_slice(&chunk_buffer);
-            chunk_buffer.clear();
+
+            let boundry =
+                ((1 << BLOB_ZERO_COUNT_MAX as usize) - current_chunk.len()).min(chunk_buffer.len());
+
+            current_chunk.extend_from_slice(&chunk_buffer[0..boundry]);
+            chunk_buffer.drain(0..boundry);
 
             match data.read(&mut read_buffer) {
                 Ok(len) => {

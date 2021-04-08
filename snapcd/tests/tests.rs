@@ -223,3 +223,59 @@ fn commit_test() {
 
     assert.success().stdout(expected_output);
 }
+
+#[test]
+fn chunker_works() {
+    use snapcd::{ds::DataStore, key::Key, object::Object};
+    use std::collections::HashSet;
+
+    let sqlite_ds = SqliteDs::new(":memory:").unwrap();
+
+    let mut data = Vec::new();
+    data.resize_with(1 << 20, rand::random);
+    let cursor = std::io::Cursor::new(&data);
+
+    let mut seen_chunks = HashSet::new();
+
+    snapcd::file::inner_put_data(
+        cursor,
+        sqlite_ds.get_gearhash_table(),
+        &mut |data: &[u8]| {
+            seen_chunks.insert(data.to_vec());
+            sqlite_ds.put_obj(&Object::FileBlob { buf: data.to_vec() })
+        },
+        &mut |keys: &[Key]| {
+            sqlite_ds.put_obj(&Object::FileBlobTree {
+                keys: keys.to_vec(),
+            })
+        },
+    )
+    .expect("failed to put?");
+
+    let before = seen_chunks.len();
+
+    data[rand::random::<usize>() % (1 << 20)] += 1;
+
+    let cursor = std::io::Cursor::new(&data);
+    snapcd::file::inner_put_data(
+        cursor,
+        sqlite_ds.get_gearhash_table(),
+        &mut |data: &[u8]| {
+            seen_chunks.insert(data.to_vec());
+            sqlite_ds.put_obj(&Object::FileBlob { buf: data.to_vec() })
+        },
+        &mut |keys: &[Key]| {
+            sqlite_ds.put_obj(&Object::FileBlobTree {
+                keys: keys.to_vec(),
+            })
+        },
+    )
+    .expect("failed to put?");
+
+    let after = seen_chunks.len();
+
+    assert!(after - before <= 2);
+
+    dbg!(after);
+    dbg!(before);
+}
