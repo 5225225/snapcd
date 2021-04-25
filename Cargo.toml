@@ -2,9 +2,7 @@
 
 members = [
     "snapcd",
-#   "snapcdd",
-# Fails due to a build error
-# :/
+    "snapcdd",
 ]
 
 [profile.release]

@@ -25,7 +25,7 @@ fn put_object(db: State<Db>, id: String, data: Vec<u8>) {
 async fn main() {
     let db = sled::open("db").expect("failed to open database");
 
-    rocket::ignite()
+    rocket::build()
         .mount("/", routes![protocol_versions, get_object, put_object])
         .manage(db)
         .launch()

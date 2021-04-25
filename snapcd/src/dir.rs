@@ -184,7 +184,7 @@ pub fn get_fs_item<DS: DataStore>(
             get_fs_item_dir(ds, key, &d)?;
         }
         Object::FsItemFile { .. } => {
-            let stdf = std::fs::File::open(path)?;
+            let stdf = std::fs::File::create(path)?;
             let f = cap_std::fs::File::from_std(stdf, auth);
             get_fs_item_file(ds, key, &f)?;
         }
