@@ -5,6 +5,9 @@ use snapcd::file::{put_data, read_data};
 use snapcd::{ds::sqlite::SqliteDs, DataStore};
 use std::collections::HashSet;
 use std::io::{Read, Write};
+use std::path::Path;
+
+use cap_std::fs::Dir;
 
 fn internal_test<T: DataStore, F: FnMut() -> T>(
     ctor: &mut F,
@@ -134,32 +137,50 @@ proptest! {
     }
 }
 
-#[test]
-fn file_round_trip_test() {
-    let dir = cap_tempfile::tempdir(cap_std::ambient_authority()).unwrap();
-
-    let mut input_file = dir.create("input.bin").unwrap();
-
+fn create_test_data(dir: &Dir, fname: impl AsRef<Path>) -> Vec<u8> {
+    let mut f = dir.create(fname).unwrap();
     let mut v = Vec::new();
     v.resize_with(fastrand::usize(0..1_000_000), || fastrand::u8(..));
-    input_file.write_all(&v).unwrap();
+    f.write_all(&v).unwrap();
+    v
+}
+
+#[test]
+fn file_put_test() {
+    let dir = cap_tempfile::tempdir(cap_std::ambient_authority()).unwrap();
+
+    create_test_data(&dir, "input.bin");
+
+    let input_file = dir.open("input.bin").unwrap();
 
     let mut sqlite_ds = SqliteDs::new(":memory:").unwrap();
 
     let input_entry = input_file.into();
 
+    snapcd::dir::put_fs_item(&mut sqlite_ds, &input_entry, "".into(), &|_| true).unwrap();
+}
+
+#[test]
+fn file_round_trip_test() {
+    let dir = cap_tempfile::tempdir(cap_std::ambient_authority()).unwrap();
+
+    let test_data_vec = create_test_data(&dir, "input.bin");
+
+    let mut sqlite_ds = SqliteDs::new(":memory:").unwrap();
+
+    let input_entry = dir.open("input.bin").unwrap().into();
+
     let hash =
         snapcd::dir::put_fs_item(&mut sqlite_ds, &input_entry, "".into(), &|_| true).unwrap();
 
     let output_file = dir.create("output.bin").unwrap();
-    let output_entry = output_file.into();
-    snapcd::dir::get_fs_item(&sqlite_ds, hash, output_entry).unwrap();
+    snapcd::dir::get_fs_item_file(&sqlite_ds, hash, &output_file).unwrap();
 
-    let mut output_file_std = dir.create("output.bin").unwrap();
+    let mut output_file_std = dir.open("output.bin").unwrap();
     let mut result = Vec::new();
     output_file_std.read_to_end(&mut result).unwrap();
 
-    assert_eq!(&result, &v);
+    assert_eq!(&result, &test_data_vec);
 }
 
 #[test]
@@ -215,7 +236,7 @@ fn commit_test() {
 
     let expected_output = indoc::indoc!(
         "
-        HEAD: main [bewgow4u]
+        HEAD: main [bhro4lrl]
         added:
           c
         deleted:
@@ -226,6 +247,59 @@ fn commit_test() {
     );
 
     assert.success().stdout(expected_output);
+}
+
+#[test]
+fn extract_test() {
+    use assert_cmd::Command;
+    use assert_fs::fixture::{FileWriteStr, PathChild};
+
+    let dir = assert_fs::TempDir::new().unwrap();
+
+    let assert = Command::cargo_bin("snapcd")
+        .unwrap()
+        .arg("init")
+        .current_dir(dir.path())
+        .assert();
+
+    assert.success();
+
+    dir.child("dir")
+        .child("file")
+        .write_str("contents")
+        .unwrap();
+
+    let assert = Command::cargo_bin("snapcd")
+        .unwrap()
+        .arg("commit")
+        .arg("-m")
+        .arg("0")
+        .current_dir(dir.path())
+        .assert();
+
+    assert.success();
+
+    let assert = Command::cargo_bin("snapcd")
+        .unwrap()
+        .arg("status")
+        .current_dir(dir.path())
+        .assert();
+
+    let expected_output = "HEAD: main [bdcyh364]\n";
+
+    assert.success().stdout(expected_output);
+
+    let to = assert_fs::TempDir::new().unwrap();
+
+    let extract = Command::cargo_bin("snapcd")
+        .unwrap()
+        .arg("fetch")
+        .arg("bdcyh364")
+        .arg(to.path())
+        .current_dir(dir.path())
+        .assert();
+
+    extract.success();
 }
 
 #[test]

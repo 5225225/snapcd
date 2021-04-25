@@ -2,7 +2,6 @@ use crate::entry::Entry;
 use crate::{cache, ds};
 use crate::{cache::Cache, cache::CacheKey, file, key::Key, DataStore, Object};
 use std::collections::{HashMap, HashSet};
-use std::fs::DirEntry;
 use std::path::{Path, PathBuf};
 use thiserror::Error;
 
@@ -27,8 +26,8 @@ pub fn put_fs_item<DS: DataStore>(
     ds: &mut DS,
     entry: &Entry,
     path: PathBuf,
-    filter: &dyn Fn(&std::path::Path) -> bool,
-) -> Result<Key, PutFsItemError> {
+    filter: &dyn Fn(&Path) -> bool,
+) -> anyhow::Result<Key> {
     match entry {
         Entry::Dir(d) => {
             let mut result = Vec::new();
@@ -65,7 +64,7 @@ pub fn put_fs_item<DS: DataStore>(
 
             let obj = Object::FsItemDir { children: result };
 
-            return Ok(ds.put_obj(&obj)?);
+            Ok(ds.put_obj(&obj)?)
         }
         Entry::File(f) => {
             let reader = std::io::BufReader::new(f);
@@ -79,7 +78,7 @@ pub fn put_fs_item<DS: DataStore>(
                 size: f.metadata().unwrap().len(),
             };
 
-            return Ok(ds.put_obj(&obj)?);
+            Ok(ds.put_obj(&obj)?)
         }
     }
 }
@@ -109,7 +108,7 @@ pub fn hash_fs_item<DS: DataStore, C: Cache>(
     ds: &mut DS,
     path: &Path,
     cache: &C,
-) -> Result<Key, HashFsItemError> {
+) -> anyhow::Result<Key> {
     let meta = std::fs::metadata(path)?;
 
     if meta.is_file() {
@@ -152,7 +151,7 @@ pub fn hash_fs_item<DS: DataStore, C: Cache>(
         return Ok(obj_hash);
     }
 
-    Err(HashFsItemError::NonFileError)
+    Err(HashFsItemError::NonFileError.into())
 }
 
 #[derive(Debug, Error)]
@@ -173,28 +172,47 @@ pub enum GetFsItemError {
 pub fn get_fs_item<DS: DataStore>(
     ds: &DS,
     key: Key,
-    mut path: Entry,
-) -> Result<(), GetFsItemError> {
-    match path {
-        Entry::Dir(f) => get_fs_item_dir(ds, key, &f),
-        Entry::File(f) => get_fs_item_file(ds, key, &f),
+    path: &Path,
+    auth: cap_std::AmbientAuthority,
+) -> anyhow::Result<()> {
+    let ty = ds.get_obj(key)?;
+    match ty {
+        Object::FsItemDir { .. } => {
+            std::fs::create_dir_all(path)?;
+            let d = cap_std::fs::Dir::open_ambient_dir(path, auth)?;
+
+            get_fs_item_dir(ds, key, &d)?;
+        }
+        Object::FsItemFile { .. } => {
+            let stdf = std::fs::File::open(path)?;
+            let f = cap_std::fs::File::from_std(stdf, auth);
+            get_fs_item_file(ds, key, &f)?;
+        }
+        Object::Commit { tree, .. } => {
+            return get_fs_item(ds, tree, path, auth);
+        }
+        o => panic!("Tried to extract unrecognised object {:?}", o),
     }
+
+    Ok(())
 }
 
 pub fn get_fs_item_dir<DS: DataStore>(
     ds: &DS,
     key: Key,
-    mut path: &cap_std::fs::Dir,
-) -> Result<(), GetFsItemError> {
+    path: &cap_std::fs::Dir,
+) -> anyhow::Result<()> {
     let obj = ds.get_obj(key)?;
 
     match obj {
         Object::FsItemDir { children } => {
             for (name, key, is_dir) in children.iter() {
+                dbg!(&name, &key, &is_dir);
                 if *is_dir {
+                    path.create_dir(name)?;
                     get_fs_item_dir(ds, *key, &path.open_dir(name).unwrap())?;
                 } else {
-                    get_fs_item_file(ds, *key, &path.open(name).unwrap())?;
+                    get_fs_item_file(ds, *key, &path.create(name).unwrap())?;
                 }
             }
         }
@@ -208,7 +226,7 @@ pub fn get_fs_item_file<DS: DataStore>(
     ds: &DS,
     key: Key,
     mut path: &cap_std::fs::File,
-) -> Result<(), GetFsItemError> {
+) -> anyhow::Result<()> {
     let obj = ds.get_obj(key)?;
 
     match obj {
@@ -243,7 +261,7 @@ pub fn checkout_fs_item<DS: DataStore>(
     ds: &DS,
     key: Key,
     path: &Path,
-    filter: &dyn Fn(&std::path::Path) -> bool,
+    filter: &dyn Fn(&Path) -> bool,
 ) -> Result<(), CheckoutFsItemError> {
     let obj = ds.get_obj(key)?;
 
@@ -277,7 +295,7 @@ pub fn checkout_fs_item<DS: DataStore>(
                 }
             }
 
-            for (name, key, is_dir) in &children {
+            for (name, key, _is_dir) in &children {
                 std::fs::create_dir_all(&path)?;
 
                 checkout_fs_item(ds, *key, &path.join(&name), filter)?;
@@ -329,7 +347,7 @@ pub fn internal_walk_fs_items<DS: DataStore>(
                 results.insert(path.to_path_buf(), (key, true));
             }
 
-            for (name, key, is_dir) in children {
+            for (name, key, _is_dir) in children {
                 results.extend(internal_walk_fs_items(ds, key, &path.join(&name))?);
             }
         }
@@ -353,7 +371,7 @@ pub enum WalkRealFsItemsError {
 
 pub fn walk_real_fs_items(
     base_path: &Path,
-    filter: &dyn Fn(&std::path::Path) -> bool,
+    filter: &dyn Fn(&Path) -> bool,
 ) -> Result<HashMap<PathBuf, bool>, WalkRealFsItemsError> {
     internal_walk_real_fs_items(base_path, &PathBuf::new(), filter)
 }
@@ -361,7 +379,7 @@ pub fn walk_real_fs_items(
 pub fn internal_walk_real_fs_items(
     base_path: &Path,
     path: &Path,
-    filter: &dyn Fn(&std::path::Path) -> bool,
+    filter: &dyn Fn(&Path) -> bool,
 ) -> Result<HashMap<PathBuf, bool>, WalkRealFsItemsError> {
     let mut results = HashMap::new();
 
