@@ -1,4 +1,5 @@
 use crate::cmd::{CmdResult, CommandTrait, DatabaseNotFoundError, NoHeadError, State};
+use crate::entry::Entry;
 use crate::{commit, dir, ds::GetReflogError, filter, DataStore, Reflog};
 use std::path::PathBuf;
 use structopt::StructOpt;
@@ -37,7 +38,9 @@ impl CommandTrait for CommitArgs {
             Err(other) => return Err(other.into()),
         };
 
-        let key = dir::put_fs_item(&mut ds_state.ds, &commit_path, &filter)?;
+        let entry = Entry::from_path(&commit_path, cap_std::ambient_authority());
+
+        let key = dir::put_fs_item(&mut ds_state.ds, &entry, "".into(), &filter)?;
 
         let attrs = crate::object::CommitAttrs {
             message: self.message,

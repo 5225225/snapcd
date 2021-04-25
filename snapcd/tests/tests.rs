@@ -136,10 +136,9 @@ proptest! {
 
 #[test]
 fn file_round_trip_test() {
-    let dir = tempfile::tempdir().unwrap();
+    let dir = cap_tempfile::tempdir(cap_std::ambient_authority()).unwrap();
 
-    let input_file_name = dir.path().join("input.bin");
-    let mut input_file = std::fs::File::create(&input_file_name).unwrap();
+    let mut input_file = dir.create("input.bin").unwrap();
 
     let mut v = Vec::new();
     v.resize_with(fastrand::usize(0..1_000_000), || fastrand::u8(..));
@@ -147,13 +146,18 @@ fn file_round_trip_test() {
 
     let mut sqlite_ds = SqliteDs::new(":memory:").unwrap();
 
-    let hash = snapcd::dir::put_fs_item(&mut sqlite_ds, &input_file_name, &|_| true).unwrap();
+    let input_entry = input_file.into();
 
-    snapcd::dir::get_fs_item(&sqlite_ds, hash, &dir.path().join("output.bin")).unwrap();
+    let hash =
+        snapcd::dir::put_fs_item(&mut sqlite_ds, &input_entry, "".into(), &|_| true).unwrap();
 
+    let output_file = dir.create("output.bin").unwrap();
+    let output_entry = output_file.into();
+    snapcd::dir::get_fs_item(&sqlite_ds, hash, output_entry).unwrap();
+
+    let mut output_file_std = dir.create("output.bin").unwrap();
     let mut result = Vec::new();
-    let mut of = std::fs::File::open(&dir.path().join("output.bin")).unwrap();
-    of.read_to_end(&mut result).unwrap();
+    output_file_std.read_to_end(&mut result).unwrap();
 
     assert_eq!(&result, &v);
 }

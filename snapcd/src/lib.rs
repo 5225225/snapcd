@@ -48,6 +48,7 @@ pub mod crypto;
 pub mod diff;
 pub mod dir;
 pub mod ds;
+pub mod entry;
 pub mod file;
 pub mod filter;
 pub mod key;
