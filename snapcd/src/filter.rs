@@ -1,10 +1,13 @@
-use std::fs::DirEntry;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+
+pub fn include_all(_path: &Path) -> bool {
+    true
+}
 
 pub fn make_filter_fn<T: AsRef<str>>(
     excludes: &[T],
     db_path: PathBuf,
-) -> Box<dyn Fn(&DirEntry) -> bool> {
+) -> Box<dyn Fn(&Path) -> bool> {
     let mut excl_globs = globset::GlobSetBuilder::new();
 
     for exclude in excludes {
@@ -13,9 +16,7 @@ pub fn make_filter_fn<T: AsRef<str>>(
 
     let excl_globset = excl_globs.build().unwrap();
 
-    Box::new(move |direntry: &DirEntry| -> bool {
-        let path = direntry.path();
-
+    Box::new(move |path: &Path| -> bool {
         let canon_path = std::fs::canonicalize(&path).unwrap();
         let canon_db_path = std::fs::canonicalize(&db_path).unwrap();
 

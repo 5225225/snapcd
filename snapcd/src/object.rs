@@ -17,7 +17,8 @@ pub enum Object {
         attrs: CommitAttrs,
     },
     FsItemDir {
-        children: Vec<(PathBuf, Key)>,
+        // TODO: Refactor to DirEntry struct
+        children: Vec<(PathBuf, Key, bool)>,
     },
     FsItemFile {
         size: u64,
@@ -99,8 +100,9 @@ fn pretty_print(obj: &Object, mut to: impl std::fmt::Write) -> Result<(), std::f
         }
         Object::FsItemDir { children } => {
             writeln!(to, "FsItemDir:")?;
-            for (path, key) in children {
-                writeln!(to, "{}: {}", path.display(), key)?;
+            for (path, key, is_dir) in children {
+                let dir_string = if *is_dir { "/ (dir)" } else { "" };
+                writeln!(to, "{}: {}{}", path.display(), key, dir_string)?;
             }
         }
         Object::FsItemFile { size, blob_tree } => {

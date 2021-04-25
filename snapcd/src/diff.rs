@@ -57,7 +57,7 @@ pub fn compare<'a>(
     from: DiffTarget,
     to: Option<Key>,
     cache: impl Into<Option<&'a mut cache::SqliteCache>>,
-) -> Result<DiffResult, CompareError> {
+) -> anyhow::Result<DiffResult> {
     let cache = cache.into();
     let cache = cache.as_ref();
 

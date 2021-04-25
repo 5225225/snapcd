@@ -1,7 +1,7 @@
+use crate::entry::Entry;
 use crate::{cache, ds};
 use crate::{cache::Cache, cache::CacheKey, file, key::Key, DataStore, Object};
 use std::collections::{HashMap, HashSet};
-use std::fs::DirEntry;
 use std::path::{Path, PathBuf};
 use thiserror::Error;
 
@@ -20,53 +20,67 @@ pub enum PutFsItemError {
     SerialisationError(#[from] serde_cbor::error::Error),
 }
 
+/// `full_path` is the path relative to the root.
+/// If the put started outside of the root, it will be None
 pub fn put_fs_item<DS: DataStore>(
     ds: &mut DS,
-    path: &Path,
-    filter: &dyn Fn(&DirEntry) -> bool,
-) -> Result<Key, PutFsItemError> {
-    let meta = std::fs::metadata(path)?;
+    entry: &Entry,
+    path: PathBuf,
+    filter: &dyn Fn(&Path) -> bool,
+) -> anyhow::Result<Key> {
+    match entry {
+        Entry::Dir(d) => {
+            let mut result = Vec::new();
 
-    if meta.is_dir() {
-        let mut result = Vec::new();
+            let entries = d.entries()?;
 
-        let entries = std::fs::read_dir(path)?;
+            for entry in entries {
+                match entry {
+                    Ok(direntry) => {
+                        let mut p = path.clone();
+                        p.push(direntry.file_name());
 
-        for entry in entries {
-            match entry {
-                Ok(direntry) => {
-                    if filter(&direntry) {
-                        result.push((
-                            direntry.file_name().into(),
-                            put_fs_item(ds, &direntry.path(), filter)?,
-                        ));
+                        let is_dir;
+                        let dft = direntry.file_type().unwrap();
+                        if dft.is_dir() {
+                            is_dir = true;
+                        } else if dft.is_file() {
+                            is_dir = false;
+                        } else {
+                            panic!("unimplemented file type {:?} for {:?}", dft, direntry);
+                        }
+
+                        if filter(&p) {
+                            result.push((
+                                direntry.file_name().into(),
+                                put_fs_item(ds, &Entry::from_direntry(&direntry), p, filter)?,
+                                is_dir,
+                            ));
+                        }
                     }
+                    Err(e) => return Err(e.into()),
                 }
-                Err(e) => return Err(e.into()),
             }
+
+            let obj = Object::FsItemDir { children: result };
+
+            Ok(ds.put_obj(&obj)?)
         }
+        Entry::File(f) => {
+            let reader = std::io::BufReader::new(f);
 
-        let obj = Object::FsItemDir { children: result };
+            let hash = file::put_data(ds, reader)?;
 
-        return Ok(ds.put_obj(&obj)?);
+            // TODO: we should be able to ask put_data how big the file was
+
+            let obj = Object::FsItemFile {
+                blob_tree: hash,
+                size: f.metadata().unwrap().len(),
+            };
+
+            Ok(ds.put_obj(&obj)?)
+        }
     }
-
-    if meta.is_file() {
-        let f = std::fs::File::open(path)?;
-
-        let reader = std::io::BufReader::new(f);
-
-        let hash = file::put_data(ds, reader)?;
-
-        let obj = Object::FsItemFile {
-            blob_tree: hash,
-            size: meta.len(),
-        };
-
-        return Ok(ds.put_obj(&obj)?);
-    }
-
-    unimplemented!("meta is not a file or a directory?")
 }
 
 #[derive(Debug, Error)]
@@ -94,7 +108,7 @@ pub fn hash_fs_item<DS: DataStore, C: Cache>(
     ds: &mut DS,
     path: &Path,
     cache: &C,
-) -> Result<Key, HashFsItemError> {
+) -> anyhow::Result<Key> {
     let meta = std::fs::metadata(path)?;
 
     if meta.is_file() {
@@ -137,7 +151,7 @@ pub fn hash_fs_item<DS: DataStore, C: Cache>(
         return Ok(obj_hash);
     }
 
-    Err(HashFsItemError::NonFileError)
+    Err(HashFsItemError::NonFileError.into())
 }
 
 #[derive(Debug, Error)]
@@ -155,26 +169,69 @@ pub enum GetFsItemError {
     DecodeError(#[from] serde_cbor::error::Error),
 }
 
-pub fn get_fs_item<DS: DataStore>(ds: &DS, key: Key, path: &Path) -> Result<(), GetFsItemError> {
+pub fn get_fs_item<DS: DataStore>(
+    ds: &DS,
+    key: Key,
+    path: &Path,
+    auth: cap_std::AmbientAuthority,
+) -> anyhow::Result<()> {
+    let ty = ds.get_obj(key)?;
+    match ty {
+        Object::FsItemDir { .. } => {
+            std::fs::create_dir_all(path)?;
+            let d = cap_std::fs::Dir::open_ambient_dir(path, auth)?;
+
+            get_fs_item_dir(ds, key, &d)?;
+        }
+        Object::FsItemFile { .. } => {
+            let stdf = std::fs::File::open(path)?;
+            let f = cap_std::fs::File::from_std(stdf, auth);
+            get_fs_item_file(ds, key, &f)?;
+        }
+        Object::Commit { tree, .. } => {
+            return get_fs_item(ds, tree, path, auth);
+        }
+        o => panic!("Tried to extract unrecognised object {:?}", o),
+    }
+
+    Ok(())
+}
+
+pub fn get_fs_item_dir<DS: DataStore>(
+    ds: &DS,
+    key: Key,
+    path: &cap_std::fs::Dir,
+) -> anyhow::Result<()> {
     let obj = ds.get_obj(key)?;
 
     match obj {
         Object::FsItemDir { children } => {
-            for (name, key) in children.iter() {
-                get_fs_item(ds, *key, &path.join(&name))?;
+            for (name, key, is_dir) in children.iter() {
+                dbg!(&name, &key, &is_dir);
+                if *is_dir {
+                    path.create_dir(name)?;
+                    get_fs_item_dir(ds, *key, &path.open_dir(name).unwrap())?;
+                } else {
+                    get_fs_item_file(ds, *key, &path.create(name).unwrap())?;
+                }
             }
         }
+        _ => panic!("cannot handle this type"),
+    }
+
+    Ok(())
+}
+
+pub fn get_fs_item_file<DS: DataStore>(
+    ds: &DS,
+    key: Key,
+    mut path: &cap_std::fs::File,
+) -> anyhow::Result<()> {
+    let obj = ds.get_obj(key)?;
+
+    match obj {
         Object::FsItemFile { blob_tree, size: _ } => {
-            if let Some(parent) = path.parent() {
-                std::fs::create_dir_all(parent)?;
-            }
-
-            let mut f = std::fs::OpenOptions::new()
-                .write(true)
-                .create_new(true)
-                .open(path)?;
-
-            file::read_data(ds, blob_tree, &mut f)?;
+            file::read_data(ds, blob_tree, &mut path)?;
         }
         _ => panic!("cannot handle this type"),
     }
@@ -204,7 +261,7 @@ pub fn checkout_fs_item<DS: DataStore>(
     ds: &DS,
     key: Key,
     path: &Path,
-    filter: &dyn Fn(&DirEntry) -> bool,
+    filter: &dyn Fn(&Path) -> bool,
 ) -> Result<(), CheckoutFsItemError> {
     let obj = ds.get_obj(key)?;
 
@@ -217,7 +274,7 @@ pub fn checkout_fs_item<DS: DataStore>(
             for item in std::fs::read_dir(&path)? {
                 let ok_item = item?;
 
-                if filter(&ok_item) {
+                if filter(&path) {
                     fs_items.insert(ok_item.file_name().into());
                 }
             }
@@ -238,7 +295,7 @@ pub fn checkout_fs_item<DS: DataStore>(
                 }
             }
 
-            for (name, key) in &children {
+            for (name, key, _is_dir) in &children {
                 std::fs::create_dir_all(&path)?;
 
                 checkout_fs_item(ds, *key, &path.join(&name), filter)?;
@@ -290,7 +347,7 @@ pub fn internal_walk_fs_items<DS: DataStore>(
                 results.insert(path.to_path_buf(), (key, true));
             }
 
-            for (name, key) in children {
+            for (name, key, _is_dir) in children {
                 results.extend(internal_walk_fs_items(ds, key, &path.join(&name))?);
             }
         }
@@ -314,7 +371,7 @@ pub enum WalkRealFsItemsError {
 
 pub fn walk_real_fs_items(
     base_path: &Path,
-    filter: &dyn Fn(&DirEntry) -> bool,
+    filter: &dyn Fn(&Path) -> bool,
 ) -> Result<HashMap<PathBuf, bool>, WalkRealFsItemsError> {
     internal_walk_real_fs_items(base_path, &PathBuf::new(), filter)
 }
@@ -322,7 +379,7 @@ pub fn walk_real_fs_items(
 pub fn internal_walk_real_fs_items(
     base_path: &Path,
     path: &Path,
-    filter: &dyn Fn(&DirEntry) -> bool,
+    filter: &dyn Fn(&Path) -> bool,
 ) -> Result<HashMap<PathBuf, bool>, WalkRealFsItemsError> {
     let mut results = HashMap::new();
 
@@ -341,9 +398,9 @@ pub fn internal_walk_real_fs_items(
         for entry in entries {
             match entry {
                 Ok(direntry) => {
-                    if filter(&direntry) {
-                        let p = path.join(direntry.file_name());
+                    let p = path.join(direntry.file_name());
 
+                    if filter(&p) {
                         results.extend(internal_walk_real_fs_items(base_path, &p, filter)?);
                     }
                 }

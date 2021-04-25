@@ -18,7 +18,9 @@ impl CommandTrait for FetchArgs {
 
         let key = ds_state.ds.canonicalize(self.key)?;
 
-        dir::get_fs_item(&ds_state.ds, key, &self.dest)?;
+        //        let entry = Entry::from_path(&self.dest, cap_std::ambient_authority());
+
+        dir::get_fs_item(&ds_state.ds, key, &self.dest, cap_std::ambient_authority())?;
 
         Ok(())
     }

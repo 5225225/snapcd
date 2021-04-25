@@ -13,7 +13,7 @@ pub enum PutDataError {
     IoError(#[from] std::io::Error),
 }
 
-pub fn put_data<DS: DataStore, R: Read>(ds: &mut DS, data: R) -> Result<Key, PutDataError> {
+pub fn put_data<DS: DataStore, R: Read>(ds: &mut DS, data: R) -> anyhow::Result<Key> {
     let table = ds.get_gearhash_table();
 
     inner_put_data(
@@ -33,7 +33,7 @@ pub fn inner_put_data<R: Read>(
     table: &GearHashTable,
     mut put_data: impl FnMut(&[u8]) -> Result<Key, ds::PutObjError>,
     mut put_keys: impl FnMut(&[Key]) -> Result<Key, ds::PutObjError>,
-) -> Result<Key, PutDataError> {
+) -> anyhow::Result<Key> {
     let mut key_bufs: [Vec<Key>; 5] = Default::default();
 
     let mut read_buffer = [0u8; 1 << 16usize];
