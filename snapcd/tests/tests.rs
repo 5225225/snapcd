@@ -127,7 +127,7 @@ proptest! {
                         found = true;
                     },
                     Err(CanonicalizeError::Ambigious(_input, cands)) => {
-                        assert_eq!(found, false);
+                        assert!(!found);
                         assert!(cands.contains(&key));
                     },
                     Err(e) => panic!("other error: {}", e),
