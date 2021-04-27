@@ -1,7 +1,7 @@
 use snapcd::cmd::CommandTrait;
 use snapcd::cmd::{DsState, Opt, State};
 use snapcd::logging::{setup_logging, setup_sqlite_callback};
-use snapcd::{cache::SqliteCache, ds::sqlite::SqliteDs, ds::Transactional};
+use snapcd::{cache::SqliteCache, ds::sqlite::SqliteDs};
 use structopt::StructOpt;
 
 type CmdResult = Result<(), anyhow::Error>;
@@ -67,21 +67,12 @@ fn main() -> CmdResult {
         common: opt.common,
     };
 
-    state.ds_state.as_mut().map(|x| x.ds.begin_trans());
-    state.cache.begin_trans()?;
-
     let result = opt.cmd.execute(&mut state);
 
     if let Err(e) = result {
         tracing::debug!("error debug: {:?}", e);
 
         println!("fatal: {}", e);
-
-        state.ds_state.as_mut().map(|x| x.ds.rollback());
-        state.cache.rollback()?;
-    } else {
-        state.ds_state.as_mut().map(|x| x.ds.commit());
-        state.cache.commit()?;
     }
 
     Ok(())

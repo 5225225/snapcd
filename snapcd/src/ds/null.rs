@@ -1,5 +1,4 @@
 use crate::crypto;
-use crate::ds;
 use crate::ds::{
     GetReflogError, RawBetweenError, RawExistsError, RawGetError, RawGetStateError, RawPutError,
     RawPutStateError, ReflogPushError, WalkReflogError,
@@ -32,8 +31,6 @@ impl Default for NullDs {
         Self::new()
     }
 }
-
-impl ds::Transactional for NullDs {}
 
 impl crate::DataStore for NullDs {
     fn get_encryption_key(&self) -> &crypto::EncryptionKey {

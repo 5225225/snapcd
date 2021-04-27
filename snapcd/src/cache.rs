@@ -39,7 +39,7 @@ pub enum GetCacheError {
     FromDbKeyError(#[from] key::FromDbKeyError),
 }
 
-pub trait Cache: ds::Transactional {
+pub trait Cache {
     fn raw_get(&self, cachekey: &[u8]) -> Result<Option<Vec<u8>>, RawGetCacheError>;
     fn raw_put(&self, cachekey: &[u8], value: &[u8]) -> Result<(), RawPutCacheError>;
 
@@ -90,8 +90,7 @@ impl SqliteCache {
 
         conn.pragma_update(None, &"journal_mode", &"WAL")?;
 
-        // It's a cache. Speed is more important than safety.
-        conn.pragma_update(None, &"synchronous", &"OFF")?;
+        conn.pragma_update(None, &"synchronous", &"NORMAL")?;
 
         conn.execute_batch(
             "
@@ -103,25 +102,6 @@ impl SqliteCache {
         )?;
 
         Ok(Self { conn })
-    }
-}
-
-impl ds::Transactional for SqliteCache {
-    fn begin_trans(&mut self) -> Result<(), ds::BeginTransError> {
-        self.conn
-            .execute("BEGIN TRANSACTION", params![])
-            .into_ds_r()?;
-        Ok(())
-    }
-
-    fn commit(&mut self) -> Result<(), ds::CommitTransError> {
-        self.conn.execute("COMMIT", params![]).into_ds_r()?;
-        Ok(())
-    }
-
-    fn rollback(&mut self) -> Result<(), ds::RollbackTransError> {
-        self.conn.execute("ROLLBACK", params![]).into_ds_r()?;
-        Ok(())
     }
 }
 
@@ -146,5 +126,32 @@ impl Cache for SqliteCache {
             .into_ds_r()?;
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::PathBuf;
+
+    #[test]
+    fn concurrent_access() {
+        let mut handles = Vec::new();
+        let file = tempfile::NamedTempFile::new().unwrap();
+        let path: PathBuf = file.path().into();
+        for _ in 0..10 {
+            let p = path.clone();
+            handles.push(std::thread::spawn(move || {
+                let cache = SqliteCache::new(p).unwrap();
+                for k in 0..20_000_i32 {
+                    cache.raw_put(&k.to_be_bytes(), &k.to_be_bytes()).unwrap();
+                    cache.raw_get(&(k - 1).to_be_bytes()).unwrap();
+                }
+            }));
+        }
+
+        for h in handles {
+            h.join().unwrap();
+        }
     }
 }

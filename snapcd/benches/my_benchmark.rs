@@ -27,11 +27,7 @@ fn inner_bench<DS: DataStore, T: Fn() -> DS>(
 
     g.bench_function(bench_name, |b| {
         b.iter_batched(
-            || {
-                let mut ds = ctor();
-                ds.begin_trans().unwrap();
-                ds
-            },
+            ctor,
             |mut data| put_data(&mut data, &buf[..]).unwrap(),
             BatchSize::PerIteration,
         )

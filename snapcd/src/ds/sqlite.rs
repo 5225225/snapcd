@@ -5,11 +5,9 @@ use rusqlite::OptionalExtension;
 use std::borrow::Cow;
 
 use crate::crypto;
-use crate::ds;
 use crate::ds::{
-    BeginTransError, CommitTransError, DataStore, GetReflogError, RawBetweenError, RawExistsError,
-    RawGetError, RawGetStateError, RawPutError, RawPutStateError, ReflogPushError,
-    RollbackTransError, WalkReflogError,
+    DataStore, GetReflogError, RawBetweenError, RawExistsError, RawGetError, RawGetStateError,
+    RawPutError, RawPutStateError, ReflogPushError, WalkReflogError,
 };
 use crate::ds::{ToDsError, ToDsErrorResult};
 use crate::key::Key;
@@ -33,8 +31,8 @@ impl SqliteDs {
     pub fn new<S: AsRef<Path>>(path: S) -> Result<Self, NewSqliteError> {
         let conn = rusqlite::Connection::open(path)?;
 
-        conn.pragma_update(None, &"synchronous", &"2")?;
-        conn.pragma_update(None, &"journal_mode", &"truncate")?;
+        conn.pragma_update(None, &"journal_mode", &"WAL")?;
+        conn.pragma_update(None, &"synchronous", &"1")?;
         conn.pragma_update(None, &"page_size", &"16384")?;
 
         conn.execute_batch(
@@ -67,27 +65,6 @@ impl SqliteDs {
             encryption_key,
             gearhash_table,
         })
-    }
-}
-
-impl ds::Transactional for SqliteDs {
-    fn begin_trans(&mut self) -> Result<(), BeginTransError> {
-        self.conn
-            .execute("BEGIN TRANSACTION", params![])
-            .into_ds_r()?;
-        Ok(())
-    }
-
-    fn commit(&mut self) -> Result<(), CommitTransError> {
-        self.conn.execute("COMMIT", params![]).into_ds_r()?;
-
-        Ok(())
-    }
-
-    fn rollback(&mut self) -> Result<(), RollbackTransError> {
-        self.conn.execute("ROLLBACK", params![]).into_ds_r()?;
-
-        Ok(())
     }
 }
 

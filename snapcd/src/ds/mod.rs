@@ -77,24 +77,6 @@ impl<T, E: ToDsError> ToDsErrorResult<T> for Result<T, E> {
 }
 
 #[derive(Debug, Error)]
-pub enum BeginTransError {
-    #[error(transparent)]
-    DsError(#[from] DsError),
-}
-
-#[derive(Debug, Error)]
-pub enum RollbackTransError {
-    #[error(transparent)]
-    DSerror(#[from] DsError),
-}
-
-#[derive(Debug, Error)]
-pub enum CommitTransError {
-    #[error(transparent)]
-    DSerror(#[from] DsError),
-}
-
-#[derive(Debug, Error)]
 pub enum RawGetError {
     #[error(transparent)]
     DSerror(#[from] DsError),
@@ -172,20 +154,8 @@ pub enum PutObjError {
     EncodeError(#[from] serde_cbor::error::Error),
 }
 
-pub trait Transactional {
-    fn begin_trans(&mut self) -> Result<(), BeginTransError> {
-        Ok(())
-    }
-    fn commit(&mut self) -> Result<(), CommitTransError> {
-        Ok(())
-    }
-    fn rollback(&mut self) -> Result<(), RollbackTransError> {
-        Ok(())
-    }
-}
-
 static_assertions::assert_obj_safe!(DataStore);
-pub trait DataStore: Transactional {
+pub trait DataStore {
     fn raw_get<'a>(&'a self, key: &[u8]) -> Result<Cow<'a, [u8]>, RawGetError>;
     fn raw_put<'a>(&'a self, key: &[u8], data: &[u8]) -> Result<(), RawPutError>;
 
