@@ -3,6 +3,7 @@
 members = [
     "snapcd",
     "snapcdd",
+    "libsnapcd",
 ]
 
 [profile.release]
