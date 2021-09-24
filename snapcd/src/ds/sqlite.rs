@@ -31,9 +31,9 @@ impl SqliteDs {
     pub fn new<S: AsRef<Path>>(path: S) -> Result<Self, NewSqliteError> {
         let conn = rusqlite::Connection::open(path)?;
 
-        conn.pragma_update(None, &"journal_mode", &"WAL")?;
-        conn.pragma_update(None, &"synchronous", &"1")?;
-        conn.pragma_update(None, &"page_size", &"16384")?;
+        conn.pragma_update(None, "journal_mode", &"WAL")?;
+        conn.pragma_update(None, "synchronous", &"1")?;
+        conn.pragma_update(None, "page_size", &"16384")?;
 
         conn.execute_batch(
             "

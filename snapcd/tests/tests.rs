@@ -73,7 +73,7 @@ proptest! {
         }
 
         let expected_keys: HashSet<Vec<u8>> = if let Some(e) = &end {
-            keys.iter().filter(|x| (&start..&e).contains(x)).cloned().collect()
+            keys.iter().filter(|x| (&start..e).contains(x)).cloned().collect()
         } else {
             keys.iter().filter(|x| (&start..).contains(x)).cloned().collect()
         };

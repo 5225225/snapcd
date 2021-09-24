@@ -38,7 +38,7 @@ impl CommandTrait for CommitArgs {
             Err(other) => return Err(other.into()),
         };
 
-        let entry = Entry::from_path(&commit_path, cap_std::ambient_authority());
+        let entry = Entry::from_path(commit_path, cap_std::ambient_authority());
 
         let key = dir::put_fs_item(&mut ds_state.ds, &entry, "".into(), &filter)?;
 

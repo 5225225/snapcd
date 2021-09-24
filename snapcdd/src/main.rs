@@ -9,7 +9,7 @@ fn protocol_versions() -> &'static str {
 }
 
 #[get("/v1/object/by-id/<id>")]
-fn get_object(db: State<Db>, id: String) -> Vec<u8> {
+fn get_object(db: &State<Db>, id: String) -> Vec<u8> {
     db.get(id)
         .expect("failed to get data")
         .expect("data not found")
@@ -17,7 +17,7 @@ fn get_object(db: State<Db>, id: String) -> Vec<u8> {
 }
 
 #[put("/v1/object/by-id/<id>", data = "<data>")]
-fn put_object(db: State<Db>, id: String, data: Vec<u8>) {
+fn put_object(db: &State<Db>, id: String, data: Vec<u8>) {
     db.insert(id, data).expect("failed to insert data");
 }
 

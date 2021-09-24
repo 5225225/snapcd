@@ -595,9 +595,9 @@ fn patch_from_file_string(before_str: String, after_str: String, path: PathBuf) 
 
         for item in collected.iter().map(|x| &x.2) {
             let patch_item = match item {
-                difference::Difference::Same(x) => patch::Line::Context(&x),
-                difference::Difference::Add(x) => patch::Line::Add(&x),
-                difference::Difference::Rem(x) => patch::Line::Remove(&x),
+                difference::Difference::Same(x) => patch::Line::Context(x),
+                difference::Difference::Add(x) => patch::Line::Add(x),
+                difference::Difference::Rem(x) => patch::Line::Remove(x),
             };
 
             lines.push(patch_item);

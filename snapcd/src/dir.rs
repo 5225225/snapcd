@@ -274,7 +274,7 @@ pub fn checkout_fs_item<DS: DataStore>(
             for item in std::fs::read_dir(&path)? {
                 let ok_item = item?;
 
-                if filter(&path) {
+                if filter(path) {
                     fs_items.insert(ok_item.file_name().into());
                 }
             }

@@ -88,9 +88,9 @@ impl SqliteCache {
     pub fn new(path: impl AsRef<Path>) -> Result<Self, NewSqliteCacheError> {
         let conn = rusqlite::Connection::open(path)?;
 
-        conn.pragma_update(None, &"journal_mode", &"WAL")?;
+        conn.pragma_update(None, "journal_mode", &"WAL")?;
 
-        conn.pragma_update(None, &"synchronous", &"NORMAL")?;
+        conn.pragma_update(None, "synchronous", &"NORMAL")?;
 
         conn.execute_batch(
             "

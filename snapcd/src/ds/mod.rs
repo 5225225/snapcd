@@ -247,7 +247,7 @@ pub trait DataStore {
         match results.len() {
             0 => Err(CanonicalizeError::NotFound(err_str)),
             // This is okay since we know it will have one item.
-            #[allow(clippy::option_unwrap_used)]
+            #[allow(clippy::unwrap_used)]
             1 => Ok(key::Key::from_db_key(&results.pop().unwrap())?),
             _ => {
                 let strs: Result<_, _> = results
