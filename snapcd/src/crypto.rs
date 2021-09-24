@@ -37,16 +37,14 @@ impl RepoKey {
     }
 
     pub fn derive_encryption_key(&self) -> EncryptionKey {
-        let output = blake3::derive_key(
-            "snapcd.rs 2021-03-01 21:38:07 Encryption Key",
-            &self.0
-        );
+        let output = blake3::derive_key("snapcd.rs 2021-03-01 21:38:07 Encryption Key", &self.0);
 
         EncryptionKey(Aes256GcmSiv::new(&output.into()))
     }
 
     pub fn derive_gearhash_table(&self) -> GearHashTable {
-        let mut hasher = blake3::Hasher::new_derive_key("snapcd.rs 2021-03-01 21:38:07 gearhash table");
+        let mut hasher =
+            blake3::Hasher::new_derive_key("snapcd.rs 2021-03-01 21:38:07 gearhash table");
         hasher.update(&self.0);
         let mut xof = hasher.finalize_xof();
         let mut output = [0_u8; 256 * 8];
