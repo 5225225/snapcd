@@ -1,3 +1,7 @@
+//! A fast content-defined chunker over a reader.
+//!
+//! More detailed docs are available on [`chunker::Chunker`]
+
 use std::io::ErrorKind;
 use std::io::Read;
 
@@ -5,6 +9,7 @@ use static_assertions::const_assert_eq;
 
 /// A chunker is an implementation of the FastCDC algorithm described in
 /// <https://www.usenix.org/system/files/conference/atc16/atc16-paper-xia.pdf>.
+#[derive(Debug)]
 pub struct Chunker<'t, R> {
     reader: R,
     buf: Vec<u8>,
@@ -18,8 +23,8 @@ pub struct Chunker<'t, R> {
 // If we need to read anything, read this much.
 const READ_SIZE: usize = 8 * 1024;
 
-const MASK_S: u64 = 0xfffe000000000000;
-const MASK_L: u64 = 0xffe0000000000000;
+const MASK_S: u64 = 0xfffe_0000_0000_0000;
+const MASK_L: u64 = 0xffe0_0000_0000_0000;
 
 const_assert_eq!(MASK_S.count_ones(), 15); // 15 '1' bits.
 const_assert_eq!(MASK_S.leading_ones(), 15); // all at the start
@@ -28,6 +33,7 @@ const_assert_eq!(MASK_L.count_ones(), 11); // 11 '1' bits.
 const_assert_eq!(MASK_L.leading_ones(), 11); // all at the start
 
 impl<'t, R> Chunker<'t, R> {
+    /// Creates a chunker using a specified gearhash table.
     pub fn with_table(reader: R, table: &'t gearhash::Table) -> Self {
         Chunker {
             reader,
@@ -41,13 +47,13 @@ impl<'t, R> Chunker<'t, R> {
     }
 }
 
-impl<R> Chunker<'static, R> {
-    pub fn new(reader: R) -> Self {
-        Chunker::with_table(reader, &gearhash::DEFAULT_TABLE)
-    }
-}
-
 impl<'t, R: Read> Chunker<'t, R> {
+    /// Reads the next chunk if it exists, otherwise returns None.
+    ///
+    /// # Errors
+    ///
+    /// If the reader [`R`] returns an error when read that is not [`ErrorKind::Interrupted`], that
+    /// error is returned, and no changes will have been made to the chunker.
     pub fn next_chunk(&mut self) -> Result<Option<Chunk<'_>>, std::io::Error> {
         if self.need_to_erase != 0 {
             self.buf.drain(0..self.need_to_erase);
@@ -128,7 +134,8 @@ impl<'t, R: Read> Chunker<'t, R> {
     }
 }
 
-/// A chunk is returned from [`Chunker::next`].
+/// A chunk is returned from [`Chunker::next_chunk()`].
+#[derive(Debug)]
 pub struct Chunk<'a> {
     buf: &'a [u8],
     hash: u64,
@@ -138,12 +145,18 @@ impl<'a> Chunk<'a> {
     /// Returns the buffer contained in this chunk.
     ///
     /// Will always be non-empty.
+    #[must_use]
     pub fn buf(&self) -> &'a [u8] {
         debug_assert!(!self.buf.is_empty());
 
         self.buf
     }
 
+    /// Returns a number specifying the depth in the hash that split this chunk.
+    ///
+    /// This can be used to implement trees. Having a specific depth value gets half as likely (a
+    /// depth of 4 is 1/16, a depth of 5 is 1/32).
+    #[must_use]
     pub fn depth(&self) -> u32 {
         self.hash.trailing_ones()
     }
