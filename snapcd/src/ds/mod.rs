@@ -159,8 +159,8 @@ pub trait DataStore {
     fn raw_get<'a>(&'a self, key: &[u8]) -> Result<Cow<'a, [u8]>, RawGetError>;
     fn raw_put<'a>(&'a self, key: &[u8], data: &[u8]) -> Result<(), RawPutError>;
 
-    fn get_encryption_key(&self) -> &crate::crypto::EncryptionKey;
-    fn get_gearhash_table(&self) -> &crate::crypto::GearHashTable;
+    fn get_encryption_key(&self) -> &libsnapcd::crypto::EncryptionKey;
+    fn get_gearhash_table(&self) -> &libsnapcd::crypto::GearHashTable;
 
     fn raw_exists(&self, key: &[u8]) -> Result<bool, RawExistsError>;
 

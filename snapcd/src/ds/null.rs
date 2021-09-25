@@ -1,10 +1,10 @@
-use crate::crypto;
 use crate::ds::{
     GetReflogError, RawBetweenError, RawExistsError, RawGetError, RawGetStateError, RawPutError,
     RawPutStateError, ReflogPushError, WalkReflogError,
 };
 use crate::key::Key;
 use crate::Reflog;
+use libsnapcd::crypto;
 use std::borrow::Cow;
 
 #[derive(Debug)]
@@ -15,7 +15,7 @@ pub struct NullDs {
 
 impl NullDs {
     pub fn new() -> Self {
-        let zk = crypto::RepoKey::zero_key();
+        let zk = crypto::RepoKey::ZERO;
         let encryption_key = zk.derive_encryption_key();
         let gearhash_table = zk.derive_gearhash_table();
 

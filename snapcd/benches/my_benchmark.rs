@@ -71,12 +71,12 @@ fn aes_gcm_siv_encrypt(bench: &mut Criterion) {
 
     g.throughput(Throughput::Bytes(8192));
 
-    let key = snapcd::crypto::RepoKey::generate();
+    let key = libsnapcd::crypto::RepoKey::generate();
     let enc = key.derive_encryption_key();
 
     g.bench_function("aes-gcm-siv-encrypt", |b| {
         b.iter(|| {
-            enc.encrypt(&buf);
+            criterion::black_box(enc.encrypt(&buf));
         })
     });
 

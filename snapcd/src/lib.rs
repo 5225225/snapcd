@@ -44,7 +44,6 @@ pub mod base32;
 pub mod cache;
 pub mod cmd;
 pub mod commit;
-pub mod crypto;
 pub mod diff;
 pub mod dir;
 pub mod ds;

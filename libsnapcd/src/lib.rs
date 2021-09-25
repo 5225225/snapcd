@@ -14,3 +14,4 @@
 #![warn(unused_qualifications)]
 
 pub mod chunker;
+pub mod crypto;

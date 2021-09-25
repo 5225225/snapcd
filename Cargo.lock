@@ -1165,7 +1165,10 @@ checksum = "a2a5ac8f984bfcf3a823267e5fde638acc3325f6496633a5da6bb6eb2171e103"
 name = "libsnapcd"
 version = "0.1.0"
 dependencies = [
+ "aes-gcm-siv",
+ "blake3",
  "gearhash",
+ "getrandom",
  "static_assertions",
 ]
 

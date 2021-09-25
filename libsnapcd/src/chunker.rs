@@ -1,6 +1,6 @@
 //! A fast content-defined chunker over a reader.
 //!
-//! More detailed docs are available on [`chunker::Chunker`]
+//! More detailed docs are available on [`Chunker`]
 
 use std::io::ErrorKind;
 use std::io::Read;
@@ -52,8 +52,8 @@ impl<'t, R: Read> Chunker<'t, R> {
     ///
     /// # Errors
     ///
-    /// If the reader [`R`] returns an error when read that is not [`ErrorKind::Interrupted`], that
-    /// error is returned, and no changes will have been made to the chunker.
+    /// If the reader returns an error when read that is not [`ErrorKind::Interrupted`], that error
+    /// is returned, and no changes will have been made to the chunker.
     pub fn next_chunk(&mut self) -> Result<Option<Chunk<'_>>, std::io::Error> {
         if self.need_to_erase != 0 {
             self.buf.drain(0..self.need_to_erase);
