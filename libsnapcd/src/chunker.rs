@@ -161,3 +161,43 @@ impl<'a> Chunk<'a> {
         self.hash.trailing_ones()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use std::convert::TryFrom;
+    use std::io::Read;
+
+    #[test]
+    fn reproduce() {
+        #[rustfmt::skip]
+        let reader = blake3::Hasher::new_keyed(&[
+            0xf0, 0x9f, 0x8f, 0xb3, 0xef, 0xb8, 0x8f, 0xe2,
+            0x80, 0x8d, 0xe2, 0x9a, 0xa7, 0xef, 0xb8, 0x8f,
+            0x54, 0x72, 0x61, 0x6e, 0x73, 0x20, 0x52, 0x69,
+            0x67, 0x68, 0x74, 0x73, 0x21, 0x20, 0x3c, 0x33,
+        ]).finalize_xof().take(1024*1024*8);
+
+        let mut chunker = Chunker::with_table(reader, &gearhash::DEFAULT_TABLE);
+
+        let mut seen = blake3::Hasher::new();
+
+        let mut total_len = 0;
+
+        while let Some(chunk) = chunker.next_chunk().unwrap() {
+            total_len += chunk.buf().len();
+            seen.update(&u32::try_from(chunk.buf().len()).unwrap().to_le_bytes());
+            seen.update(&chunk.depth().to_le_bytes());
+        }
+
+        let final_result = seen.finalize();
+
+        assert_eq!(
+            final_result.to_string(),
+            "596fc6f00a845bd277d2f6856425ee00a8fc3077429b80bcaacba8df1d093ae6"
+        );
+
+        assert_eq!(total_len, 1024 * 1024 * 8);
+    }
+}

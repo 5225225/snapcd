@@ -8,3 +8,7 @@ members = [
 
 [profile.release]
 debug = true
+
+# Speed our tests up by a bit
+[profile.test.package."*"]
+opt-level = 3
