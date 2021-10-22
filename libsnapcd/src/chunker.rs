@@ -119,7 +119,7 @@ impl<'t, R: Read> Chunker<'t, R> {
     fn try_fill_buffer(&mut self) -> Result<(), std::io::Error> {
         let mut buf = [0_u8; READ_SIZE];
 
-        while buf.len() < self.max_size {
+        while self.buf.len() < self.max_size {
             match self.reader.read(&mut buf) {
                 Ok(0) => return Ok(()),
                 Ok(l) => {
