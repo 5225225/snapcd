@@ -1,6 +1,6 @@
 use crate::cmd::{CmdResult, CommandTrait, DatabaseNotFoundError, NoHeadError, State};
-use crate::entry::Entry;
-use crate::{commit, dir, ds::GetReflogError, filter, DataStore, Reflog};
+use libsnapcd::entry::Entry;
+use libsnapcd::{commit, dir, filter, ds::DataStore, ds::Reflog};
 use std::path::PathBuf;
 use structopt::StructOpt;
 
@@ -32,6 +32,8 @@ impl CommandTrait for CommitArgs {
 
         let try_got_key = ds_state.ds.reflog_get(&refname, None);
 
+        // TODO: reflog_get needs to handle a not found
+        /*
         let parent_key = match try_got_key {
             Ok(k) => vec![k],
             Err(GetReflogError::NotFound) => vec![],
@@ -42,7 +44,7 @@ impl CommandTrait for CommitArgs {
 
         let key = dir::put_fs_item(&mut ds_state.ds, &entry, "".into(), &filter)?;
 
-        let attrs = crate::object::CommitAttrs {
+        let attrs = libsnapcd::object::CommitAttrs {
             message: self.message,
             ..Default::default()
         };
@@ -56,6 +58,8 @@ impl CommandTrait for CommitArgs {
         };
 
         ds_state.ds.reflog_push(&log)?;
+
+        */
 
         Ok(())
     }

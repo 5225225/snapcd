@@ -1,6 +1,6 @@
 use crate::cmd::{CmdResult, CommandTrait, DatabaseNotFoundError, State};
-use crate::entry::Entry;
-use crate::{dir, filter};
+use libsnapcd::entry::Entry;
+use libsnapcd::{dir, filter};
 use std::path::PathBuf;
 use structopt::StructOpt;
 

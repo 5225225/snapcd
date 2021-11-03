@@ -1,5 +1,5 @@
 use crate::cmd::{CmdResult, CommandTrait, DatabaseNotFoundError, State};
-use crate::{commit, dir, DataStore, Keyish, Reflog};
+use libsnapcd::{commit, dir, ds::DataStore, keyish::Keyish, ds::Reflog};
 use std::path::PathBuf;
 use structopt::StructOpt;
 
@@ -129,7 +129,7 @@ impl DebugCommandTrait for CommitTreeArgs {
             parents.push(key);
         }
 
-        let attrs = crate::object::CommitAttrs::default();
+        let attrs = libsnapcd::object::CommitAttrs::default();
 
         let commit = commit::commit_tree(&mut ds_state.ds, tree, parents, attrs)?;
 

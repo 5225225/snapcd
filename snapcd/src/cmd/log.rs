@@ -1,7 +1,7 @@
 use crate::cmd::{CmdResult, CommandTrait, DatabaseNotFoundError, NoHeadError, State};
-use crate::diff::DiffTarget;
-use crate::object::Object;
-use crate::{diff, DataStore};
+use libsnapcd::diff::DiffTarget;
+use libsnapcd::object::Object;
+use libsnapcd::{diff, ds::DataStore};
 use structopt::StructOpt;
 
 #[derive(StructOpt, Debug)]

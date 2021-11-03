@@ -1,6 +1,6 @@
 use crate::cmd::NoHeadError;
 use crate::cmd::{CmdResult, CommandTrait, DatabaseNotFoundError, State};
-use crate::{DataStore, Keyish, Reflog};
+use libsnapcd::{ds::DataStore, keyish::Keyish, ds::Reflog};
 use colored::*;
 use structopt::StructOpt;
 

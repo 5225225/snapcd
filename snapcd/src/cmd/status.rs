@@ -1,5 +1,5 @@
 use crate::cmd::{CmdResult, CommandTrait, DatabaseNotFoundError, NoHeadError, State};
-use crate::{diff, DataStore};
+use libsnapcd::{diff, ds::DataStore};
 use structopt::StructOpt;
 
 #[derive(StructOpt, Debug)]

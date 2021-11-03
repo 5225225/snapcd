@@ -16,8 +16,8 @@ pub mod status;
 use structopt::{clap::AppSettings, StructOpt};
 use thiserror::Error;
 
-use crate::cache::SqliteCache;
-use crate::ds::sqlite::SqliteDs;
+use libsnapcd::cache::SqliteCache;
+use libsnapcd::ds::sqlite::SqliteDs;
 use std::path::PathBuf;
 
 #[enum_dispatch::enum_dispatch]

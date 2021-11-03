@@ -1,5 +1,5 @@
 use crate::cmd::{CmdResult, CommandTrait, State};
-use crate::{ds::sqlite::SqliteDs, DataStore};
+use libsnapcd::{ds::sqlite::SqliteDs, ds::DataStore};
 use structopt::StructOpt;
 
 #[derive(StructOpt, Debug)]

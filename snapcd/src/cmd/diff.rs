@@ -1,14 +1,14 @@
 use crate::cmd::{CmdResult, CommandTrait, DatabaseNotFoundError, NoHeadError, State};
-use crate::{diff, DataStore};
+use libsnapcd::{diff, ds::DataStore};
 use structopt::StructOpt;
 
 #[derive(StructOpt, Debug)]
 pub struct DiffArgs {
     #[structopt(short, long)]
-    from: Option<crate::Keyish>,
+    from: Option<libsnapcd::keyish::Keyish>,
 
     #[structopt(short, long)]
-    to: Option<crate::Keyish>,
+    to: Option<libsnapcd::keyish::Keyish>,
 }
 
 impl CommandTrait for DiffArgs {

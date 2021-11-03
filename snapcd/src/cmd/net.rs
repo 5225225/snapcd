@@ -1,5 +1,5 @@
 use crate::cmd::{CmdResult, CommandTrait, DatabaseNotFoundError, State};
-use crate::DataStore;
+use libsnapcd::ds::DataStore;
 use structopt::StructOpt;
 
 #[enum_dispatch::enum_dispatch]
@@ -40,7 +40,7 @@ impl NetCommandTrait for GetCommand {
     fn execute(self, state: &mut State) -> CmdResult {
         let ds_state = state.ds_state.as_ref().ok_or(DatabaseNotFoundError)?;
 
-        let conn = crate::network::Connection {
+        let conn = libsnapcd::network::Connection {
             url: "http://localhost:8000".to_string(),
         };
 
@@ -51,7 +51,7 @@ impl NetCommandTrait for GetCommand {
 }
 
 fn get(
-    conn: &crate::network::Connection,
+    conn: &libsnapcd::network::Connection,
     state: &dyn DataStore,
     key: libsnapcd::key::Key,
     recursive: bool,
@@ -71,7 +71,7 @@ impl NetCommandTrait for PutCommand {
     fn execute(self, state: &mut State) -> CmdResult {
         let ds_state = state.ds_state.as_ref().ok_or(DatabaseNotFoundError)?;
 
-        let conn = crate::network::Connection {
+        let conn = libsnapcd::network::Connection {
             url: "http://localhost:8000".to_string(),
         };
 
@@ -84,7 +84,7 @@ impl NetCommandTrait for PutCommand {
 }
 
 fn put(
-    conn: &crate::network::Connection,
+    conn: &libsnapcd::network::Connection,
     state: &dyn DataStore,
     key: libsnapcd::key::Key,
     recursive: bool,
