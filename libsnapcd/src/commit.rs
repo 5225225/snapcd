@@ -1,7 +1,8 @@
 use thiserror::Error;
 
 use crate::object::CommitAttrs;
-use crate::{key::Key, DataStore, Object};
+use crate::{DataStore, Object};
+use libsnapcd::key::Key;
 
 use crate::ds::PutObjError;
 

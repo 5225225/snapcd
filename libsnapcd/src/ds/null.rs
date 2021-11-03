@@ -2,10 +2,10 @@ use crate::ds::{
     GetReflogError, RawBetweenError, RawExistsError, RawGetError, RawGetStateError, RawPutError,
     RawPutStateError, ReflogPushError, WalkReflogError,
 };
-use crate::key::Key;
 use crate::Reflog;
 use libsnapcd::crypto;
 use std::borrow::Cow;
+use libsnapcd::key::Key;
 
 #[derive(Debug)]
 pub struct NullDs {

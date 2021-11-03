@@ -3,7 +3,8 @@ use rusqlite::{params, OptionalExtension};
 use std::path::Path;
 use thiserror::Error;
 
-use crate::{ds, key};
+use crate::ds;
+use libsnapcd::key;
 
 #[derive(Copy, Clone, Debug)]
 pub struct CacheKey {

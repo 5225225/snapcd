@@ -13,5 +13,18 @@
 #![warn(unused_lifetimes)]
 #![warn(unused_qualifications)]
 
+pub(crate) mod base32;
 pub mod chunker;
 pub mod crypto;
+pub mod key;
+pub mod keyish;
+pub mod cache;
+pub mod commit;
+pub mod diff;
+pub mod dir;
+pub mod ds;
+pub mod entry;
+pub mod file;
+pub mod filter;
+pub mod network;
+pub mod object;

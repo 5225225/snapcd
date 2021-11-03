@@ -22,7 +22,7 @@ impl CommandTrait for NetCommand {
 
 #[derive(StructOpt, Debug)]
 pub struct GetCommand {
-    key: crate::key::Key,
+    key: libsnapcd::key::Key,
 
     #[structopt(short, long)]
     recursive: bool,
@@ -30,7 +30,7 @@ pub struct GetCommand {
 
 #[derive(StructOpt, Debug)]
 pub struct PutCommand {
-    key: crate::keyish::Keyish,
+    key: libsnapcd::keyish::Keyish,
 
     #[structopt(short, long)]
     recursive: bool,
@@ -53,7 +53,7 @@ impl NetCommandTrait for GetCommand {
 fn get(
     conn: &crate::network::Connection,
     state: &dyn DataStore,
-    key: crate::key::Key,
+    key: libsnapcd::key::Key,
     recursive: bool,
 ) {
     let obj = conn.get(key);
@@ -86,7 +86,7 @@ impl NetCommandTrait for PutCommand {
 fn put(
     conn: &crate::network::Connection,
     state: &dyn DataStore,
-    key: crate::key::Key,
+    key: libsnapcd::key::Key,
     recursive: bool,
 ) {
     let obj = state.get_obj(key).unwrap();

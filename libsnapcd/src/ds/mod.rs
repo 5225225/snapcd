@@ -9,7 +9,7 @@ use std::borrow::Cow;
 
 use thiserror::Error;
 
-use crate::key;
+use libsnapcd::key;
 use crate::Keyish;
 use crate::Object;
 

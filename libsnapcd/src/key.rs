@@ -3,10 +3,15 @@ use std::convert::TryInto;
 use thiserror::Error;
 
 #[derive(
-    Debug, Clone, Copy, serde::Serialize, serde::Deserialize, PartialEq, Eq, PartialOrd, Ord, Hash,
+    Debug, Clone, Copy, minicbor::Encode, minicbor::Decode, PartialEq, Eq, PartialOrd, Ord, Hash,
 )]
 pub enum Key {
-    Blake3B([u8; 32]),
+    #[n(0)]
+    Blake3B(
+        #[n(0)]
+        #[cbor(with = "minicbor::bytes")]
+        [u8; 32],
+    ),
 }
 
 #[derive(Debug, Error)]
@@ -152,7 +157,7 @@ impl std::fmt::Display for Key {
 
 #[cfg(test)]
 mod tests {
-    use crate::{key::Key, Keyish};
+    use crate::{key::Key, keyish::Keyish};
     use std::str::FromStr;
 
     proptest::proptest! {

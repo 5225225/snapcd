@@ -9,9 +9,8 @@ use crate::ds::{
     RawPutError, RawPutStateError, ReflogPushError, WalkReflogError,
 };
 use crate::ds::{ToDsError, ToDsErrorResult};
-use crate::key::Key;
 use crate::Reflog;
-use libsnapcd::crypto;
+use libsnapcd::{crypto, key::Key};
 use thiserror::Error;
 
 #[derive(Debug)]

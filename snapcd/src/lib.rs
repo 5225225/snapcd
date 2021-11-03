@@ -40,23 +40,12 @@ fn test_ldbg() {
     ldbg!(1, 2, 3, 4);
 }
 
-pub mod base32;
-pub mod cache;
 pub mod cmd;
-pub mod commit;
-pub mod diff;
-pub mod dir;
-pub mod ds;
-pub mod entry;
-pub mod file;
-pub mod filter;
-pub mod key;
-pub mod keyish;
 pub mod logging;
-pub mod network;
-pub mod object;
+
+pub use libsnapcd::{base32, cache, commit, diff, dir, ds, entry, file, filter, network, object};
 
 pub use ds::DataStore;
 pub use ds::{GetReflogError, Reflog, WalkReflogError};
-pub use keyish::Keyish;
+pub use libsnapcd::keyish::Keyish;
 pub use object::Object;

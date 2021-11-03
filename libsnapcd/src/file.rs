@@ -1,6 +1,6 @@
 use crate::ds;
-use crate::{ds::DataStore, key::Key, object::Object};
-use libsnapcd::crypto::GearHashTable;
+use crate::{ds::DataStore, object::Object};
+use libsnapcd::{crypto::GearHashTable, key::Key};
 
 use std::io::prelude::*;
 

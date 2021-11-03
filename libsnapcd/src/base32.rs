@@ -32,7 +32,7 @@ pub enum FromBase32Error {
 ///
 /// `max_len` is used for when there were bits left over, and you do not want to decode them as
 /// zero bits.
-pub fn from_base32(x: &str, max_len: usize) -> Result<BitVec<Msb0, u8>, FromBase32Error> {
+pub(crate) fn from_base32(x: &str, max_len: usize) -> Result<BitVec<Msb0, u8>, FromBase32Error> {
     let mut result = BitVec::<Msb0, u8>::new();
 
     for mut ch in x.bytes() {
@@ -85,7 +85,7 @@ static TABLE: [u8; 32] = *b"abcdefghijklmnopqrstuvwxyz234567";
 ///
 /// assert_eq!(s, "vi");
 /// ```
-pub fn to_base32(x: &[u8]) -> String {
+pub(crate) fn to_base32(x: &[u8]) -> String {
     let mut scratch = BitVec::<Msb0, u8>::from_vec(x.to_vec());
     let mut ret = String::new();
     while !scratch.is_empty() {

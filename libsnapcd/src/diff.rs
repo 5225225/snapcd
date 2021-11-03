@@ -1,10 +1,10 @@
-use crate::key::Key;
 use crate::DataStore;
 use crate::{cache, dir, file, filter};
 use itertools::Itertools;
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use thiserror::Error;
+use libsnapcd::key::Key;
 
 #[derive(Debug)]
 pub enum DiffTarget {

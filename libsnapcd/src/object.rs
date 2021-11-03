@@ -2,26 +2,39 @@ use crate::key::Key;
 use std::collections::HashMap;
 use std::path::PathBuf;
 
-#[derive(Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, minicbor::Encode, minicbor::Decode)]
 pub enum Object {
+    #[n(0)]
     FileBlobTree {
+        #[n(0)]
         keys: Vec<Key>, // this is either a FileBlob or a FileBlobTree
     },
+    #[n(1)]
     FileBlob {
-        #[serde(with = "serde_bytes")]
+        #[n(0)]
+        #[cbor(with = "minicbor::bytes")]
         buf: Vec<u8>,
     },
+    #[n(2)]
     Commit {
+        #[n(0)]
         tree: Key,         // FSItemDir
+        #[n(1)]
         parents: Vec<Key>, // Commit
+        #[n(2)]
         attrs: CommitAttrs,
     },
+    #[n(3)]
     FsItemDir {
+        #[n(0)]
         // TODO: Refactor to DirEntry struct
         children: Vec<(PathBuf, Key, bool)>,
     },
+    #[n(4)]
     FsItemFile {
+        #[n(0)]
         size: u64,
+        #[n(1)]
         blob_tree: Key, // this is either FileBlobTree or a FileBlob
     },
 }

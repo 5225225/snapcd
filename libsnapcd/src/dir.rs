@@ -1,9 +1,10 @@
 use crate::entry::Entry;
 use crate::{cache, ds};
-use crate::{cache::Cache, cache::CacheKey, file, key::Key, DataStore, Object};
+use crate::{cache::Cache, cache::CacheKey, file, DataStore, Object};
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use thiserror::Error;
+use libsnapcd::key::Key;
 
 #[derive(Debug, Error)]
 pub enum PutFsItemError {

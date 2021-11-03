@@ -7,7 +7,13 @@ edition = "2018"
 
 [dependencies]
 aes-gcm-siv = "0.10.3"
+bitvec = "0.22.3"
 blake3 = "1.0.0"
 gearhash = "0.1.3"
 getrandom = "0.2.3"
+minicbor = { version = "0.11.3", features = ["std", "derive"] }
 static_assertions = "1.1.0"
+thiserror = "1.0.30"
+
+[dev-dependencies]
+proptest = "1.0.0"

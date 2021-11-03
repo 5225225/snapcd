@@ -1166,10 +1166,14 @@ name = "libsnapcd"
 version = "0.1.0"
 dependencies = [
  "aes-gcm-siv",
+ "bitvec",
  "blake3",
  "gearhash",
  "getrandom",
+ "minicbor",
+ "proptest",
  "static_assertions",
+ "thiserror",
 ]
 
 [[package]]
@@ -1260,6 +1264,26 @@ name = "mime"
 version = "0.3.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2a60c7ce501c71e03a9c9c0d35b861413ae925bd979cc7a4e30d060069aaac8d"
+
+[[package]]
+name = "minicbor"
+version = "0.11.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9761df552087b47d7651dd4d14717c35ef43d47c01e04e399530faaa427ca541"
+dependencies = [
+ "minicbor-derive",
+]
+
+[[package]]
+name = "minicbor-derive"
+version = "0.7.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "355264ec26c23aae1d8d4599356cbd7e84134182b8feb9573acbd6d68c09c73e"
+dependencies = [
+ "proc-macro2 1.0.29",
+ "quote 1.0.9",
+ "syn 1.0.77",
+]
 
 [[package]]
 name = "mio"
@@ -2142,6 +2166,7 @@ dependencies = [
  "indoc",
  "itertools",
  "libsnapcd",
+ "minicbor",
  "patch",
  "pretty-hex",
  "proptest",
@@ -2307,18 +2332,18 @@ dependencies = [
 
 [[package]]
 name = "thiserror"
-version = "1.0.29"
+version = "1.0.30"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "602eca064b2d83369e2b2f34b09c70b605402801927c65c11071ac911d299b88"
+checksum = "854babe52e4df1653706b98fcfc05843010039b406875930a70e4d9644e5c417"
 dependencies = [
  "thiserror-impl",
 ]
 
 [[package]]
 name = "thiserror-impl"
-version = "1.0.29"
+version = "1.0.30"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bad553cc2c78e8de258400763a647e80e6d1b31ee237275d756f6836d204494c"
+checksum = "aa32fd3f627f367fe16f893e2597ae3c05020f8bba2666a4e6ea73d377e5714b"
 dependencies = [
  "proc-macro2 1.0.29",
  "quote 1.0.9",
