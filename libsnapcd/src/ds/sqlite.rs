@@ -90,12 +90,11 @@ impl DataStore for SqliteDs {
     }
 
     fn reflog_push(&self, data: &Reflog) -> anyhow::Result<()> {
-        self.conn
-            .execute(
-                "INSERT INTO reflog(refname, remote, key) VALUES (?, ?, ?)",
-                params![data.refname, data.remote, data.key.as_db_key(),],
-            )?;
-            Ok(())
+        self.conn.execute(
+            "INSERT INTO reflog(refname, remote, key) VALUES (?, ?, ?)",
+            params![data.refname, data.remote, data.key.as_db_key(),],
+        )?;
+        Ok(())
     }
 
     fn reflog_walk(&self, refname: &str, remote: Option<&str>) -> anyhow::Result<Vec<Key>> {
@@ -116,11 +115,11 @@ impl DataStore for SqliteDs {
     }
 
     fn raw_get<'a>(&'a self, key: &[u8]) -> anyhow::Result<Cow<'a, [u8]>> {
-        let results: Vec<u8> = self
-            .conn
-            .query_row("SELECT value FROM data WHERE key=?", params![key], |row| {
-                row.get(0)
-            })?;
+        let results: Vec<u8> =
+            self.conn
+                .query_row("SELECT value FROM data WHERE key=?", params![key], |row| {
+                    row.get(0)
+                })?;
 
         Ok(Cow::Owned(results))
     }
@@ -145,25 +144,20 @@ impl DataStore for SqliteDs {
     }
 
     fn raw_put_state(&self, key: &[u8], data: &[u8]) -> anyhow::Result<()> {
-        self.conn
-            .execute(
-                "INSERT OR REPLACE INTO state VALUES (?, ?)",
-                params![key, data],
-            )
-            ?;
+        self.conn.execute(
+            "INSERT OR REPLACE INTO state VALUES (?, ?)",
+            params![key, data],
+        )?;
 
         Ok(())
     }
 
     fn raw_exists(&self, key: &[u8]) -> anyhow::Result<bool> {
-        let count: u32 = self
-            .conn
-            .query_row(
-                "SELECT COUNT(*) FROM data WHERE key=?",
-                params![key],
-                |row| row.get(0),
-            )
-            ?;
+        let count: u32 = self.conn.query_row(
+            "SELECT COUNT(*) FROM data WHERE key=?",
+            params![key],
+            |row| row.get(0),
+        )?;
 
         assert!(count == 0 || count == 1);
 
@@ -175,22 +169,16 @@ impl DataStore for SqliteDs {
         if let Some(e) = end {
             let mut statement = self
                 .conn
-                .prepare("SELECT key FROM data WHERE key >= ? AND key < ?")
-                ?;
+                .prepare("SELECT key FROM data WHERE key >= ? AND key < ?")?;
 
-            let rows = statement
-                .query_map(params![start, e], |row| row.get(0))
-                ?;
+            let rows = statement.query_map(params![start, e], |row| row.get(0))?;
 
             for row in rows {
                 results.push(row?);
             }
         } else {
-            let mut statement = self
-                .conn
-                .prepare("SELECT key FROM data WHERE key >= ?") ?;
-            let rows = statement
-                .query_map(params![start], |row| row.get(0)) ?;
+            let mut statement = self.conn.prepare("SELECT key FROM data WHERE key >= ?")?;
+            let rows = statement.query_map(params![start], |row| row.get(0))?;
 
             for row in rows {
                 results.push(row?);

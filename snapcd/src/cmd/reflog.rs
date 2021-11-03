@@ -1,7 +1,7 @@
 use crate::cmd::NoHeadError;
 use crate::cmd::{CmdResult, CommandTrait, DatabaseNotFoundError, State};
-use libsnapcd::{ds::DataStore, keyish::Keyish, ds::Reflog};
 use colored::*;
+use libsnapcd::{ds::DataStore, ds::Reflog, keyish::Keyish};
 use structopt::StructOpt;
 
 #[enum_dispatch::enum_dispatch]

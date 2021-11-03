@@ -17,7 +17,7 @@ pub enum Object {
     #[n(2)]
     Commit {
         #[n(0)]
-        tree: Key,         // FSItemDir
+        tree: Key, // FSItemDir
         #[n(1)]
         parents: Vec<Key>, // Commit
         #[n(2)]

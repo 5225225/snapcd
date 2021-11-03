@@ -1,10 +1,10 @@
 use crate::entry::Entry;
+use crate::key::Key;
 use crate::{cache, ds};
-use crate::{cache::Cache, cache::CacheKey, file, ds::DataStore, object::Object};
+use crate::{cache::Cache, cache::CacheKey, ds::DataStore, file, object::Object};
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use thiserror::Error;
-use crate::key::Key;
 
 /// `full_path` is the path relative to the root.
 /// If the put started outside of the root, it will be None

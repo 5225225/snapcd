@@ -1,6 +1,6 @@
 use crate::cmd::{CmdResult, CommandTrait, DatabaseNotFoundError, NoHeadError, State};
 use libsnapcd::entry::Entry;
-use libsnapcd::{commit, dir, filter, ds::DataStore, ds::Reflog};
+use libsnapcd::{commit, dir, ds::DataStore, ds::Reflog, filter};
 use std::path::PathBuf;
 use structopt::StructOpt;
 

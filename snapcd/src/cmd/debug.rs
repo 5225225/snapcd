@@ -1,5 +1,5 @@
 use crate::cmd::{CmdResult, CommandTrait, DatabaseNotFoundError, State};
-use libsnapcd::{commit, dir, ds::DataStore, keyish::Keyish, ds::Reflog};
+use libsnapcd::{commit, dir, ds::DataStore, ds::Reflog, keyish::Keyish};
 use std::path::PathBuf;
 use structopt::StructOpt;
 

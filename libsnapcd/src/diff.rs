@@ -1,9 +1,9 @@
 use crate::ds::DataStore;
+use crate::key::Key;
 use crate::{cache, dir, file, filter};
 use itertools::Itertools;
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
-use crate::key::Key;
 
 #[derive(Debug)]
 pub enum DiffTarget {
@@ -347,10 +347,7 @@ pub fn format_patch(p: &patch::Patch<'_>) -> String {
 const BEFORE_CONTEXT_LINES: usize = 3;
 const AFTER_CONTEXT_LINES: usize = 5;
 
-pub fn create_diff_patch_result(
-    ds: &impl DataStore,
-    r: DiffResult,
-) -> anyhow::Result<String> {
+pub fn create_diff_patch_result(ds: &impl DataStore, r: DiffResult) -> anyhow::Result<String> {
     let mut result = String::new();
 
     tracing::debug!("{:?}", &r);
@@ -392,7 +389,6 @@ pub fn create_diff_patch_result(
                     });
                 }
                 Err(_) => anyhow::bail!("this is a binary file"),
-                
             }
 
             let patch = patch::Patch {

@@ -90,11 +90,10 @@ impl Cache for SqliteCache {
     }
 
     fn raw_put(&self, key: &[u8], data: &[u8]) -> anyhow::Result<()> {
-        self.conn
-            .execute(
-                "INSERT OR IGNORE INTO cache VALUES (?, ?)",
-                params![key, data],
-            )?;
+        self.conn.execute(
+            "INSERT OR IGNORE INTO cache VALUES (?, ?)",
+            params![key, data],
+        )?;
 
         Ok(())
     }

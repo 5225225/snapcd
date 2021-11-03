@@ -1,7 +1,7 @@
-use crate::ds::Reflog;
 use crate::crypto;
-use std::borrow::Cow;
+use crate::ds::Reflog;
 use crate::key::Key;
+use std::borrow::Cow;
 
 #[derive(Debug)]
 pub struct NullDs {
@@ -58,19 +58,11 @@ impl crate::ds::DataStore for NullDs {
     fn reflog_get(&self, _refname: &str, _remote: Option<&str>) -> anyhow::Result<Key> {
         unimplemented!("null datastore, no data")
     }
-    fn reflog_walk(
-        &self,
-        _refname: &str,
-        _remote: Option<&str>,
-    ) -> anyhow::Result<Vec<Key>> {
+    fn reflog_walk(&self, _refname: &str, _remote: Option<&str>) -> anyhow::Result<Vec<Key>> {
         unimplemented!("null datastore, no data")
     }
 
-    fn raw_between(
-        &self,
-        _start: &[u8],
-        _end: Option<&[u8]>,
-    ) -> anyhow::Result<Vec<Vec<u8>>> {
+    fn raw_between(&self, _start: &[u8], _end: Option<&[u8]>) -> anyhow::Result<Vec<Vec<u8>>> {
         unimplemented!("null datastore, no data")
     }
 }

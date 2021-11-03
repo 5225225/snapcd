@@ -1,5 +1,5 @@
-use crate::{ds::DataStore, object::Object};
 use crate::{crypto::GearHashTable, key::Key};
+use crate::{ds::DataStore, object::Object};
 
 use std::io::prelude::*;
 
@@ -83,11 +83,7 @@ pub fn inner_put_data<R: Read>(
     Ok(put_keys(&key_bufs[4])?)
 }
 
-pub fn read_data<DS: DataStore, W: Write>(
-    ds: &DS,
-    key: Key,
-    to: &mut W,
-) -> anyhow::Result<()> {
+pub fn read_data<DS: DataStore, W: Write>(ds: &DS, key: Key, to: &mut W) -> anyhow::Result<()> {
     let obj = ds.get_obj(key)?;
 
     match obj {

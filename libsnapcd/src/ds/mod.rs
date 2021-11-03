@@ -71,17 +71,9 @@ pub trait DataStore {
 
     fn reflog_push(&self, data: &Reflog) -> anyhow::Result<()>;
     fn reflog_get(&self, refname: &str, remote: Option<&str>) -> anyhow::Result<key::Key>;
-    fn reflog_walk(
-        &self,
-        refname: &str,
-        remote: Option<&str>,
-    ) -> anyhow::Result<Vec<key::Key>>;
+    fn reflog_walk(&self, refname: &str, remote: Option<&str>) -> anyhow::Result<Vec<key::Key>>;
 
-    fn raw_between(
-        &self,
-        start: &[u8],
-        end: Option<&[u8]>,
-    ) -> anyhow::Result<Vec<Vec<u8>>>;
+    fn raw_between(&self, start: &[u8], end: Option<&[u8]>) -> anyhow::Result<Vec<Vec<u8>>>;
 
     fn canonicalize(&self, search: Keyish) -> anyhow::Result<key::Key> {
         let mut results: Vec<Vec<u8>>;
@@ -101,7 +93,7 @@ pub trait DataStore {
                 orig,
                 remote,
                 keyname,
-            } => return self.reflog_get(&keyname, remote.as_deref())
+            } => return self.reflog_get(&keyname, remote.as_deref()),
         };
 
         match results.len() {
