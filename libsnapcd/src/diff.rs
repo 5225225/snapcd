@@ -1,10 +1,9 @@
-use crate::DataStore;
+use crate::ds::DataStore;
 use crate::{cache, dir, file, filter};
 use itertools::Itertools;
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
-use thiserror::Error;
-use libsnapcd::key::Key;
+use crate::key::Key;
 
 #[derive(Debug)]
 pub enum DiffTarget {
@@ -38,18 +37,6 @@ pub struct DiffResult {
     deleted: Vec<DeletedDiffResult>,
     added: Vec<AddedDiffResult>,
     modified: Vec<ModifiedDiffResult>,
-}
-
-#[derive(Debug, Error)]
-pub enum CompareError {
-    #[error("io error: {_0}")]
-    IoError(#[from] std::io::Error),
-    #[error("error when hashing fs item: {_0}")]
-    HashError(#[from] dir::HashFsItemError),
-    #[error("error when walking database items: {_0}")]
-    WalkError(#[from] dir::WalkFsItemsError),
-    #[error("error when walking filesystem items: {_0}")]
-    RealWalkError(#[from] dir::WalkRealFsItemsError),
 }
 
 pub fn compare<'a>(
@@ -252,7 +239,7 @@ pub fn print_stat_diff_result(ds: &impl DataStore, r: DiffResult) {
     print_line_stat(stat);
 }
 
-pub fn print_patch_diff_result(ds: &impl DataStore, r: DiffResult) -> Result<(), DiffPatchError> {
+pub fn print_patch_diff_result(ds: &impl DataStore, r: DiffResult) -> anyhow::Result<()> {
     println!("{}", create_diff_patch_result(ds, r)?);
 
     Ok(())
@@ -271,7 +258,7 @@ pub struct FileStatResult {
 }
 
 pub fn line_stat(ds: &impl DataStore, r: DiffResult) -> LineStatResult {
-    ldbg!(&r);
+    tracing::debug!("{:?}", &r);
 
     let mut items = Vec::new();
 
@@ -360,19 +347,13 @@ pub fn format_patch(p: &patch::Patch<'_>) -> String {
 const BEFORE_CONTEXT_LINES: usize = 3;
 const AFTER_CONTEXT_LINES: usize = 5;
 
-#[derive(Debug, Error)]
-pub enum DiffPatchError {
-    #[error("tried to make patch with non-UTF8 files")]
-    Binary,
-}
-
 pub fn create_diff_patch_result(
     ds: &impl DataStore,
     r: DiffResult,
-) -> Result<String, DiffPatchError> {
+) -> anyhow::Result<String> {
     let mut result = String::new();
 
-    ldbg!(&r);
+    tracing::debug!("{:?}", &r);
 
     for added in r.added {
         if added.is_dir {
@@ -410,9 +391,8 @@ pub fn create_diff_patch_result(
                         lines,
                     });
                 }
-                Err(_) => {
-                    return Err(DiffPatchError::Binary);
-                }
+                Err(_) => anyhow::bail!("this is a binary file"),
+                
             }
 
             let patch = patch::Patch {
@@ -463,9 +443,7 @@ pub fn create_diff_patch_result(
                         lines,
                     });
                 }
-                Err(_) => {
-                    return Err(DiffPatchError::Binary);
-                }
+                Err(_) => anyhow::bail!("this is a binary file"),
             }
 
             let patch = patch::Patch {
@@ -484,7 +462,7 @@ pub fn create_diff_patch_result(
     for modified in r.modified {
         let mut before = Vec::new();
 
-        ldbg!(&modified);
+        tracing::debug!("{:?}", &modified);
 
         file::read_data(ds, modified.original_key, &mut before).unwrap();
 

@@ -42,10 +42,3 @@ fn test_ldbg() {
 
 pub mod cmd;
 pub mod logging;
-
-pub use libsnapcd::{base32, cache, commit, diff, dir, ds, entry, file, filter, network, object};
-
-pub use ds::DataStore;
-pub use ds::{GetReflogError, Reflog, WalkReflogError};
-pub use libsnapcd::keyish::Keyish;
-pub use object::Object;

@@ -1,21 +1,10 @@
-use crate::ds;
 use crate::{ds::DataStore, object::Object};
-use libsnapcd::{crypto::GearHashTable, key::Key};
+use crate::{crypto::GearHashTable, key::Key};
 
 use std::io::prelude::*;
 
 use itertools::Itertools;
-use thiserror::Error;
 use tracing::trace;
-
-#[derive(Debug, Error)]
-pub enum PutDataError {
-    #[error("error putting object: {_0}")]
-    PutObjError(#[from] ds::PutObjError),
-
-    #[error("io error: {_0}")]
-    IoError(#[from] std::io::Error),
-}
 
 pub fn put_data<DS: DataStore, R: Read>(ds: &mut DS, data: R) -> anyhow::Result<Key> {
     let table = ds.get_gearhash_table();
@@ -35,10 +24,10 @@ pub fn put_data<DS: DataStore, R: Read>(ds: &mut DS, data: R) -> anyhow::Result<
 pub fn inner_put_data<R: Read>(
     data: R,
     table: &GearHashTable,
-    mut put_data: impl FnMut(&[u8]) -> Result<Key, ds::PutObjError>,
-    mut put_keys: impl FnMut(&[Key]) -> Result<Key, ds::PutObjError>,
+    mut put_data: impl FnMut(&[u8]) -> anyhow::Result<Key>,
+    mut put_keys: impl FnMut(&[Key]) -> anyhow::Result<Key>,
 ) -> anyhow::Result<Key> {
-    let mut chunker = libsnapcd::chunker::Chunker::with_table(data, &table.0);
+    let mut chunker = crate::chunker::Chunker::with_table(data, &table.0);
 
     let mut key_bufs: [Vec<Key>; 5] = Default::default();
 
@@ -94,20 +83,11 @@ pub fn inner_put_data<R: Read>(
     Ok(put_keys(&key_bufs[4])?)
 }
 
-#[derive(Debug, Error)]
-pub enum ReadDataError {
-    #[error("error putting object: {_0}")]
-    GetObjError(#[from] ds::GetObjError),
-
-    #[error("io error: {_0}")]
-    IoError(#[from] std::io::Error),
-}
-
 pub fn read_data<DS: DataStore, W: Write>(
     ds: &DS,
     key: Key,
     to: &mut W,
-) -> Result<(), ReadDataError> {
+) -> anyhow::Result<()> {
     let obj = ds.get_obj(key)?;
 
     match obj {

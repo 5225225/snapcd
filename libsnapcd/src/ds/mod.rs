@@ -7,29 +7,9 @@ use blake3::hash;
 
 use std::borrow::Cow;
 
-use thiserror::Error;
-
-use libsnapcd::key;
-use crate::Keyish;
-use crate::Object;
-
-#[derive(Debug, Error)]
-pub enum CanonicalizeError {
-    #[error("Invalid object id '{_0}'")]
-    InvalidHex(String),
-
-    #[error("Object '{_0}' not found")]
-    NotFound(String),
-
-    #[error("Object '{_0}' is ambiguous")]
-    Ambigious(String, Vec<key::Key>),
-
-    #[error("error when converting db key: {_0}")]
-    FromDbKeyError(#[from] key::FromDbKeyError),
-
-    #[error("error when getting reflog: {_0}")]
-    GetReflogError(#[from] GetReflogError),
-}
+use crate::key;
+use crate::keyish::Keyish;
+use crate::object::Object;
 
 #[derive(Debug)]
 pub struct Reflog {
@@ -38,136 +18,20 @@ pub struct Reflog {
     pub remote: Option<String>,
 }
 
-#[derive(Debug, Error)]
-pub enum GetReflogError {
-    #[error("Ref not found")]
-    NotFound,
-
-    #[error("error parsing db key: {_0}")]
-    FromDbKeyError(#[from] key::FromDbKeyError),
-
-    #[error(transparent)]
-    DSerror(#[from] DsError),
-}
-
-#[derive(Debug, Error)]
-pub enum DsError {
-    #[error("sqlite error: {_0}")]
-    SqliteError(#[from] rusqlite::Error),
-}
-
-pub trait ToDsError {
-    fn into_ds_e(self) -> DsError;
-}
-
-pub trait ToDsErrorResult<T> {
-    fn into_ds_r(self) -> Result<T, DsError>;
-}
-
-impl<T: Into<DsError>> ToDsError for T {
-    fn into_ds_e(self) -> DsError {
-        self.into()
-    }
-}
-
-impl<T, E: ToDsError> ToDsErrorResult<T> for Result<T, E> {
-    fn into_ds_r(self) -> Result<T, DsError> {
-        self.map_err(|x| x.into_ds_e())
-    }
-}
-
-#[derive(Debug, Error)]
-pub enum RawGetError {
-    #[error(transparent)]
-    DSerror(#[from] DsError),
-}
-
-#[derive(Debug, Error)]
-pub enum RawPutError {
-    #[error(transparent)]
-    DSerror(#[from] DsError),
-}
-
-#[derive(Debug, Error)]
-pub enum RawExistsError {
-    #[error(transparent)]
-    DSerror(#[from] DsError),
-}
-
-#[derive(Debug, Error)]
-pub enum RawGetStateError {
-    #[error(transparent)]
-    DSerror(#[from] DsError),
-}
-
-#[derive(Debug, Error)]
-pub enum RawPutStateError {
-    #[error(transparent)]
-    DSerror(#[from] DsError),
-}
-
-#[derive(Debug, Error)]
-pub enum ReflogPushError {
-    #[error(transparent)]
-    DSerror(#[from] DsError),
-}
-#[derive(Debug, Error)]
-pub enum RawBetweenError {
-    #[error(transparent)]
-    DSerror(#[from] DsError),
-}
-#[derive(Debug, Error)]
-pub enum RawGetHeadError {
-    #[error(transparent)]
-    DSerror(#[from] DsError),
-}
-#[derive(Debug, Error)]
-pub enum RawPutHeadError {
-    #[error(transparent)]
-    DSerror(#[from] DsError),
-}
-
-#[derive(Debug, Error)]
-pub enum GetHeadError {
-    #[error("error when getting state: {_0}")]
-    RawGetStateError(#[from] RawGetStateError),
-
-    #[error("error decoding utf8 string: {_0}")]
-    FromUtf8Error(#[from] std::string::FromUtf8Error),
-}
-
-#[derive(Debug, Error)]
-pub enum GetObjError {
-    #[error("error getting object: {_0}")]
-    RawGetError(#[from] RawGetError),
-
-    #[error("error decoding object: {_0}")]
-    DecodeError(#[from] serde_cbor::error::Error),
-}
-
-#[derive(Debug, Error)]
-pub enum PutObjError {
-    #[error("error putting object: {_0}")]
-    RawPutError(#[from] RawPutError),
-
-    #[error("error encoding object: {_0}")]
-    EncodeError(#[from] serde_cbor::error::Error),
-}
-
 static_assertions::assert_obj_safe!(DataStore);
 pub trait DataStore {
-    fn raw_get<'a>(&'a self, key: &[u8]) -> Result<Cow<'a, [u8]>, RawGetError>;
-    fn raw_put<'a>(&'a self, key: &[u8], data: &[u8]) -> Result<(), RawPutError>;
+    fn raw_get<'a>(&'a self, key: &[u8]) -> anyhow::Result<Cow<'a, [u8]>>;
+    fn raw_put<'a>(&'a self, key: &[u8], data: &[u8]) -> anyhow::Result<()>;
 
-    fn get_encryption_key(&self) -> &libsnapcd::crypto::EncryptionKey;
-    fn get_gearhash_table(&self) -> &libsnapcd::crypto::GearHashTable;
+    fn get_encryption_key(&self) -> &crate::crypto::EncryptionKey;
+    fn get_gearhash_table(&self) -> &crate::crypto::GearHashTable;
 
-    fn raw_exists(&self, key: &[u8]) -> Result<bool, RawExistsError>;
+    fn raw_exists(&self, key: &[u8]) -> anyhow::Result<bool>;
 
-    fn raw_get_state(&self, key: &[u8]) -> Result<Option<Vec<u8>>, RawGetStateError>;
-    fn raw_put_state(&self, key: &[u8], data: &[u8]) -> Result<(), RawPutStateError>;
+    fn raw_get_state(&self, key: &[u8]) -> anyhow::Result<Option<Vec<u8>>>;
+    fn raw_put_state(&self, key: &[u8], data: &[u8]) -> anyhow::Result<()>;
 
-    fn get(&self, key: key::Key) -> Result<Cow<'_, [u8]>, RawGetError> {
+    fn get(&self, key: key::Key) -> anyhow::Result<Cow<'_, [u8]>> {
         let crypto_key = self.get_encryption_key();
 
         let results = self.raw_get(&key.as_db_key())?;
@@ -181,7 +45,7 @@ pub trait DataStore {
         key::Key::Blake3B(*b3.as_bytes())
     }
 
-    fn put(&self, data: Vec<u8>) -> Result<key::Key, RawPutError> {
+    fn put(&self, data: Vec<u8>) -> anyhow::Result<key::Key> {
         let crypto_key = self.get_encryption_key();
         let encrypted_data = crypto_key.encrypt(&data);
         let keybuf = self.hash(&encrypted_data);
@@ -191,7 +55,7 @@ pub trait DataStore {
         Ok(keybuf)
     }
 
-    fn get_head(&self) -> Result<Option<String>, GetHeadError> {
+    fn get_head(&self) -> anyhow::Result<Option<String>> {
         let bytes = self.raw_get_state(b"HEAD")?;
 
         Ok(match bytes {
@@ -200,26 +64,26 @@ pub trait DataStore {
         })
     }
 
-    fn put_head(&self, head: &str) -> Result<(), RawPutStateError> {
+    fn put_head(&self, head: &str) -> anyhow::Result<()> {
         self.raw_put_state(b"HEAD", head.as_bytes())?;
         Ok(())
     }
 
-    fn reflog_push(&self, data: &Reflog) -> Result<(), ReflogPushError>;
-    fn reflog_get(&self, refname: &str, remote: Option<&str>) -> Result<key::Key, GetReflogError>;
+    fn reflog_push(&self, data: &Reflog) -> anyhow::Result<()>;
+    fn reflog_get(&self, refname: &str, remote: Option<&str>) -> anyhow::Result<key::Key>;
     fn reflog_walk(
         &self,
         refname: &str,
         remote: Option<&str>,
-    ) -> Result<Vec<key::Key>, WalkReflogError>;
+    ) -> anyhow::Result<Vec<key::Key>>;
 
     fn raw_between(
         &self,
         start: &[u8],
         end: Option<&[u8]>,
-    ) -> Result<Vec<Vec<u8>>, RawBetweenError>;
+    ) -> anyhow::Result<Vec<Vec<u8>>>;
 
-    fn canonicalize(&self, search: Keyish) -> Result<key::Key, CanonicalizeError> {
+    fn canonicalize(&self, search: Keyish) -> anyhow::Result<key::Key> {
         let mut results: Vec<Vec<u8>>;
 
         let err_str;
@@ -237,51 +101,39 @@ pub trait DataStore {
                 orig,
                 remote,
                 keyname,
-            } => match self.reflog_get(&keyname, remote.as_deref()) {
-                Ok(key) => return Ok(key),
-                Err(GetReflogError::NotFound) => return Err(CanonicalizeError::NotFound(orig)),
-                Err(e) => return Err(e.into()),
-            },
+            } => return self.reflog_get(&keyname, remote.as_deref())
         };
 
         match results.len() {
-            0 => Err(CanonicalizeError::NotFound(err_str)),
+            0 => anyhow::bail!("not found"),
             // This is okay since we know it will have one item.
             #[allow(clippy::unwrap_used)]
             1 => Ok(key::Key::from_db_key(&results.pop().unwrap())?),
             _ => {
-                let strs: Result<_, _> = results
+                let strs: Result<Vec<crate::key::Key>, crate::key::FromDbKeyError> = results
                     .into_iter()
                     .map(|x| key::Key::from_db_key(&x))
                     .collect();
-                Err(CanonicalizeError::Ambigious(err_str, strs?))
+
+                anyhow::bail!("ambiguous, found {:?}", strs)
             }
         }
     }
 
-    fn get_obj(&self, key: key::Key) -> Result<Object, GetObjError> {
+    fn get_obj(&self, key: key::Key) -> anyhow::Result<Object> {
         let data = self.get(key)?;
 
-        Ok(serde_cbor::from_slice(&data)?)
+        Ok(minicbor::decode(&data)?)
     }
 
-    fn put_obj(&self, data: &Object) -> Result<key::Key, PutObjError> {
-        let data = serde_cbor::to_vec(data)?;
+    fn put_obj(&self, data: &Object) -> anyhow::Result<key::Key> {
+        let data = minicbor::to_vec(data)?;
 
         Ok(self.put(data)?)
     }
 }
 
-#[derive(Debug, Error)]
-pub enum WalkReflogError {
-    #[error("error parsing db key: {_0}")]
-    FromDbKeyError(#[from] key::FromDbKeyError),
-
-    #[error(transparent)]
-    DSerror(#[from] DsError),
-}
-
-pub fn find_db_folder(name: &std::path::Path) -> Result<Option<std::path::PathBuf>, anyhow::Error> {
+pub fn find_db_folder(name: &std::path::Path) -> anyhow::Result<Option<std::path::PathBuf>> {
     let cwd = std::env::current_dir()?;
 
     let mut d = &*cwd;

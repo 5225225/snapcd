@@ -8,7 +8,6 @@ edition = "2018"
 serde_cbor = "0.11.2"
 serde = { version = "1.0.130", features = ["derive"] }
 structopt = "0.3.23"
-rusqlite = { version = "0.25.3", features = ["trace"] }
 bitvec = "0.22.3"
 globset = "0.4.8"
 dirs = "4.0.0"

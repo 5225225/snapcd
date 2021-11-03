@@ -1,25 +1,10 @@
 use crate::entry::Entry;
 use crate::{cache, ds};
-use crate::{cache::Cache, cache::CacheKey, file, DataStore, Object};
+use crate::{cache::Cache, cache::CacheKey, file, ds::DataStore, object::Object};
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use thiserror::Error;
-use libsnapcd::key::Key;
-
-#[derive(Debug, Error)]
-pub enum PutFsItemError {
-    #[error("io error: {_0}")]
-    IoError(#[from] std::io::Error),
-
-    #[error("error putting object")]
-    PutObjError(#[from] ds::PutObjError),
-
-    #[error("error putting data")]
-    PutDataError(#[from] file::PutDataError),
-
-    #[error("serialisation error")]
-    SerialisationError(#[from] serde_cbor::error::Error),
-}
+use crate::key::Key;
 
 /// `full_path` is the path relative to the root.
 /// If the put started outside of the root, it will be None
@@ -84,27 +69,6 @@ pub fn put_fs_item<DS: DataStore>(
     }
 }
 
-#[derive(Debug, Error)]
-pub enum HashFsItemError {
-    #[error("io error: {_0}")]
-    IoError(#[from] std::io::Error),
-
-    #[error("put obj error: {_0}")]
-    PutObjError(#[from] ds::PutObjError),
-
-    #[error("put data error: {_0}")]
-    PutDataError(#[from] file::PutDataError),
-
-    #[error("cache error: {_0}")]
-    CacheError(#[from] cache::GetCacheError),
-
-    #[error("error when encoding object: {_0}")]
-    EncodeError(#[from] serde_cbor::error::Error),
-
-    #[error("hashing non-files is not supported")]
-    NonFileError,
-}
-
 pub fn hash_fs_item<DS: DataStore, C: Cache>(
     ds: &mut DS,
     path: &Path,
@@ -152,22 +116,7 @@ pub fn hash_fs_item<DS: DataStore, C: Cache>(
         return Ok(obj_hash);
     }
 
-    Err(HashFsItemError::NonFileError.into())
-}
-
-#[derive(Debug, Error)]
-pub enum GetFsItemError {
-    #[error("io error: {_0}")]
-    IoError(#[from] std::io::Error),
-
-    #[error("get obj error: {_0}")]
-    GetObjError(#[from] ds::GetObjError),
-
-    #[error("read data error: {_0}")]
-    ReadDataError(#[from] file::ReadDataError),
-
-    #[error("error when decoding object: {_0}")]
-    DecodeError(#[from] serde_cbor::error::Error),
+    anyhow::bail!("Not a file");
 }
 
 pub fn get_fs_item<DS: DataStore>(
@@ -240,30 +189,12 @@ pub fn get_fs_item_file<DS: DataStore>(
     Ok(())
 }
 
-#[derive(Debug, Error)]
-pub enum CheckoutFsItemError {
-    #[error("io error: {_0}")]
-    IoError(#[from] std::io::Error),
-
-    #[error("get obj error: {_0}")]
-    GetObjError(#[from] ds::GetObjError),
-
-    #[error("read data error: {_0}")]
-    ReadDataError(#[from] file::ReadDataError),
-
-    #[error("error when decoding object: {_0}")]
-    DecodeError(#[from] serde_cbor::error::Error),
-
-    #[error("found unimplemented file type")]
-    UnimplementedFileTypeFound,
-}
-
 pub fn checkout_fs_item<DS: DataStore>(
     ds: &DS,
     key: Key,
     path: &Path,
     filter: &dyn Fn(&Path) -> bool,
-) -> Result<(), CheckoutFsItemError> {
+) -> anyhow::Result<()> {
     let obj = ds.get_obj(key)?;
 
     match obj {
@@ -292,7 +223,7 @@ pub fn checkout_fs_item<DS: DataStore>(
                 } else if ft.is_file() {
                     std::fs::remove_file(p)?;
                 } else if ft.is_symlink() {
-                    return Err(CheckoutFsItemError::UnimplementedFileTypeFound);
+                    anyhow::bail!("symlinks not supported");
                 }
             }
 
@@ -315,19 +246,10 @@ pub fn checkout_fs_item<DS: DataStore>(
     Ok(())
 }
 
-#[derive(Debug, Error)]
-pub enum WalkFsItemsError {
-    #[error("get obj error: {_0}")]
-    GetObjError(#[from] ds::GetObjError),
-
-    #[error("error when decoding object: {_0}")]
-    DecodeError(#[from] serde_cbor::error::Error),
-}
-
 pub fn walk_fs_items<DS: DataStore>(
     ds: &DS,
     key: Key,
-) -> Result<HashMap<PathBuf, (Key, bool)>, WalkFsItemsError> {
+) -> anyhow::Result<HashMap<PathBuf, (Key, bool)>> {
     internal_walk_fs_items(ds, key, &PathBuf::new())
 }
 
@@ -335,7 +257,7 @@ pub fn internal_walk_fs_items<DS: DataStore>(
     ds: &DS,
     key: Key,
     path: &Path,
-) -> Result<HashMap<PathBuf, (Key, bool)>, WalkFsItemsError> {
+) -> anyhow::Result<HashMap<PathBuf, (Key, bool)>> {
     let mut results = HashMap::new();
 
     let obj = ds.get_obj(key)?;
@@ -361,19 +283,10 @@ pub fn internal_walk_fs_items<DS: DataStore>(
     Ok(results)
 }
 
-#[derive(Debug, Error)]
-pub enum WalkRealFsItemsError {
-    #[error("io error: {_0}")]
-    IoError(#[from] std::io::Error),
-
-    #[error("found unimplemented file type")]
-    UnimplementedFileTypeFound,
-}
-
 pub fn walk_real_fs_items(
     base_path: &Path,
     filter: &dyn Fn(&Path) -> bool,
-) -> Result<HashMap<PathBuf, bool>, WalkRealFsItemsError> {
+) -> anyhow::Result<HashMap<PathBuf, bool>> {
     internal_walk_real_fs_items(base_path, &PathBuf::new(), filter)
 }
 
@@ -381,7 +294,7 @@ pub fn internal_walk_real_fs_items(
     base_path: &Path,
     path: &Path,
     filter: &dyn Fn(&Path) -> bool,
-) -> Result<HashMap<PathBuf, bool>, WalkRealFsItemsError> {
+) -> anyhow::Result<HashMap<PathBuf, bool>> {
     let mut results = HashMap::new();
 
     let curr_path = base_path.join(path);
@@ -417,5 +330,5 @@ pub fn internal_walk_real_fs_items(
         return Ok(results);
     }
 
-    Err(WalkRealFsItemsError::UnimplementedFileTypeFound)
+    anyhow::bail!("symlinks not supported");
 }

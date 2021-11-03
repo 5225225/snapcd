@@ -1,5 +1,4 @@
 use crate::key::Key;
-use std::collections::HashMap;
 use std::path::PathBuf;
 
 #[derive(Debug, minicbor::Encode, minicbor::Decode)]
@@ -39,12 +38,10 @@ pub enum Object {
     },
 }
 
-#[derive(Debug, serde::Serialize, serde::Deserialize, Default)]
+#[derive(Debug, minicbor::Encode, minicbor::Decode, Default)]
 pub struct CommitAttrs {
-    pub message: String,
-
-    #[serde(flatten)]
-    pub extra: HashMap<String, serde_cbor::Value>,
+    #[n(0)]
+    pub message: Option<String>,
 }
 
 struct Stdout;

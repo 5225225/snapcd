@@ -1,22 +1,27 @@
+use std::io::Read;
+
 #[derive(Debug)]
 pub struct Connection {
     pub url: String,
 }
 
 impl Connection {
-    pub fn get(&self, key: libsnapcd::key::Key) -> crate::object::Object {
+    pub fn get(&self, key: crate::key::Key) -> crate::object::Object {
         let u = format!("{}/v1/object/by-id/{}", self.url, key.as_user_key());
 
-        let result = ureq::get(&u).call().unwrap().into_reader();
+        let mut out = Vec::new();
 
-        serde_cbor::from_reader(result).unwrap()
+        // TODO: DOS ATTACK POSSIBLE HERE
+        let mut reader = ureq::get(&u).call().unwrap().into_reader();
+        reader.read_to_end(&mut out);
+
+        minicbor::decode(&out).unwrap()
     }
 
-    pub fn put(&self, key: libsnapcd::key::Key, data: &crate::object::Object) {
+    pub fn put(&self, key: crate::key::Key, data: &crate::object::Object) {
         let u = format!("{}/v1/object/by-id/{}", self.url, key.as_user_key());
 
-        let body = serde_cbor::to_vec(&data).unwrap();
-        dbg!(body.len());
+        let body = minicbor::to_vec(&data).unwrap();
 
         ureq::put(&u).send_bytes(&body).unwrap();
     }

@@ -1,10 +1,8 @@
-use crate::ds::ToDsErrorResult;
 use rusqlite::{params, OptionalExtension};
 use std::path::Path;
 use thiserror::Error;
 
-use crate::ds;
-use libsnapcd::key;
+use crate::key;
 
 #[derive(Copy, Clone, Debug)]
 pub struct CacheKey {
@@ -13,38 +11,11 @@ pub struct CacheKey {
     pub size: u64,
 }
 
-#[derive(Debug, Error)]
-pub enum RawGetCacheError {
-    #[error("data store error: {_0}")]
-    DsError(#[from] ds::DsError),
-}
-
-#[derive(Debug, Error)]
-pub enum RawPutCacheError {
-    #[error("data store error: {_0}")]
-    DsError(#[from] ds::DsError),
-}
-
-#[derive(Debug, Error)]
-pub enum PutCacheError {
-    #[error("error when inserting item into cache: {_0}")]
-    RawPutCacheError(#[from] RawPutCacheError),
-}
-
-#[derive(Debug, Error)]
-pub enum GetCacheError {
-    #[error("error when getting item from cache: {_0}")]
-    RawGetCacheError(#[from] RawGetCacheError),
-
-    #[error("error when parsing key from cache: {_0}")]
-    FromDbKeyError(#[from] key::FromDbKeyError),
-}
-
 pub trait Cache {
-    fn raw_get(&self, cachekey: &[u8]) -> Result<Option<Vec<u8>>, RawGetCacheError>;
-    fn raw_put(&self, cachekey: &[u8], value: &[u8]) -> Result<(), RawPutCacheError>;
+    fn raw_get(&self, cachekey: &[u8]) -> anyhow::Result<Option<Vec<u8>>>;
+    fn raw_put(&self, cachekey: &[u8], value: &[u8]) -> anyhow::Result<()>;
 
-    fn get(&self, cachekey: CacheKey) -> Result<Option<key::Key>, GetCacheError> {
+    fn get(&self, cachekey: CacheKey) -> anyhow::Result<Option<key::Key>> {
         let mut data = Vec::with_capacity(8 * 3);
         data.extend(cachekey.inode.to_le_bytes().iter());
         data.extend(cachekey.mtime.to_le_bytes().iter());
@@ -61,7 +32,7 @@ pub trait Cache {
         }
     }
 
-    fn put(&self, cachekey: CacheKey, value: key::Key) -> Result<(), PutCacheError> {
+    fn put(&self, cachekey: CacheKey, value: key::Key) -> anyhow::Result<()> {
         let mut data = Vec::with_capacity(8 * 3);
 
         data.extend(cachekey.inode.to_le_bytes().iter());
@@ -86,7 +57,7 @@ pub enum NewSqliteCacheError {
 }
 
 impl SqliteCache {
-    pub fn new(path: impl AsRef<Path>) -> Result<Self, NewSqliteCacheError> {
+    pub fn new(path: impl AsRef<Path>) -> anyhow::Result<Self> {
         let conn = rusqlite::Connection::open(path)?;
 
         conn.pragma_update(None, "journal_mode", &"WAL")?;
@@ -107,53 +78,24 @@ impl SqliteCache {
 }
 
 impl Cache for SqliteCache {
-    fn raw_get(&self, key: &[u8]) -> Result<Option<Vec<u8>>, RawGetCacheError> {
-        let results: Result<Option<Vec<u8>>, _> = self
+    fn raw_get(&self, key: &[u8]) -> anyhow::Result<Option<Vec<u8>>> {
+        let results: Option<Vec<u8>> = self
             .conn
             .query_row("SELECT value FROM cache WHERE key=?", params![key], |row| {
                 row.get(0)
             })
-            .optional();
+            .optional()?;
 
-        Ok(results.into_ds_r()?)
+        Ok(results)
     }
 
-    fn raw_put(&self, key: &[u8], data: &[u8]) -> Result<(), RawPutCacheError> {
+    fn raw_put(&self, key: &[u8], data: &[u8]) -> anyhow::Result<()> {
         self.conn
             .execute(
                 "INSERT OR IGNORE INTO cache VALUES (?, ?)",
                 params![key, data],
-            )
-            .into_ds_r()?;
+            )?;
 
         Ok(())
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use std::path::PathBuf;
-
-    #[test]
-    #[ignore = "flaky"]
-    fn concurrent_access() {
-        let mut handles = Vec::new();
-        let file = tempfile::NamedTempFile::new().unwrap();
-        let path: PathBuf = file.path().into();
-        for _ in 0..10 {
-            let p = path.clone();
-            handles.push(std::thread::spawn(move || {
-                let cache = SqliteCache::new(p).unwrap();
-                for k in 0..20_000_i32 {
-                    cache.raw_put(&k.to_be_bytes(), &k.to_be_bytes()).unwrap();
-                    cache.raw_get(&(k - 1).to_be_bytes()).unwrap();
-                }
-            }));
-        }
-
-        for h in handles {
-            h.join().unwrap();
-        }
     }
 }

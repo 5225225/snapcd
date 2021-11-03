@@ -1,11 +1,7 @@
-use crate::ds::{
-    GetReflogError, RawBetweenError, RawExistsError, RawGetError, RawGetStateError, RawPutError,
-    RawPutStateError, ReflogPushError, WalkReflogError,
-};
-use crate::Reflog;
-use libsnapcd::crypto;
+use crate::ds::Reflog;
+use crate::crypto;
 use std::borrow::Cow;
-use libsnapcd::key::Key;
+use crate::key::Key;
 
 #[derive(Debug)]
 pub struct NullDs {
@@ -32,7 +28,7 @@ impl Default for NullDs {
     }
 }
 
-impl crate::DataStore for NullDs {
+impl crate::ds::DataStore for NullDs {
     fn get_encryption_key(&self) -> &crypto::EncryptionKey {
         &self.encryption_key
     }
@@ -41,32 +37,32 @@ impl crate::DataStore for NullDs {
         &self.gearhash_table
     }
 
-    fn raw_get<'a>(&'a self, _key: &[u8]) -> Result<Cow<'a, [u8]>, RawGetError> {
+    fn raw_get<'a>(&'a self, _key: &[u8]) -> anyhow::Result<Cow<'a, [u8]>> {
         unimplemented!("null datastore, no data")
     }
-    fn raw_put<'a>(&'a self, _key: &[u8], _data: &[u8]) -> Result<(), RawPutError> {
+    fn raw_put<'a>(&'a self, _key: &[u8], _data: &[u8]) -> anyhow::Result<()> {
         Ok(())
     }
-    fn raw_exists(&self, _key: &[u8]) -> Result<bool, RawExistsError> {
+    fn raw_exists(&self, _key: &[u8]) -> anyhow::Result<bool> {
         unimplemented!("null datastore, no data")
     }
-    fn raw_get_state(&self, _key: &[u8]) -> Result<Option<Vec<u8>>, RawGetStateError> {
+    fn raw_get_state(&self, _key: &[u8]) -> anyhow::Result<Option<Vec<u8>>> {
         unimplemented!("null datastore, no data")
     }
-    fn raw_put_state(&self, _key: &[u8], _data: &[u8]) -> Result<(), RawPutStateError> {
+    fn raw_put_state(&self, _key: &[u8], _data: &[u8]) -> anyhow::Result<()> {
         Ok(())
     }
-    fn reflog_push(&self, _data: &Reflog) -> Result<(), ReflogPushError> {
+    fn reflog_push(&self, _data: &Reflog) -> anyhow::Result<()> {
         Ok(())
     }
-    fn reflog_get(&self, _refname: &str, _remote: Option<&str>) -> Result<Key, GetReflogError> {
+    fn reflog_get(&self, _refname: &str, _remote: Option<&str>) -> anyhow::Result<Key> {
         unimplemented!("null datastore, no data")
     }
     fn reflog_walk(
         &self,
         _refname: &str,
         _remote: Option<&str>,
-    ) -> Result<Vec<Key>, WalkReflogError> {
+    ) -> anyhow::Result<Vec<Key>> {
         unimplemented!("null datastore, no data")
     }
 
@@ -74,7 +70,7 @@ impl crate::DataStore for NullDs {
         &self,
         _start: &[u8],
         _end: Option<&[u8]>,
-    ) -> Result<Vec<Vec<u8>>, RawBetweenError> {
+    ) -> anyhow::Result<Vec<Vec<u8>>> {
         unimplemented!("null datastore, no data")
     }
 }
