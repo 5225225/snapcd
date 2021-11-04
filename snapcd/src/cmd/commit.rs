@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use crate::cmd::{CmdResult, CommandTrait, DatabaseNotFoundError, NoHeadError, State};
 
 use libsnapcd::{ds::DataStore, filter};
@@ -14,6 +16,7 @@ pub struct CommitArgs {
 
     refname: Option<String>,
 }
+
 impl CommandTrait for CommitArgs {
     fn execute(self, state: &mut State) -> CmdResult {
         let ds_state = state.ds_state.as_mut().ok_or(DatabaseNotFoundError)?;

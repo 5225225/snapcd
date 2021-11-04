@@ -78,15 +78,11 @@ pub trait DataStore {
     fn canonicalize(&self, search: Keyish) -> anyhow::Result<key::Key> {
         let mut results: Vec<Vec<u8>>;
 
-        let err_str;
-
         match search {
             Keyish::Key(_s, key) => {
                 return Ok(key::Key::from_db_key(&key).unwrap());
             }
-            Keyish::Range(s, start, end) => {
-                err_str = s;
-
+            Keyish::Range(_s, start, end) => {
                 results = self.raw_between(&start, end.as_deref()).unwrap();
             }
             Keyish::Reflog {

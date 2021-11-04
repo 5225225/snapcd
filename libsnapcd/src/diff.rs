@@ -81,7 +81,10 @@ pub fn compare<'a>(
             path: x.clone(),
             new_key: from_map.as_ref().either(
                 |y| {
-                    if !y[x] {
+                    if y[x] {
+                        // directories don't have a hash
+                        None
+                    } else {
                         // this is a file
                         match dir::hash_fs_item(
                             ds,
@@ -91,9 +94,6 @@ pub fn compare<'a>(
                             Ok(h) => Some(h),
                             Err(e) => panic!("{}", e),
                         }
-                    } else {
-                        // directories don't have a hash
-                        None
                     }
                 },
                 |y| Some(y[x].0),
@@ -203,9 +203,9 @@ pub fn simplify(r: DiffResult) -> DiffResult {
 }
 
 pub fn print_diff_result(r: DiffResult) {
-    let r = simplify(r);
-
     use colored::Colorize;
+
+    let r = simplify(r);
 
     if !r.added.is_empty() {
         println!("{}", "added:".green());

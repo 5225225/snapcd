@@ -34,12 +34,6 @@ impl std::str::FromStr for Keyish {
     type Err = KeyishParseError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        if s.contains('/') {
-            return Ok(parse_from_ref(s));
-        } else {
-            return parse_from_base32(s);
-        }
-
         fn parse_from_ref(s: &str) -> Keyish {
             let idx = s
                 .find('/')
@@ -120,6 +114,12 @@ impl std::str::FromStr for Keyish {
             };
 
             Ok(Keyish::Range(s.to_string(), ret_start, ret_end))
+        }
+
+        if s.contains('/') {
+            Ok(parse_from_ref(s))
+        } else {
+            parse_from_base32(s)
         }
     }
 }
