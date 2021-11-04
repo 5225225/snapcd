@@ -10,6 +10,7 @@ pub struct NullDs {
 }
 
 impl NullDs {
+    #[must_use]
     pub fn new() -> Self {
         let zk = crypto::RepoKey::ZERO;
         let encryption_key = zk.derive_encryption_key();

@@ -1,8 +1,8 @@
+use libsnapcd::file::{put_data, read_data};
+use libsnapcd::{ds::sqlite::SqliteDs, ds::DataStore};
 use proptest::prelude::*;
 use rand::prelude::*;
 use rand_chacha::ChaChaRng;
-use libsnapcd::file::{put_data, read_data};
-use libsnapcd::{ds::sqlite::SqliteDs, ds::DataStore};
 use std::collections::HashSet;
 use std::io::{Read, Write};
 use std::path::Path;
@@ -114,12 +114,12 @@ proptest! {
             let key = sqlite_ds.put(blob).unwrap();
             let keystr = key.to_string();
 
-            let mut found = false;
+            let _found = false;
 
             for chopped in 2..keystr.len() {
                 let s = &keystr[..chopped];
 
-                let keyish: libsnapcd::keyish::Keyish = s.parse().unwrap();
+                let _keyish: libsnapcd::keyish::Keyish = s.parse().unwrap();
                 // TODO: reintroduce error for this test
                 /*
                 use libsnapcd::ds::CanonicalizeError;

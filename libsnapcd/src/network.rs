@@ -6,6 +6,7 @@ pub struct Connection {
 }
 
 impl Connection {
+    #[must_use]
     pub fn get(&self, key: crate::key::Key) -> crate::object::Object {
         let u = format!("{}/v1/object/by-id/{}", self.url, key.as_user_key());
 

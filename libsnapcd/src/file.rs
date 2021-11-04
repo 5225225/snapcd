@@ -53,7 +53,7 @@ pub fn inner_put_data<R: Read>(
 
     if (0..4).all(|x| key_bufs[x].is_empty()) {
         // We didn't find any chunks at all, so input was empty.
-        return Ok(put_data(b"")?);
+        return put_data(b"");
     }
 
     for offset in 0..4 {
@@ -80,7 +80,7 @@ pub fn inner_put_data<R: Read>(
     }
 
     trace!("putting keys depth 4 of length {}", &key_bufs[4].len());
-    Ok(put_keys(&key_bufs[4])?)
+    put_keys(&key_bufs[4])
 }
 
 pub fn read_data<DS: DataStore, W: Write>(ds: &DS, key: Key, to: &mut W) -> anyhow::Result<()> {

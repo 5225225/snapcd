@@ -166,6 +166,7 @@ pub fn compare<'a>(
     })
 }
 
+#[must_use]
 pub fn simplify(r: DiffResult) -> DiffResult {
     let mut deleted = Vec::new();
     let mut added = Vec::new();
@@ -204,7 +205,7 @@ pub fn simplify(r: DiffResult) -> DiffResult {
 pub fn print_diff_result(r: DiffResult) {
     let r = simplify(r);
 
-    use colored::*;
+    use colored::Colorize;
 
     if !r.added.is_empty() {
         println!("{}", "added:".green());
@@ -336,10 +337,12 @@ pub fn line_ct(ds: &impl DataStore, key: Key) -> usize {
     data.iter().filter(|x| **x == b'\n').count()
 }
 
+#[must_use]
 pub fn diff_result_empty(r: &DiffResult) -> bool {
     r.added.is_empty() && r.deleted.is_empty() && r.modified.is_empty()
 }
 
+#[must_use]
 pub fn format_patch(p: &patch::Patch<'_>) -> String {
     format!("{}\n", p)
 }
@@ -486,7 +489,7 @@ fn patch_from_file_string(before_str: String, after_str: String, path: PathBuf) 
     let lines_ln: Vec<_> = lines
         .diffs
         .into_iter()
-        .map(|x| {
+        .flat_map(|x| {
             let mut result = Vec::new();
             match x {
                 difference::Difference::Add(s) => {
@@ -523,7 +526,6 @@ fn patch_from_file_string(before_str: String, after_str: String, path: PathBuf) 
             }
             result
         })
-        .flatten()
         .collect();
 
     let mut windows_vec = Vec::new();

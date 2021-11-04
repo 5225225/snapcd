@@ -1,7 +1,7 @@
+use libsnapcd::ds::DataStore;
+use libsnapcd::file::put_data;
 use rand::prelude::*;
 use rand_chacha::ChaChaRng;
-use libsnapcd::file::put_data;
-use libsnapcd::ds::DataStore;
 use std::io::{self, Read};
 use std::time::Duration;
 

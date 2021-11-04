@@ -1,6 +1,6 @@
 use crate::cmd::{CmdResult, CommandTrait, DatabaseNotFoundError, NoHeadError, State};
-use libsnapcd::entry::Entry;
-use libsnapcd::{commit, dir, ds::DataStore, ds::Reflog, filter};
+
+use libsnapcd::{ds::DataStore, filter};
 use std::path::PathBuf;
 use structopt::StructOpt;
 
@@ -18,9 +18,10 @@ impl CommandTrait for CommitArgs {
     fn execute(self, state: &mut State) -> CmdResult {
         let ds_state = state.ds_state.as_mut().ok_or(DatabaseNotFoundError)?;
 
-        let filter = filter::make_filter_fn(&state.common.exclude, ds_state.db_folder_path.clone());
+        let _filter =
+            filter::make_filter_fn(&state.common.exclude, ds_state.db_folder_path.clone());
 
-        let commit_path = match &self.path {
+        let _commit_path = match &self.path {
             Some(p) => p,
             None => &ds_state.repo_path,
         };
@@ -30,7 +31,7 @@ impl CommandTrait for CommitArgs {
             None => ds_state.ds.get_head()?.ok_or(NoHeadError)?,
         };
 
-        let try_got_key = ds_state.ds.reflog_get(&refname, None);
+        let _try_got_key = ds_state.ds.reflog_get(&refname, None);
 
         // TODO: reflog_get needs to handle a not found
         /*

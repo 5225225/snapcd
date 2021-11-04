@@ -1,7 +1,7 @@
+use libsnapcd::{cache::SqliteCache, ds::sqlite::SqliteDs};
 use snapcd::cmd::CommandTrait;
 use snapcd::cmd::{DsState, Opt, State};
 use snapcd::logging::{setup_logging, setup_sqlite_callback};
-use libsnapcd::{cache::SqliteCache, ds::sqlite::SqliteDs};
 use structopt::StructOpt;
 
 type CmdResult = Result<(), anyhow::Error>;

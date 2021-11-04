@@ -90,7 +90,7 @@ pub trait DataStore {
                 results = self.raw_between(&start, end.as_deref()).unwrap();
             }
             Keyish::Reflog {
-                orig,
+                orig: _,
                 remote,
                 keyname,
             } => return self.reflog_get(&keyname, remote.as_deref()),
@@ -121,7 +121,7 @@ pub trait DataStore {
     fn put_obj(&self, data: &Object) -> anyhow::Result<key::Key> {
         let data = minicbor::to_vec(data)?;
 
-        Ok(self.put(data)?)
+        self.put(data)
     }
 }
 

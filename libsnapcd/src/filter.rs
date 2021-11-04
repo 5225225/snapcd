@@ -1,5 +1,6 @@
 use std::path::{Path, PathBuf};
 
+#[must_use]
 pub fn include_all(_path: &Path) -> bool {
     true
 }

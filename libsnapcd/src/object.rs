@@ -59,6 +59,7 @@ impl Object {
         pretty_print(self, Stdout)
     }
 
+    #[must_use]
     pub fn tree(&self, from: Key) -> Option<Key> {
         match self {
             Object::Commit { tree, .. } => Some(*tree),
@@ -68,6 +69,7 @@ impl Object {
         }
     }
 
+    #[must_use]
     pub fn links(&self) -> Vec<Key> {
         match self {
             Object::FileBlobTree { keys } => keys.clone(),

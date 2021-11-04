@@ -1,10 +1,9 @@
 use crate::entry::Entry;
 use crate::key::Key;
-use crate::{cache, ds};
+
 use crate::{cache::Cache, cache::CacheKey, ds::DataStore, file, object::Object};
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
-use thiserror::Error;
 
 /// `full_path` is the path relative to the root.
 /// If the put started outside of the root, it will be None
@@ -156,7 +155,7 @@ pub fn get_fs_item_dir<DS: DataStore>(
 
     match obj {
         Object::FsItemDir { children } => {
-            for (name, key, is_dir) in children.iter() {
+            for (name, key, is_dir) in &children {
                 dbg!(&name, &key, &is_dir);
                 if *is_dir {
                     path.create_dir(name)?;
@@ -213,7 +212,7 @@ pub fn checkout_fs_item<DS: DataStore>(
 
             let extra: Vec<_> = fs_items.difference(&db_items).collect();
 
-            for item in extra.iter() {
+            for item in &extra {
                 assert!(path.starts_with("/home/jess/src/snapcd/repo"));
                 let p = path.join(item);
                 let ft = std::fs::metadata(&p)?.file_type();

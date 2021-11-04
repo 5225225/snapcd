@@ -19,6 +19,7 @@ impl From<cap_std::fs::File> for Entry {
 
 impl Entry {
     /// Creates an [`Entry`] from a path. Will not follow symlinks, and will panic if used on one.
+    #[must_use]
     pub fn from_path(path: &std::path::Path, authority: cap_std::AmbientAuthority) -> Self {
         let item = std::fs::metadata(path).unwrap();
 
@@ -38,6 +39,7 @@ impl Entry {
         }
     }
 
+    #[must_use]
     pub fn from_direntry(entry: &cap_std::fs::DirEntry) -> Self {
         let file_type = entry.file_type().unwrap();
 

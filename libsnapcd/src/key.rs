@@ -120,6 +120,7 @@ impl Key {
         }
     }
 
+    #[must_use]
     pub fn as_db_key(&self) -> Vec<u8> {
         let hash_id = self.hash_id();
         let hash_bytes = self.hash_bytes();
@@ -132,6 +133,7 @@ impl Key {
         result
     }
 
+    #[must_use]
     pub fn as_user_key(&self) -> String {
         let mut result = String::new();
 
