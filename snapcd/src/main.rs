@@ -1,7 +1,7 @@
 use snapcd::cmd::CommandTrait;
 use snapcd::cmd::{DsState, Opt, State};
 use snapcd::logging::{setup_logging, setup_sqlite_callback};
-use snapcd::{cache::SqliteCache, ds::sqlite::SqliteDs};
+use libsnapcd::{cache::SqliteCache, ds::sqlite::SqliteDs};
 use structopt::StructOpt;
 
 type CmdResult = Result<(), anyhow::Error>;
@@ -18,7 +18,7 @@ fn main() -> CmdResult {
 
     tracing::debug!("parsed command line: {:?}", opt);
 
-    let ds_state: Option<DsState> = match snapcd::ds::find_db_folder(&opt.common.db_path) {
+    let ds_state: Option<DsState> = match libsnapcd::ds::find_db_folder(&opt.common.db_path) {
         Ok(Some(x)) => {
             let db_folder_path = x.clone();
             let repo_path = x
