@@ -1,7 +1,9 @@
-use crate::cmd::{CmdResult, CommandTrait, DatabaseNotFoundError, State};
-use libsnapcd::{dir, ds::DataStore, keyish::Keyish};
 use std::path::PathBuf;
+
+use libsnapcd::{dir, ds::DataStore, keyish::Keyish};
 use structopt::StructOpt;
+
+use crate::cmd::{CmdResult, CommandTrait, DatabaseNotFoundError, State};
 
 #[derive(StructOpt, Debug)]
 pub struct FetchArgs {

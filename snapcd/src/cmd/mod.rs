@@ -13,12 +13,11 @@ pub mod net;
 pub mod reflog;
 pub mod status;
 
+use std::path::PathBuf;
+
+use libsnapcd::{cache::SqliteCache, ds::sqlite::SqliteDs};
 use structopt::{clap::AppSettings, StructOpt};
 use thiserror::Error;
-
-use libsnapcd::cache::SqliteCache;
-use libsnapcd::ds::sqlite::SqliteDs;
-use std::path::PathBuf;
 
 #[enum_dispatch::enum_dispatch]
 pub trait CommandTrait {

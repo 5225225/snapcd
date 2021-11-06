@@ -1,5 +1,6 @@
-use rusqlite::{params, OptionalExtension};
 use std::path::Path;
+
+use rusqlite::{params, OptionalExtension};
 use thiserror::Error;
 
 use crate::key;

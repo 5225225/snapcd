@@ -1,5 +1,6 @@
-use crate::key::Key;
 use std::path::PathBuf;
+
+use crate::key::Key;
 
 #[derive(Debug, minicbor::Encode, minicbor::Decode)]
 pub enum Object {

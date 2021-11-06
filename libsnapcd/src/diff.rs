@@ -1,10 +1,11 @@
-use crate::ds::DataStore;
-use crate::key::Key;
-use crate::{cache, dir, file, filter};
+use std::{
+    collections::{HashMap, HashSet},
+    path::{Path, PathBuf},
+};
+
 use itertools::Itertools;
-use std::collections::{HashMap, HashSet};
-use std::path::Path;
-use std::path::PathBuf;
+
+use crate::{cache, dir, ds::DataStore, file, filter, key::Key};
 
 #[derive(Debug)]
 pub enum DiffTarget {

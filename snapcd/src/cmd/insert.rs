@@ -1,8 +1,9 @@
-use crate::cmd::{CmdResult, CommandTrait, DatabaseNotFoundError, State};
-use libsnapcd::entry::Entry;
-use libsnapcd::{dir, filter};
 use std::path::PathBuf;
+
+use libsnapcd::{dir, entry::Entry, filter};
 use structopt::StructOpt;
+
+use crate::cmd::{CmdResult, CommandTrait, DatabaseNotFoundError, State};
 
 #[derive(StructOpt, Debug)]
 pub struct InsertArgs {

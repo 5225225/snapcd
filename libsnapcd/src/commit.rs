@@ -1,6 +1,8 @@
-use crate::key::Key;
-use crate::object::CommitAttrs;
-use crate::{ds::DataStore, object::Object};
+use crate::{
+    ds::DataStore,
+    key::Key,
+    object::{CommitAttrs, Object},
+};
 
 #[allow(clippy::implicit_hasher)]
 pub fn commit_tree<DS: DataStore>(

@@ -28,7 +28,8 @@ pub enum FromBase32Error {
     UnknownByte(char),
 }
 
-/// Decodes the bits from `x` as a base32 string that was previously used with [`to_base32`] into a `BitVec`.
+/// Decodes the bits from `x` as a base32 string that was previously used with [`to_base32`] into a
+/// `BitVec`.
 ///
 /// `max_len` is used for when there were bits left over, and you do not want to decode them as
 /// zero bits.

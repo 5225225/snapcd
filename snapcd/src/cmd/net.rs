@@ -1,6 +1,7 @@
-use crate::cmd::{CmdResult, CommandTrait, DatabaseNotFoundError, State};
 use libsnapcd::ds::DataStore;
 use structopt::StructOpt;
+
+use crate::cmd::{CmdResult, CommandTrait, DatabaseNotFoundError, State};
 
 #[enum_dispatch::enum_dispatch]
 pub trait NetCommandTrait {

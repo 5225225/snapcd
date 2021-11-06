@@ -1,10 +1,9 @@
-use crate::{crypto::GearHashTable, key::Key};
-use crate::{ds::DataStore, object::Object};
-
 use std::io::prelude::*;
 
 use itertools::Itertools;
 use tracing::trace;
+
+use crate::{crypto::GearHashTable, ds::DataStore, key::Key, object::Object};
 
 pub fn put_data<DS: DataStore, R: Read>(ds: &mut DS, data: R) -> anyhow::Result<Key> {
     let table = ds.get_gearhash_table();

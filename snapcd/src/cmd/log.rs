@@ -1,8 +1,7 @@
-use crate::cmd::{CmdResult, CommandTrait, DatabaseNotFoundError, NoHeadError, State};
-use libsnapcd::diff::DiffTarget;
-use libsnapcd::object::Object;
-use libsnapcd::{diff, ds::DataStore};
+use libsnapcd::{diff, diff::DiffTarget, ds::DataStore, object::Object};
 use structopt::StructOpt;
+
+use crate::cmd::{CmdResult, CommandTrait, DatabaseNotFoundError, NoHeadError, State};
 
 #[derive(StructOpt, Debug)]
 pub struct LogArgs {}

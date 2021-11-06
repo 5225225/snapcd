@@ -1,0 +1,11 @@
+# These features aren't trying to go against rust format
+# they're just there to make rustfmt have an opinion where it otherwise does not
+# Removing this file and running a format *should* not do anything.
+
+unstable_features = true
+hex_literal_case = "Lower"
+wrap_comments = true
+comment_width = 100
+imports_granularity = "crate"
+reorder_imports = true
+group_imports = "StdExternalCrate"

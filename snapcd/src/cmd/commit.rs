@@ -1,10 +1,16 @@
 #![allow(dead_code)]
 
-use crate::cmd::{CmdResult, CommandTrait, DatabaseNotFoundError, NoHeadError, State};
-
-use libsnapcd::{commit, dir, ds::DataStore, ds::GetReflogError, ds::Reflog, entry::Entry, filter};
 use std::path::PathBuf;
+
+use libsnapcd::{
+    commit, dir,
+    ds::{DataStore, GetReflogError, Reflog},
+    entry::Entry,
+    filter,
+};
 use structopt::StructOpt;
+
+use crate::cmd::{CmdResult, CommandTrait, DatabaseNotFoundError, NoHeadError, State};
 
 #[derive(StructOpt, Debug)]
 pub struct CommitArgs {

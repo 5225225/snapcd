@@ -29,8 +29,10 @@
 
 use std::convert::TryInto;
 
-use aes_gcm_siv::aead::{Aead, NewAead};
-use aes_gcm_siv::Aes256GcmSiv;
+use aes_gcm_siv::{
+    aead::{Aead, NewAead},
+    Aes256GcmSiv,
+};
 
 /// The root repository key.
 ///

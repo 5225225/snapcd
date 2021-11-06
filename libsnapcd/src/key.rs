@@ -159,8 +159,9 @@ impl std::fmt::Display for Key {
 
 #[cfg(test)]
 mod tests {
-    use crate::{key::Key, keyish::Keyish};
     use std::str::FromStr;
+
+    use crate::{key::Key, keyish::Keyish};
 
     proptest::proptest! {
         #[test]

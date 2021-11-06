@@ -1,8 +1,11 @@
-use crate::cmd::NoHeadError;
-use crate::cmd::{CmdResult, CommandTrait, DatabaseNotFoundError, State};
 use colored::*;
-use libsnapcd::{ds::DataStore, ds::Reflog, keyish::Keyish};
+use libsnapcd::{
+    ds::{DataStore, Reflog},
+    keyish::Keyish,
+};
 use structopt::StructOpt;
+
+use crate::cmd::{CmdResult, CommandTrait, DatabaseNotFoundError, NoHeadError, State};
 
 #[enum_dispatch::enum_dispatch]
 pub trait RefCommandTrait {

@@ -2,8 +2,7 @@
 //!
 //! More detailed docs are available on [`Chunker`]
 
-use std::io::ErrorKind;
-use std::io::Read;
+use std::io::{ErrorKind, Read};
 
 use static_assertions::const_assert_eq;
 
@@ -164,10 +163,9 @@ impl<'a> Chunk<'a> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use std::{convert::TryFrom, io::Read};
 
-    use std::convert::TryFrom;
-    use std::io::Read;
+    use super::*;
 
     #[test]
     fn reproduce() {

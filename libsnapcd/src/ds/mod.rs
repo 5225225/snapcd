@@ -3,14 +3,12 @@ pub mod null;
 pub mod sqlite;
 //pub mod rocks;
 
-use blake3::hash;
-
 use std::borrow::Cow;
 
-use crate::key;
-use crate::keyish::Keyish;
-use crate::object::Object;
+use blake3::hash;
 use thiserror::Error;
+
+use crate::{key, keyish::Keyish, object::Object};
 
 #[derive(Debug)]
 pub struct Reflog {

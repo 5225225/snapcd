@@ -1,11 +1,12 @@
-use libsnapcd::ds::DataStore;
-use libsnapcd::file::put_data;
-use rand::prelude::*;
-use rand_chacha::ChaChaRng;
-use std::io::{self, Read};
-use std::time::Duration;
+use std::{
+    io::{self, Read},
+    time::Duration,
+};
 
 use criterion::{criterion_group, criterion_main, BatchSize, Criterion, Throughput};
+use libsnapcd::{ds::DataStore, file::put_data};
+use rand::prelude::*;
+use rand_chacha::ChaChaRng;
 
 fn inner_bench<DS: DataStore, T: Fn() -> DS>(
     ctor: &T,

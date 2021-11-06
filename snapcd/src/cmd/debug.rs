@@ -1,7 +1,13 @@
-use crate::cmd::{CmdResult, CommandTrait, DatabaseNotFoundError, State};
-use libsnapcd::{commit, dir, ds::DataStore, ds::Reflog, keyish::Keyish};
 use std::path::PathBuf;
+
+use libsnapcd::{
+    commit, dir,
+    ds::{DataStore, Reflog},
+    keyish::Keyish,
+};
 use structopt::StructOpt;
+
+use crate::cmd::{CmdResult, CommandTrait, DatabaseNotFoundError, State};
 
 #[enum_dispatch::enum_dispatch]
 pub trait DebugCommandTrait {

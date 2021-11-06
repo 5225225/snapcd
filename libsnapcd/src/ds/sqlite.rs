@@ -1,13 +1,13 @@
-use std::path::Path;
+use std::{borrow::Cow, path::Path};
 
-use rusqlite::params;
-use rusqlite::OptionalExtension;
-use std::borrow::Cow;
-
-use crate::ds::DataStore;
-use crate::ds::{GetReflogError, Reflog};
-use crate::{crypto, key::Key};
+use rusqlite::{params, OptionalExtension};
 use thiserror::Error;
+
+use crate::{
+    crypto,
+    ds::{DataStore, GetReflogError, Reflog},
+    key::Key,
+};
 
 #[derive(Debug)]
 pub struct SqliteDs {

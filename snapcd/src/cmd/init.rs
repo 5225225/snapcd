@@ -1,6 +1,7 @@
-use crate::cmd::{CmdResult, CommandTrait, State};
-use libsnapcd::{ds::sqlite::SqliteDs, ds::DataStore};
+use libsnapcd::ds::{sqlite::SqliteDs, DataStore};
 use structopt::StructOpt;
+
+use crate::cmd::{CmdResult, CommandTrait, State};
 
 #[derive(StructOpt, Debug)]
 pub struct InitArgs {}

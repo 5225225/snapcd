@@ -1,13 +1,17 @@
-use libsnapcd::file::{put_data, read_data};
-use libsnapcd::{ds::sqlite::SqliteDs, ds::DataStore};
+use std::{
+    collections::HashSet,
+    io::{Read, Write},
+    path::{Path, PathBuf},
+};
+
+use cap_std::fs::Dir;
+use libsnapcd::{
+    ds::{sqlite::SqliteDs, DataStore},
+    file::{put_data, read_data},
+};
 use proptest::prelude::*;
 use rand::prelude::*;
 use rand_chacha::ChaChaRng;
-use std::collections::HashSet;
-use std::io::{Read, Write};
-use std::path::{Path, PathBuf};
-
-use cap_std::fs::Dir;
 
 fn internal_test<T: DataStore, F: FnMut() -> T>(
     ctor: &mut F,
@@ -189,8 +193,9 @@ fn file_round_trip_test() {
 
 #[test]
 fn chunker_works() {
-    use libsnapcd::{ds::DataStore, key::Key, object::Object};
     use std::collections::HashSet;
+
+    use libsnapcd::{ds::DataStore, key::Key, object::Object};
 
     let sqlite_ds = SqliteDs::new(":memory:").unwrap();
 

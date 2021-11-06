@@ -1,7 +1,10 @@
-use crate::crypto;
-use crate::ds::{GetReflogError, Reflog};
-use crate::key::Key;
 use std::borrow::Cow;
+
+use crate::{
+    crypto,
+    ds::{GetReflogError, Reflog},
+    key::Key,
+};
 
 #[derive(Debug)]
 pub struct NullDs {
