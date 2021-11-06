@@ -132,13 +132,13 @@ mod tests {
     proptest::proptest! {
         #[test]
         fn keyish_parse_doesnt_crash(string: String) {
-            let _ = Keyish::from_str(&string);
+            drop(Keyish::from_str(&string));
         }
 
         #[test]
         fn keyish_ref_parse_doesnt_crash(first: String, last: String) {
             let result = format!("{}/{}", first, last);
-            let _ = Keyish::from_str(&result);
+            drop(Keyish::from_str(&result));
         }
     }
 }

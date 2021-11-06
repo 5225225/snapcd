@@ -211,10 +211,10 @@ mod tests {
                 if let Ok(Key::Blake3B(newbytes)) = db_key {
                     assert_eq!(bytes, newbytes);
                 } else {
-                    panic!("parsed a keybuf that wasn't expected hash type")
+                    panic!("parsed a keybuf that wasn't expected hash type");
                 }
             } else {
-                panic!("we asked for the full key and we got something else")
+                panic!("we asked for the full key and we got something else");
             }
         }
     }

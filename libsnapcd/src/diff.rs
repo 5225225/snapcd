@@ -611,7 +611,7 @@ mod tests {
     proptest::proptest! {
         #[test]
         fn patch_from_file_string_doesnt_panic(before: String, after: String, path: String) {
-            let _ = patch_from_file_string(before, after, path.into());
+            drop(patch_from_file_string(before, after, path.into()));
         }
     }
 }

@@ -63,8 +63,7 @@ impl Object {
     pub fn tree(&self, from: Key) -> Option<Key> {
         match self {
             Object::Commit { tree, .. } => Some(*tree),
-            Object::FsItemDir { .. } => Some(from),
-            Object::FsItemFile { .. } => Some(from),
+            Object::FsItemDir { .. } | Object::FsItemFile { .. } => Some(from),
             _ => None,
         }
     }

@@ -110,7 +110,7 @@ mod tests {
 
         #[test]
         fn from_base32_non_panicking(bytes: String, mul: usize) {
-            let _ = from_base32(&bytes, bytes.len() * (mul % 10));
+            drop(from_base32(&bytes, bytes.len() * (mul % 10)));
         }
     }
 }

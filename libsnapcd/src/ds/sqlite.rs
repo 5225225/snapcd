@@ -5,7 +5,7 @@ use rusqlite::OptionalExtension;
 use std::borrow::Cow;
 
 use crate::ds::DataStore;
-use crate::ds::{Reflog, GetReflogError};
+use crate::ds::{GetReflogError, Reflog};
 use crate::{crypto, key::Key};
 use thiserror::Error;
 
