@@ -108,6 +108,10 @@ impl DebugCommandTrait for PrettyPrintArgs {
 
         let key = ds_state.ds.canonicalize(self.key)?;
 
+        let bytes = ds_state.ds.get(key)?;
+
+        println!("cbor diagnostic:\n{}\n", minicbor::display(&bytes));
+
         let item = ds_state.ds.get_obj(key)?;
 
         item.debug_pretty_print()?;

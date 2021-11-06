@@ -51,7 +51,7 @@ fn commit_test() {
 
     let expected_output = indoc::indoc!(
         "
-        HEAD: main [bhro4lrl]
+        HEAD: main [borfq54p]
         added:
           c
         deleted:
@@ -100,7 +100,7 @@ fn extract_test() {
         .current_dir(dir.path())
         .assert();
 
-    let expected_output = "HEAD: main [bdcyh364]\n";
+    let expected_output = "HEAD: main [bpqm6eue]\n";
 
     assert.success().stdout(expected_output);
 

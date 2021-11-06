@@ -1318,6 +1318,7 @@ version = "0.11.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9761df552087b47d7651dd4d14717c35ef43d47c01e04e399530faaa427ca541"
 dependencies = [
+ "half",
  "minicbor-derive",
 ]
 
