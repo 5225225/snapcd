@@ -4,7 +4,7 @@ fn init_test() {
 
     let dir = assert_fs::TempDir::new().unwrap();
 
-    let mut cmd = Command::cargo_bin("libsnapcd").unwrap();
+    let mut cmd = Command::cargo_bin("snapcd").unwrap();
 
     let assert = cmd.arg("init").current_dir(dir.path()).assert();
 
@@ -18,7 +18,7 @@ fn commit_test() {
 
     let dir = assert_fs::TempDir::new().unwrap();
 
-    let assert = Command::cargo_bin("libsnapcd")
+    let assert = Command::cargo_bin("snapcd")
         .unwrap()
         .arg("init")
         .current_dir(dir.path())

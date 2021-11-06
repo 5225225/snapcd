@@ -1,5 +1,5 @@
 use crate::crypto;
-use crate::ds::Reflog;
+use crate::ds::{Reflog, GetReflogError};
 use crate::key::Key;
 use std::borrow::Cow;
 
@@ -56,7 +56,7 @@ impl crate::ds::DataStore for NullDs {
     fn reflog_push(&self, _data: &Reflog) -> anyhow::Result<()> {
         Ok(())
     }
-    fn reflog_get(&self, _refname: &str, _remote: Option<&str>) -> anyhow::Result<Key> {
+    fn reflog_get(&self, refname: &str, remote: Option<&str>) -> Result<Key, GetReflogError> {
         unimplemented!("null datastore, no data")
     }
     fn reflog_walk(&self, _refname: &str, _remote: Option<&str>) -> anyhow::Result<Vec<Key>> {

@@ -5,7 +5,7 @@ use rusqlite::OptionalExtension;
 use std::borrow::Cow;
 
 use crate::ds::DataStore;
-use crate::ds::Reflog;
+use crate::ds::{Reflog, GetReflogError};
 use crate::{crypto, key::Key};
 use thiserror::Error;
 
@@ -72,20 +72,21 @@ impl DataStore for SqliteDs {
         &self.gearhash_table
     }
 
-    fn reflog_get(&self, refname: &str, remote: Option<&str>) -> anyhow::Result<Key> {
+    fn reflog_get(&self, refname: &str, remote: Option<&str>) -> Result<Key, GetReflogError> {
         // We have to use `remote IS ?` here because we want NULL = NULL (it is not remote).
-        let query: Option<Vec<u8>> = self
+        let query: Result<Option<Vec<u8>>, _> = self
             .conn
             .query_row(
                 "SELECT key FROM reflog WHERE refname=? AND remote IS ? ORDER BY id DESC LIMIT 1",
                 params![refname, remote],
                 |row| row.get(0),
             )
-            .optional()?;
+            .optional();
 
         match query {
-            Some(k) => Ok(Key::from_db_key(&k)?),
-            None => anyhow::bail!("key not found"),
+            Ok(Some(k)) => Ok(Key::from_db_key(&k).map_err(|x| GetReflogError::Other(x.into()))?),
+            Ok(None) => Err(GetReflogError::NotFound),
+            Err(e) => Err(GetReflogError::Other(e.into())),
         }
     }
 

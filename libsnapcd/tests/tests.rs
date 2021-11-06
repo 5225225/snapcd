@@ -114,7 +114,7 @@ proptest! {
             let key = sqlite_ds.put(blob).unwrap();
             let keystr = key.to_string();
 
-            let found = false;
+            let mut found = false;
 
             for chopped in 2..keystr.len() {
                 let s = &keystr[..chopped];

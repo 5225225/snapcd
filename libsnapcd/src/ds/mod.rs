@@ -27,6 +27,18 @@ pub enum CanonicalizeError {
     #[error("Object '{_0}' is ambiguous")]
     Ambigious(String, Vec<key::Key>),
 
+    #[error("Error {_0} when resolving reflog keyish")]
+    ReflogError(#[from] GetReflogError),
+
+    #[error("other error: {_0}")]
+    Other(#[from] anyhow::Error),
+}
+
+#[derive(Debug, Error)]
+pub enum GetReflogError {
+    #[error("entry not found")]
+    NotFound,
+
     #[error("other error: {_0}")]
     Other(#[from] anyhow::Error),
 }
@@ -83,7 +95,7 @@ pub trait DataStore {
     }
 
     fn reflog_push(&self, data: &Reflog) -> anyhow::Result<()>;
-    fn reflog_get(&self, refname: &str, remote: Option<&str>) -> anyhow::Result<key::Key>;
+    fn reflog_get(&self, refname: &str, remote: Option<&str>) -> Result<key::Key, GetReflogError>;
     fn reflog_walk(&self, refname: &str, remote: Option<&str>) -> anyhow::Result<Vec<key::Key>>;
 
     fn raw_between(&self, start: &[u8], end: Option<&[u8]>) -> anyhow::Result<Vec<Vec<u8>>>;
@@ -91,11 +103,14 @@ pub trait DataStore {
     fn canonicalize(&self, search: Keyish) -> Result<key::Key, CanonicalizeError> {
         let mut results: Vec<Vec<u8>>;
 
+        let orig;
+
         match search {
             Keyish::Key(_s, key) => {
                 return Ok(key::Key::from_db_key(&key).unwrap());
             }
-            Keyish::Range(_s, start, end) => {
+            Keyish::Range(s, start, end) => {
+                orig = s;
                 results = self.raw_between(&start, end.as_deref()).unwrap();
             }
             Keyish::Reflog {
@@ -106,17 +121,27 @@ pub trait DataStore {
         };
 
         match results.len() {
-            0 => Err(CanonicalizeError::NotFound(todo!())),
+            0 => Err(CanonicalizeError::NotFound(orig)),
             // This is okay since we know it will have one item.
             #[allow(clippy::unwrap_used)]
-            1 => Ok(key::Key::from_db_key(&results.pop().unwrap()).map_err(|e| anyhow::Error::new(e.into()))?),
+            1 => {
+                let key = results.pop().unwrap();
+                match key::Key::from_db_key(&key) {
+                    Ok(k) => Ok(k),
+                    Err(e) => Err(CanonicalizeError::Other(e.into())),
+                }
+            }
             _ => {
-                let strs: Result<Vec<crate::key::Key>, crate::key::FromDbKeyError> = results
+                let strs: Vec<crate::key::Key> = match results
                     .into_iter()
                     .map(|x| key::Key::from_db_key(&x))
-                    .collect();
+                    .collect()
+                {
+                    Ok(v) => v,
+                    Err(e) => return Err(CanonicalizeError::Other(e.into())),
+                };
 
-                Err(CanonicalizeError::Ambigious(todo!(), todo!()))
+                Err(CanonicalizeError::Ambigious(orig, strs))
             }
         }
     }
