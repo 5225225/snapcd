@@ -18,7 +18,7 @@ impl CommandTrait for InsertArgs {
 
         let filter = filter::include_all;
 
-        let hash = dir::put_fs_item(&mut ds_state.ds, &entry, "".into(), &filter)?;
+        let hash = dir::put_fs_item(&mut ds_state.ds, &entry, &PathBuf::from(""), &filter)?;
 
         println!("inserted hash {}", hash);
 

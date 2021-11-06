@@ -45,7 +45,7 @@ impl CommandTrait for CommitArgs {
 
         let entry = Entry::from_path(commit_path, cap_std::ambient_authority());
 
-        let key = dir::put_fs_item(&mut ds_state.ds, &entry, "".into(), &filter)?;
+        let key = dir::put_fs_item(&mut ds_state.ds, &entry, &PathBuf::from(""), &filter)?;
 
         let attrs = libsnapcd::object::CommitAttrs {
             message: Some(self.message),

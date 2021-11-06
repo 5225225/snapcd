@@ -10,7 +10,7 @@ use std::path::{Path, PathBuf};
 pub fn put_fs_item<DS: DataStore>(
     ds: &mut DS,
     entry: &Entry,
-    path: PathBuf,
+    path: &Path,
     filter: &dyn Fn(&Path) -> bool,
 ) -> anyhow::Result<Key> {
     match entry {
@@ -22,7 +22,7 @@ pub fn put_fs_item<DS: DataStore>(
             for entry in entries {
                 match entry {
                     Ok(direntry) => {
-                        let mut p = path.clone();
+                        let mut p = path.to_path_buf();
                         p.push(direntry.file_name());
 
                         let is_dir;
@@ -38,7 +38,7 @@ pub fn put_fs_item<DS: DataStore>(
                         if filter(&p) {
                             result.push((
                                 direntry.file_name().into(),
-                                put_fs_item(ds, &Entry::from_direntry(&direntry), p, filter)?,
+                                put_fs_item(ds, &Entry::from_direntry(&direntry), &p, filter)?,
                                 is_dir,
                             ));
                         }

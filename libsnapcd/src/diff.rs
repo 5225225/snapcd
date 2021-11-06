@@ -3,6 +3,7 @@ use crate::key::Key;
 use crate::{cache, dir, file, filter};
 use itertools::Itertools;
 use std::collections::{HashMap, HashSet};
+use std::path::Path;
 use std::path::PathBuf;
 
 #[derive(Debug)]
@@ -471,8 +472,7 @@ pub fn create_diff_patch_result(ds: &impl DataStore, r: DiffResult) -> anyhow::R
         let before_str = String::from_utf8_lossy(&before);
         let after_str = String::from_utf8_lossy(&after);
 
-        let patch_str =
-            patch_from_file_string(before_str.to_string(), after_str.to_string(), modified.path);
+        let patch_str = patch_from_file_string(&before_str, &after_str, &modified.path);
 
         result.push_str(&patch_str);
     }
@@ -480,8 +480,8 @@ pub fn create_diff_patch_result(ds: &impl DataStore, r: DiffResult) -> anyhow::R
     Ok(result)
 }
 
-fn patch_from_file_string(before_str: String, after_str: String, path: PathBuf) -> String {
-    let lines = difference::Changeset::new(&before_str, &after_str, "\n");
+fn patch_from_file_string(before_str: &str, after_str: &str, path: &Path) -> String {
+    let lines = difference::Changeset::new(before_str, after_str, "\n");
 
     let mut before_lineno = 1;
     let mut after_lineno = 1;
@@ -611,7 +611,7 @@ mod tests {
     proptest::proptest! {
         #[test]
         fn patch_from_file_string_doesnt_panic(before: String, after: String, path: String) {
-            drop(patch_from_file_string(before, after, path.into()));
+            drop(patch_from_file_string(&before, &after, &PathBuf::from(path)));
         }
     }
 }

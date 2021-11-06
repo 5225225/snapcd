@@ -14,7 +14,7 @@ impl Connection {
 
         // TODO: DOS ATTACK POSSIBLE HERE
         let mut reader = ureq::get(&u).call().unwrap().into_reader();
-        reader.read_to_end(&mut out);
+        reader.read_to_end(&mut out).expect("failed to read");
 
         minicbor::decode(&out).unwrap()
     }

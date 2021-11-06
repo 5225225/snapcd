@@ -85,6 +85,7 @@ static TABLE: [u8; 32] = *b"abcdefghijklmnopqrstuvwxyz234567";
 ///
 /// assert_eq!(s, "vi");
 /// ```
+#[must_use]
 pub fn to_base32(x: &[u8]) -> String {
     let mut scratch = BitVec::<Msb0, u8>::from_vec(x.to_vec());
     let mut ret = String::new();

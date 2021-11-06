@@ -16,14 +16,10 @@
 // #![warn(unused_crate_dependencies)]
 #![allow(clippy::similar_names)]
 #![allow(clippy::missing_errors_doc)]
-#![allow(clippy::must_use_candidate)]
 #![allow(clippy::module_name_repetitions)]
 #![allow(clippy::too_many_lines)]
 #![allow(clippy::missing_panics_doc)]
-#![allow(clippy::needless_pass_by_value)]
 #![allow(missing_docs)]
-#![allow(dead_code)]
-#![allow(unused_must_use)]
 
 pub mod base32;
 pub mod cache;

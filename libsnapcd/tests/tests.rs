@@ -5,7 +5,7 @@ use rand::prelude::*;
 use rand_chacha::ChaChaRng;
 use std::collections::HashSet;
 use std::io::{Read, Write};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use cap_std::fs::Dir;
 
@@ -159,7 +159,8 @@ fn file_put_test() {
 
     let input_entry = input_file.into();
 
-    libsnapcd::dir::put_fs_item(&mut sqlite_ds, &input_entry, "".into(), &|_| true).unwrap();
+    libsnapcd::dir::put_fs_item(&mut sqlite_ds, &input_entry, &PathBuf::from(""), &|_| true)
+        .unwrap();
 }
 
 #[test]
@@ -173,7 +174,8 @@ fn file_round_trip_test() {
     let input_entry = dir.open("input.bin").unwrap().into();
 
     let hash =
-        libsnapcd::dir::put_fs_item(&mut sqlite_ds, &input_entry, "".into(), &|_| true).unwrap();
+        libsnapcd::dir::put_fs_item(&mut sqlite_ds, &input_entry, &PathBuf::from(""), &|_| true)
+            .unwrap();
 
     let output_file = dir.create("output.bin").unwrap();
     libsnapcd::dir::get_fs_item_file(&sqlite_ds, hash, &output_file).unwrap();
