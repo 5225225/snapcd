@@ -114,15 +114,15 @@ proptest! {
             let key = sqlite_ds.put(blob).unwrap();
             let keystr = key.to_string();
 
-            let _found = false;
+            let found = false;
 
             for chopped in 2..keystr.len() {
                 let s = &keystr[..chopped];
 
-                let _keyish: libsnapcd::keyish::Keyish = s.parse().unwrap();
+                let keyish: libsnapcd::keyish::Keyish = s.parse().unwrap();
                 // TODO: reintroduce error for this test
-                /*
                 use libsnapcd::ds::CanonicalizeError;
+
                 match sqlite_ds.canonicalize(keyish) {
                     Ok(k) => {
                         assert_eq!(k, key);
@@ -134,7 +134,6 @@ proptest! {
                     },
                     Err(e) => panic!("other error: {}", e),
                 }
-                */
             }
         }
     }

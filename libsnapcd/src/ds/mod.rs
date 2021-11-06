@@ -10,12 +10,25 @@ use std::borrow::Cow;
 use crate::key;
 use crate::keyish::Keyish;
 use crate::object::Object;
+use thiserror::Error;
 
 #[derive(Debug)]
 pub struct Reflog {
     pub refname: String,
     pub key: key::Key,
     pub remote: Option<String>,
+}
+
+#[derive(Debug, Error)]
+pub enum CanonicalizeError {
+    #[error("Object '{_0}' not found")]
+    NotFound(String),
+
+    #[error("Object '{_0}' is ambiguous")]
+    Ambigious(String, Vec<key::Key>),
+
+    #[error("other error: {_0}")]
+    Other(#[from] anyhow::Error),
 }
 
 static_assertions::assert_obj_safe!(DataStore);
@@ -75,7 +88,7 @@ pub trait DataStore {
 
     fn raw_between(&self, start: &[u8], end: Option<&[u8]>) -> anyhow::Result<Vec<Vec<u8>>>;
 
-    fn canonicalize(&self, search: Keyish) -> anyhow::Result<key::Key> {
+    fn canonicalize(&self, search: Keyish) -> Result<key::Key, CanonicalizeError> {
         let mut results: Vec<Vec<u8>>;
 
         match search {
@@ -89,21 +102,21 @@ pub trait DataStore {
                 orig: _,
                 remote,
                 keyname,
-            } => return self.reflog_get(&keyname, remote.as_deref()),
+            } => return Ok(self.reflog_get(&keyname, remote.as_deref())?),
         };
 
         match results.len() {
-            0 => anyhow::bail!("not found"),
+            0 => Err(CanonicalizeError::NotFound(todo!())),
             // This is okay since we know it will have one item.
             #[allow(clippy::unwrap_used)]
-            1 => Ok(key::Key::from_db_key(&results.pop().unwrap())?),
+            1 => Ok(key::Key::from_db_key(&results.pop().unwrap()).map_err(|e| anyhow::Error::new(e.into()))?),
             _ => {
                 let strs: Result<Vec<crate::key::Key>, crate::key::FromDbKeyError> = results
                     .into_iter()
                     .map(|x| key::Key::from_db_key(&x))
                     .collect();
 
-                anyhow::bail!("ambiguous, found {:?}", strs)
+                Err(CanonicalizeError::Ambigious(todo!(), todo!()))
             }
         }
     }
