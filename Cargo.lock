@@ -1176,6 +1176,7 @@ dependencies = [
  "rand",
  "rand_chacha",
  "rusqlite",
+ "similar",
  "static_assertions",
  "thiserror",
  "tracing",
@@ -2100,6 +2101,12 @@ checksum = "e51e73328dc4ac0c7ccbda3a494dfa03df1de2f46018127f60c693f2648455b0"
 dependencies = [
  "libc",
 ]
+
+[[package]]
+name = "similar"
+version = "2.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2e24979f63a11545f5f2c60141afe249d4f19f84581ea2138065e400941d83d3"
 
 [[package]]
 name = "slab"

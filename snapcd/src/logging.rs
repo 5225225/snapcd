@@ -1,4 +1,4 @@
-/// Sets up the SQLite callback to log using the `log` crate.
+/// Sets up the SQLite callback to log using the [`tracing`] crate.
 ///
 /// # Safety
 ///

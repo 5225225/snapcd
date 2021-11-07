@@ -1,7 +1,13 @@
+//! A bit-aware base32 encoder/decoder
+//!
+//! Uses Bitvec in [`from_base32`] in order to allow for decoding into a series of bits. This
+//! allows you to do easier range searches, used for [`Keyish::Range`].
+//!
+//! [`Keyish::Range`]: crate::keyish::Keyish::Range
+
 use bitvec::prelude::*;
 use thiserror::Error;
 
-#[allow(clippy::identity_op)] // look, the << 0 makes it look neater IMO
 fn pop_u5_from_bitvec(x: &mut BitVec<Msb0, u8>) -> u8 {
     let mut v = 0;
 
@@ -9,7 +15,7 @@ fn pop_u5_from_bitvec(x: &mut BitVec<Msb0, u8>) -> u8 {
     v |= (*x.get(1).as_deref().unwrap_or(&false) as u8) << 3;
     v |= (*x.get(2).as_deref().unwrap_or(&false) as u8) << 2;
     v |= (*x.get(3).as_deref().unwrap_or(&false) as u8) << 1;
-    v |= (*x.get(4).as_deref().unwrap_or(&false) as u8) << 0;
+    v |= *x.get(4).as_deref().unwrap_or(&false) as u8;
 
     for _ in 0..5 {
         if !x.is_empty() {

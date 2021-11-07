@@ -14,10 +14,8 @@
 // Way too many false positives
 // use cargo-udeps instead
 // #![warn(unused_crate_dependencies)]
-#![allow(clippy::similar_names)]
 #![allow(clippy::missing_errors_doc)]
 #![allow(clippy::module_name_repetitions)]
-#![allow(clippy::too_many_lines)]
 #![allow(clippy::missing_panics_doc)]
 #![allow(missing_docs)]
 

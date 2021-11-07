@@ -23,6 +23,7 @@ minicbor = { version = "0.11.4", features = ["std", "derive"] }
 patch = "0.5.0"
 pretty-hex = "0.2.1"
 rusqlite = "0.26.1"
+similar = "2.1.0"
 static_assertions = "1.1.0"
 thiserror = "1.0.30"
 tracing = "0.1.29"
