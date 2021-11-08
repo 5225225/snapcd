@@ -1,0 +1,35 @@
+1. Implement strongly typed keys
+
+All keys should be passed around like Key<SomeObject>. You can then use that key to get a
+SomeObject struct.
+
+For cases where we don't know the exact type, you can use Key<Either<SomeObject, SomeOtherObject>>,
+and again, that can be flattened to get a Either<SomeObject, SomeOtherObject>.
+
+This requires also the notion of an UntypedKey, which you can use the database to ask what type it
+is.
+
+2. Implement cap_std
+
+As much as possible, the system shouldn't use ambient authority.
+
+The only files we need access to are
+
+1. The cache sqlite file
+2. The main database sqlite file
+3. If the user is doing a commit, then the whole of the repo's files. If it's just an insert, then
+we only need the folder named.
+
+
+3. Implement filtering
+
+This should only be done for commits, where it's the whole project, I guess. That removes hard
+questions about "what if you go to insert from outside the repo, what does the relative path say
+then?".
+
+But in all cases, try to avoid inserting the cache file or the database file, or any of its WAL
+files. Maybe this is a place where we break ambient authority by
+
+1. get a fully absolute path to these files
+2. When we're given a file to ask if it should be entered, resolve symlinks and see if it's this
+file
