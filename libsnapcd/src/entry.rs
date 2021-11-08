@@ -25,11 +25,11 @@ impl Entry {
 
         if item.is_dir() {
             let cap_dir = cap_std::fs::Dir::open_ambient_dir(&path, authority).unwrap();
-            Entry::Dir(cap_dir)
+            Self::Dir(cap_dir)
         } else if item.is_file() {
             let file = std::fs::File::open(&path).unwrap();
             let cap_file = cap_std::fs::File::from_std(file, authority);
-            Entry::File(cap_file)
+            Self::File(cap_file)
         } else {
             panic!(
                 "Unrecognised item type for path {}, metadata is {:?}",
@@ -44,9 +44,9 @@ impl Entry {
         let file_type = entry.file_type().unwrap();
 
         if file_type.is_dir() {
-            Entry::Dir(entry.open_dir().unwrap())
+            Self::Dir(entry.open_dir().unwrap())
         } else if file_type.is_file() {
-            Entry::File(entry.open().unwrap())
+            Self::File(entry.open().unwrap())
         } else {
             panic!("Unrecognised item type for entry {:?}", entry);
         }

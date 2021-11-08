@@ -65,7 +65,7 @@ impl std::fmt::Debug for GearHashTable {
 
 impl RepoKey {
     /// The all-zero key. Does not provide any protection, used for public repositories.
-    pub const ZERO: RepoKey = RepoKey([0_u8; 32]);
+    pub const ZERO: Self = Self([0_u8; 32]);
 
     /// Generates a securely random [`RepoKey`] from system entropy.
     ///
@@ -73,10 +73,10 @@ impl RepoKey {
     ///
     /// Will panic if [`getrandom::getrandom`] returns an error.
     #[must_use]
-    pub fn generate() -> RepoKey {
+    pub fn generate() -> Self {
         let mut dest = [0_u8; 32];
         getrandom::getrandom(&mut dest).unwrap();
-        RepoKey(dest)
+        Self(dest)
     }
 
     /// Creates an [`EncryptionKey`] from this key. Deterministic.

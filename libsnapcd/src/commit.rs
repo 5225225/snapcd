@@ -4,7 +4,7 @@ use crate::{
     object::{CommitAttrs, Object},
 };
 
-#[allow(clippy::implicit_hasher)]
+#[allow(clippy::module_name_repetitions)]
 pub fn commit_tree<DS: DataStore>(
     ds: &mut DS,
     tree: Key,

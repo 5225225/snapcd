@@ -15,7 +15,7 @@ pub mod status;
 
 use std::path::PathBuf;
 
-use libsnapcd::{cache::SqliteCache, ds::sqlite::SqliteDs};
+use libsnapcd::{cache, ds::sqlite::Sqlite};
 use structopt::{clap::AppSettings, StructOpt};
 use thiserror::Error;
 
@@ -98,13 +98,13 @@ pub enum Command {
 #[derive(Debug)]
 pub struct State {
     pub ds_state: Option<DsState>,
-    pub cache: SqliteCache,
+    pub cache: cache::Sqlite,
     pub common: Common,
 }
 
 #[derive(Debug)]
 pub struct DsState {
-    pub ds: SqliteDs,
+    pub ds: Sqlite,
     pub db_folder_path: PathBuf,
     pub repo_path: PathBuf,
 }

@@ -11,11 +11,12 @@
 #![warn(unused_import_braces)]
 #![warn(unused_lifetimes)]
 #![warn(unused_qualifications)]
+#![warn(clippy::use_self)]
+#![warn(clippy::clone_on_ref_ptr)]
 // Way too many false positives
 // use cargo-udeps instead
 // #![warn(unused_crate_dependencies)]
 #![allow(clippy::missing_errors_doc)]
-#![allow(clippy::module_name_repetitions)]
 #![allow(clippy::missing_panics_doc)]
 #![allow(missing_docs)]
 

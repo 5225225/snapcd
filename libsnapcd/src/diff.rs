@@ -5,6 +5,7 @@ use std::{
 
 use crate::{cache, dir, ds::DataStore, file, filter, key::Key};
 
+#[allow(clippy::module_name_repetitions)]
 #[derive(Debug)]
 pub enum DiffTarget {
     FileSystem(PathBuf, Vec<String>, PathBuf),
@@ -32,6 +33,7 @@ pub struct AddedDiffResult {
     new_key: Option<Key>,
 }
 
+#[allow(clippy::module_name_repetitions)]
 #[derive(Debug)]
 pub struct DiffResult {
     deleted: Vec<DeletedDiffResult>,
@@ -45,7 +47,7 @@ pub fn compare<'a>(
     ds: &'a mut impl DataStore,
     from: DiffTarget,
     to: Option<Key>,
-    cache: impl Into<Option<&'a mut cache::SqliteCache>>,
+    cache: impl Into<Option<&'a mut cache::Sqlite>>,
 ) -> anyhow::Result<DiffResult> {
     let cache = cache.into();
     let cache = cache.as_ref();
@@ -337,11 +339,6 @@ pub fn line_ct(ds: &impl DataStore, key: Key) -> usize {
     #[allow(clippy::naive_bytecount)]
     // This whole function will be cached in the store at some point, this is just for testing
     data.iter().filter(|x| **x == b'\n').count()
-}
-
-#[must_use]
-pub fn diff_result_empty(r: &DiffResult) -> bool {
-    r.added.is_empty() && r.deleted.is_empty() && r.modified.is_empty()
 }
 
 #[must_use]

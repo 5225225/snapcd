@@ -6,7 +6,7 @@ use thiserror::Error;
 use crate::key;
 
 #[derive(Copy, Clone, Debug)]
-pub struct CacheKey {
+pub struct Key {
     pub inode: u64,
     pub mtime: i64,
     pub size: u64,
@@ -16,7 +16,7 @@ pub trait Cache {
     fn raw_get(&self, cachekey: &[u8]) -> anyhow::Result<Option<Vec<u8>>>;
     fn raw_put(&self, cachekey: &[u8], value: &[u8]) -> anyhow::Result<()>;
 
-    fn get(&self, cachekey: CacheKey) -> anyhow::Result<Option<key::Key>> {
+    fn get(&self, cachekey: Key) -> anyhow::Result<Option<key::Key>> {
         let mut data = Vec::with_capacity(8 * 3);
         data.extend(cachekey.inode.to_le_bytes().iter());
         data.extend(cachekey.mtime.to_le_bytes().iter());
@@ -33,7 +33,7 @@ pub trait Cache {
         }
     }
 
-    fn put(&self, cachekey: CacheKey, value: key::Key) -> anyhow::Result<()> {
+    fn put(&self, cachekey: Key, value: key::Key) -> anyhow::Result<()> {
         let mut data = Vec::with_capacity(8 * 3);
 
         data.extend(cachekey.inode.to_le_bytes().iter());
@@ -47,7 +47,7 @@ pub trait Cache {
 }
 
 #[derive(Debug)]
-pub struct SqliteCache {
+pub struct Sqlite {
     conn: rusqlite::Connection,
 }
 
@@ -57,7 +57,7 @@ pub enum NewSqliteCacheError {
     SqliteError(#[from] rusqlite::Error),
 }
 
-impl SqliteCache {
+impl Sqlite {
     pub fn new(path: impl AsRef<Path>) -> anyhow::Result<Self> {
         let conn = rusqlite::Connection::open(path)?;
 
@@ -78,7 +78,7 @@ impl SqliteCache {
     }
 }
 
-impl Cache for SqliteCache {
+impl Cache for Sqlite {
     fn raw_get(&self, key: &[u8]) -> anyhow::Result<Option<Vec<u8>>> {
         let results: Option<Vec<u8>> = self
             .conn

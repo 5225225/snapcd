@@ -1,4 +1,4 @@
-use libsnapcd::ds::{sqlite::SqliteDs, DataStore};
+use libsnapcd::ds::{sqlite::Sqlite, DataStore};
 use structopt::StructOpt;
 
 use crate::cmd::{CmdResult, CommandTrait, State};
@@ -9,7 +9,7 @@ pub struct InitArgs {}
 impl CommandTrait for InitArgs {
     fn execute(self, state: &mut State) -> CmdResult {
         std::fs::create_dir_all(&state.common.db_path)?;
-        let ds = SqliteDs::new(&state.common.db_path.join("snapcd.db"))?;
+        let ds = Sqlite::new(&state.common.db_path.join("snapcd.db"))?;
 
         ds.put_head("main")?;
 

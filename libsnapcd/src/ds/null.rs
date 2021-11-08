@@ -7,32 +7,32 @@ use crate::{
 };
 
 #[derive(Debug)]
-pub struct NullDs {
+pub struct Null {
     encryption_key: crypto::EncryptionKey,
     gearhash_table: crypto::GearHashTable,
 }
 
-impl NullDs {
+impl Null {
     #[must_use]
     pub fn new() -> Self {
         let zk = crypto::RepoKey::ZERO;
         let encryption_key = zk.derive_encryption_key();
         let gearhash_table = zk.derive_gearhash_table();
 
-        NullDs {
+        Self {
             encryption_key,
             gearhash_table,
         }
     }
 }
 
-impl Default for NullDs {
+impl Default for Null {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl crate::ds::DataStore for NullDs {
+impl crate::ds::DataStore for Null {
     fn get_encryption_key(&self) -> &crypto::EncryptionKey {
         &self.encryption_key
     }

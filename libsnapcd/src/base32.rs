@@ -1,6 +1,6 @@
 //! A bit-aware base32 encoder/decoder
 //!
-//! Uses Bitvec in [`from_base32`] in order to allow for decoding into a series of bits. This
+//! Uses Bitvec in [`decode`] in order to allow for decoding into a series of bits. This
 //! allows you to do easier range searches, used for [`Keyish::Range`].
 //!
 //! [`Keyish::Range`]: crate::keyish::Keyish::Range
@@ -29,17 +29,17 @@ fn pop_u5_from_bitvec(x: &mut BitVec<Msb0, u8>) -> u8 {
 }
 
 #[derive(Debug, Error)]
-pub enum FromBase32Error {
+pub enum DecodeError {
     #[error("found non-base32 char {0}")]
     UnknownByte(char),
 }
 
-/// Decodes the bits from `x` as a base32 string that was previously used with [`to_base32`] into a
+/// Decodes the bits from `x` as a base32 string that was previously used with [`encode`] into a
 /// `BitVec`.
 ///
 /// `max_len` is used for when there were bits left over, and you do not want to decode them as
 /// zero bits.
-pub fn from_base32(x: &str, max_len: usize) -> Result<BitVec<Msb0, u8>, FromBase32Error> {
+pub fn decode(x: &str, max_len: usize) -> Result<BitVec<Msb0, u8>, DecodeError> {
     let mut result = BitVec::<Msb0, u8>::new();
 
     for mut ch in x.bytes() {
@@ -50,7 +50,7 @@ pub fn from_base32(x: &str, max_len: usize) -> Result<BitVec<Msb0, u8>, FromBase
         let idx = TABLE
             .iter()
             .position(|&x| x == ch)
-            .ok_or_else(|| FromBase32Error::UnknownByte(ch as char))?;
+            .ok_or_else(|| DecodeError::UnknownByte(ch as char))?;
 
         debug_assert!((ch as char).is_ascii_lowercase() || (ch as char).is_ascii_digit());
 
@@ -75,13 +75,13 @@ static TABLE: [u8; 32] = *b"abcdefghijklmnopqrstuvwxyz234567";
 ///
 ///
 /// ```rust
-/// use libsnapcd::base32::to_base32;
+/// use libsnapcd::base32::encode;
 ///
 /// let table: [u8; 32] = *b"abcdefghijklmnopqrstuvwxyz234567";
 ///
 /// let x = [0b10101_010__; 1];
 ///
-/// let s = to_base32(&x);
+/// let s = encode(&x);
 /// let s_bytes = s.as_bytes();
 ///
 /// let first_char = table[0b10101];
@@ -93,7 +93,7 @@ static TABLE: [u8; 32] = *b"abcdefghijklmnopqrstuvwxyz234567";
 /// assert_eq!(s, "vi");
 /// ```
 #[must_use]
-pub fn to_base32(x: &[u8]) -> String {
+pub fn encode(x: &[u8]) -> String {
     let mut scratch = BitVec::<Msb0, u8>::from_vec(x.to_vec());
     let mut ret = String::new();
     while !scratch.is_empty() {
@@ -111,14 +111,14 @@ mod tests {
     proptest::proptest! {
         #[test]
         fn round_trip_base32(bytes: Vec<u8>) {
-            let b32 = to_base32(&bytes);
-            let restored = from_base32(&b32, bytes.len() * 8).unwrap();
+            let b32 = encode(&bytes);
+            let restored = decode(&b32, bytes.len() * 8).unwrap();
             assert_eq!(restored.as_raw_slice(), &*bytes);
         }
 
         #[test]
         fn from_base32_non_panicking(bytes: String, mul: usize) {
-            drop(from_base32(&bytes, bytes.len() * (mul % 10)));
+            drop(decode(&bytes, bytes.len() * (mul % 10)));
         }
     }
 }

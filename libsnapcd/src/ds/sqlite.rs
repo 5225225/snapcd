@@ -10,7 +10,7 @@ use crate::{
 };
 
 #[derive(Debug)]
-pub struct SqliteDs {
+pub struct Sqlite {
     conn: rusqlite::Connection,
     encryption_key: crypto::EncryptionKey,
     gearhash_table: crypto::GearHashTable,
@@ -22,7 +22,7 @@ pub enum NewSqliteError {
     SqliteError(#[from] rusqlite::Error),
 }
 
-impl SqliteDs {
+impl Sqlite {
     pub fn new<S: AsRef<Path>>(path: S) -> Result<Self, NewSqliteError> {
         let conn = rusqlite::Connection::open(path)?;
 
@@ -63,7 +63,7 @@ impl SqliteDs {
     }
 }
 
-impl DataStore for SqliteDs {
+impl DataStore for Sqlite {
     fn get_encryption_key(&self) -> &crypto::EncryptionKey {
         &self.encryption_key
     }

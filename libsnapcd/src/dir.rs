@@ -4,7 +4,7 @@ use std::{
 };
 
 use crate::{
-    cache::{Cache, CacheKey},
+    cache::{self, Cache},
     ds::DataStore,
     entry::Entry,
     file,
@@ -88,7 +88,7 @@ pub fn hash_fs_item<DS: DataStore, C: Cache>(
         let f = std::fs::File::open(path)?;
 
         let ext_metadata = f.metadata()?;
-        let cache_key = CacheKey {
+        let cache_key = cache::Key {
             mtime: ext_metadata.mtime(),
             inode: ext_metadata.ino(),
             size: ext_metadata.size(),
@@ -153,6 +153,7 @@ pub fn get_fs_item<DS: DataStore>(
     Ok(())
 }
 
+#[allow(clippy::module_name_repetitions)]
 pub fn get_fs_item_dir<DS: DataStore>(
     ds: &DS,
     key: Key,

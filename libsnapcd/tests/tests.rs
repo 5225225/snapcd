@@ -6,7 +6,7 @@ use std::{
 
 use cap_std::fs::Dir;
 use libsnapcd::{
-    ds::{sqlite::SqliteDs, DataStore},
+    ds::{sqlite::Sqlite, DataStore},
     file::{put_data, read_data},
 };
 use proptest::prelude::*;
@@ -45,7 +45,7 @@ fn internal_test<T: DataStore, F: FnMut() -> T>(
 
 #[test]
 fn data_round_trip_test() {
-    let mut sqlite_ds = || SqliteDs::new(":memory:").unwrap();
+    let mut sqlite_ds = || Sqlite::new(":memory:").unwrap();
 
     internal_test(&mut sqlite_ds, 1 << 20, 0, 8);
     internal_test(&mut sqlite_ds, 1 << 14, 8, 64);
@@ -55,7 +55,7 @@ fn data_round_trip_test() {
 proptest! {
     #[test]
     fn identity_read_write(value: Vec<u8>) {
-        let mut ds = SqliteDs::new(":memory:").unwrap();
+        let mut ds = Sqlite::new(":memory:").unwrap();
 
         let key = put_data(&mut ds, &value[..]).unwrap();
 
@@ -68,7 +68,7 @@ proptest! {
 
     #[test]
     fn between_test(mut keys: HashSet<Vec<u8>>, start: Vec<u8>, end: Option<Vec<u8>>) {
-        let ds = SqliteDs::new(":memory:").unwrap();
+        let ds = Sqlite::new(":memory:").unwrap();
 
         keys.retain(|x| !x.is_empty());
 
@@ -91,7 +91,7 @@ proptest! {
     // full key must be able to be canonicalized back into the original key
     #[test]
     fn keyish_truncation(value: u64) {
-        let sqlite_ds = SqliteDs::new(":memory:").unwrap();
+        let sqlite_ds = Sqlite::new(":memory:").unwrap();
         let blob = value.to_ne_bytes().to_vec();
         let key = sqlite_ds.put(blob).unwrap();
 
@@ -111,7 +111,7 @@ proptest! {
     #![proptest_config(ProptestConfig::with_cases(32))]
     #[test]
     fn keyishes_truncation(mut values: HashSet<u64>) {
-        let sqlite_ds = SqliteDs::new(":memory:").unwrap();
+        let sqlite_ds = Sqlite::new(":memory:").unwrap();
 
         for value in &values {
             let blob = value.to_ne_bytes().to_vec();
@@ -159,7 +159,7 @@ fn file_put_test() {
 
     let input_file = dir.open("input.bin").unwrap();
 
-    let mut sqlite_ds = SqliteDs::new(":memory:").unwrap();
+    let mut sqlite_ds = Sqlite::new(":memory:").unwrap();
 
     let input_entry = input_file.into();
 
@@ -173,7 +173,7 @@ fn file_round_trip_test() {
 
     let test_data_vec = create_test_data(&dir, "input.bin");
 
-    let mut sqlite_ds = SqliteDs::new(":memory:").unwrap();
+    let mut sqlite_ds = Sqlite::new(":memory:").unwrap();
 
     let input_entry = dir.open("input.bin").unwrap().into();
 
@@ -197,7 +197,7 @@ fn chunker_works() {
 
     use libsnapcd::{ds::DataStore, key::Key, object::Object};
 
-    let sqlite_ds = SqliteDs::new(":memory:").unwrap();
+    let sqlite_ds = Sqlite::new(":memory:").unwrap();
 
     let mut data = Vec::new();
     data.resize_with(1 << 20, rand::random);

@@ -1,4 +1,4 @@
-use libsnapcd::{cache::SqliteCache, ds::sqlite::SqliteDs};
+use libsnapcd::{cache, ds::sqlite::Sqlite};
 use snapcd::{
     cmd::{CommandTrait, DsState, Opt, State},
     logging::{setup_logging, setup_sqlite_callback},
@@ -27,7 +27,7 @@ fn main() -> CmdResult {
                 .expect("failed to get parent of db folder?")
                 .into();
 
-            let ds = SqliteDs::new(x.join("snapcd.db"))?;
+            let ds = Sqlite::new(x.join("snapcd.db"))?;
 
             Some(DsState {
                 ds,
@@ -54,11 +54,11 @@ fn main() -> CmdResult {
             d.push("snapcd");
             std::fs::create_dir_all(&d)?;
             d.push("cache.db");
-            SqliteCache::new(d)?
+            cache::Sqlite::new(d)?
         }
         None => {
             tracing::warn!("cache not found, using in memory cache");
-            SqliteCache::new(":memory:")?
+            cache::Sqlite::new(":memory:")?
         }
     };
 

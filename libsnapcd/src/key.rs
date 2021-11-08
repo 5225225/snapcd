@@ -39,7 +39,7 @@ pub enum FromUserKeyError {
     Empty,
 
     #[error("Invalid base32")]
-    FromBase32(#[from] crate::base32::FromBase32Error),
+    FromBase32(#[from] crate::base32::DecodeError),
 
     #[error("Incorrect length, got {got} hash bytes")]
     IncorrectLength {
@@ -63,7 +63,7 @@ impl std::str::FromStr for Key {
 
         match prefix as char {
             'b' => {
-                let hash_bytes = crate::base32::from_base32(bytes, 32 * 8)?.into_vec();
+                let hash_bytes = crate::base32::decode(bytes, 32 * 8)?.into_vec();
 
                 let hash_arr = match (&hash_bytes[..]).try_into() {
                     Ok(a) => a,
@@ -143,7 +143,7 @@ impl Key {
 
         result.push_str(prefix);
 
-        let encoded = crate::base32::to_base32(self.hash_bytes());
+        let encoded = crate::base32::encode(self.hash_bytes());
 
         result.push_str(&encoded);
 

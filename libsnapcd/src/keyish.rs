@@ -19,7 +19,7 @@ pub enum Keyish {
 }
 
 #[derive(Debug, Error)]
-pub enum KeyishParseError {
+pub enum ParseError {
     #[error("{0} is an invalid key")]
     Invalid(String),
 
@@ -31,7 +31,7 @@ pub enum KeyishParseError {
 }
 
 impl std::str::FromStr for Keyish {
-    type Err = KeyishParseError;
+    type Err = ParseError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         fn parse_from_ref(s: &str) -> Keyish {
@@ -57,25 +57,25 @@ impl std::str::FromStr for Keyish {
             }
         }
 
-        fn parse_from_base32(s: &str) -> Result<Keyish, KeyishParseError> {
+        fn parse_from_base32(s: &str) -> Result<Keyish, ParseError> {
             if !s.is_ascii() {
-                return Err(KeyishParseError::Invalid(s.to_string()));
+                return Err(ParseError::Invalid(s.to_string()));
             }
 
             // All prefixes and base32 will be in ASCII, so this is fine for indexing.
             let s_bytes: &[u8] = s.as_ref();
 
-            let (prefix, bytes) = (s_bytes.get(0), s.get(1..).ok_or(KeyishParseError::Empty)?);
+            let (prefix, bytes) = (s_bytes.get(0), s.get(1..).ok_or(ParseError::Empty)?);
 
             let max_len = match prefix {
                 Some(b'b') => 32 * 8,
-                Some(ch) => return Err(KeyishParseError::UnknownPrefix(*ch as char)),
-                _ => return Err(KeyishParseError::Invalid(s.to_string())),
+                Some(ch) => return Err(ParseError::UnknownPrefix(*ch as char)),
+                _ => return Err(ParseError::Invalid(s.to_string())),
             };
 
-            let input = match crate::base32::from_base32(bytes, max_len) {
+            let input = match crate::base32::decode(bytes, max_len) {
                 Ok(v) => v,
-                Err(_) => return Err(KeyishParseError::Invalid(s.to_string())),
+                Err(_) => return Err(ParseError::Invalid(s.to_string())),
             };
 
             if input.len() == max_len {
