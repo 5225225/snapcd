@@ -38,9 +38,9 @@ impl<'t, R> Chunker<'t, R> {
             reader,
             hasher: gearhash::Hasher::new(table),
             buf: Vec::new(),
-            min_size: 256,
-            normal_size: 8192,
-            max_size: 65535,
+            min_size: 0x100,
+            normal_size: 0x2000,
+            max_size: 0xffff,
             need_to_erase: 0,
         }
     }

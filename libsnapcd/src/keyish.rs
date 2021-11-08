@@ -41,8 +41,8 @@ impl std::str::FromStr for Keyish {
 
             if idx == 0 {
                 Keyish::Reflog {
-                    orig: s.to_string(),
-                    keyname: s[1..].to_string(),
+                    orig: s.to_owned(),
+                    keyname: s[1..].to_owned(),
                     remote: None,
                 }
             } else {
@@ -50,16 +50,16 @@ impl std::str::FromStr for Keyish {
                 let keyname = &s[idx + 1..];
 
                 Keyish::Reflog {
-                    orig: s.to_string(),
-                    keyname: keyname.to_string(),
-                    remote: Some(remote.to_string()),
+                    orig: s.to_owned(),
+                    keyname: keyname.to_owned(),
+                    remote: Some(remote.to_owned()),
                 }
             }
         }
 
         fn parse_from_base32(s: &str) -> Result<Keyish, ParseError> {
             if !s.is_ascii() {
-                return Err(ParseError::Invalid(s.to_string()));
+                return Err(ParseError::Invalid(s.to_owned()));
             }
 
             // All prefixes and base32 will be in ASCII, so this is fine for indexing.
@@ -70,18 +70,18 @@ impl std::str::FromStr for Keyish {
             let max_len = match prefix {
                 Some(b'b') => 32 * 8,
                 Some(ch) => return Err(ParseError::UnknownPrefix(*ch as char)),
-                _ => return Err(ParseError::Invalid(s.to_string())),
+                _ => return Err(ParseError::Invalid(s.to_owned())),
             };
 
             let input = match crate::base32::decode(bytes, max_len) {
                 Ok(v) => v,
-                Err(_) => return Err(ParseError::Invalid(s.to_string())),
+                Err(_) => return Err(ParseError::Invalid(s.to_owned())),
             };
 
             if input.len() == max_len {
                 let mut v = input.into_vec();
                 v.insert(0_usize, 1_u8);
-                return Ok(Keyish::Key(s.to_string(), v));
+                return Ok(Keyish::Key(s.to_owned(), v));
             }
 
             let did_overflow = input.all();
@@ -113,7 +113,7 @@ impl std::str::FromStr for Keyish {
                 Some(v)
             };
 
-            Ok(Keyish::Range(s.to_string(), ret_start, ret_end))
+            Ok(Keyish::Range(s.to_owned(), ret_start, ret_end))
         }
 
         if s.contains('/') {
