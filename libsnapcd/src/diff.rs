@@ -3,7 +3,7 @@ use std::{
     path::PathBuf,
 };
 
-use crate::{cache, dir, ds::DataStore, file, filter, key::Key};
+use crate::{cache, dir, ds::DataStore, filter, key::Key};
 
 #[allow(clippy::module_name_repetitions)]
 #[derive(Debug)]
@@ -13,7 +13,7 @@ pub enum DiffTarget {
 }
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
-pub struct DeletedDiffResult {
+struct DeletedDiffResult {
     path: PathBuf,
     is_dir: bool,
     original_key: Option<Key>,
@@ -171,7 +171,7 @@ pub fn compare<'a>(
 }
 
 #[must_use]
-pub fn simplify(r: DiffResult) -> DiffResult {
+fn simplify(r: DiffResult) -> DiffResult {
     let mut deleted = Vec::new();
     let mut added = Vec::new();
 
@@ -238,184 +238,9 @@ pub fn print_diff_result(r: DiffResult) {
     }
 }
 
-pub fn print_stat_diff_result(ds: &impl DataStore, r: DiffResult) {
-    let stat = line_stat(ds, r);
-
-    print_line_stat(stat);
-}
-
-pub fn print_patch_diff_result(ds: &impl DataStore, r: DiffResult) -> anyhow::Result<()> {
-    println!("{}", create_diff_patch_result(ds, r)?);
-
-    Ok(())
-}
-
-#[derive(Debug)]
-pub struct LineStatResult {
-    items: Vec<FileStatResult>,
-}
-
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
-pub struct FileStatResult {
+struct FileStatResult {
     fname: PathBuf,
     added: usize,
     removed: usize,
-}
-
-pub fn line_stat(ds: &impl DataStore, r: DiffResult) -> LineStatResult {
-    tracing::debug!("{:?}", &r);
-
-    let mut items = Vec::new();
-
-    for added in r.added.into_iter().filter(|x| !x.is_dir) {
-        if let Some(k) = added.new_key {
-            items.push(FileStatResult {
-                fname: added.path,
-                added: line_ct(ds, k),
-                removed: 0,
-            });
-        }
-    }
-
-    for removed in r.deleted.into_iter().filter(|x| !x.is_dir) {
-        if let Some(k) = removed.original_key {
-            items.push(FileStatResult {
-                fname: removed.path,
-                added: 0,
-                removed: line_ct(ds, k),
-            });
-        }
-    }
-
-    for modified in r.modified {
-        let mut before = Vec::new();
-        file::read_data(ds, modified.original_key, &mut before).unwrap();
-
-        let mut after = Vec::new();
-        file::read_data(ds, modified.new_key, &mut after).unwrap();
-
-        let before_str = String::from_utf8_lossy(&before);
-        let after_str = String::from_utf8_lossy(&after);
-
-        let lines = diff::lines(&before_str, &after_str);
-
-        let mut removed: usize = 0;
-        let mut added: usize = 0;
-        for item in lines {
-            match item {
-                diff::Result::Left(_) => removed += 1,
-                diff::Result::Right(_) => added += 1,
-                diff::Result::Both(_, _) => {}
-            }
-        }
-
-        items.push(FileStatResult {
-            fname: modified.path,
-            added,
-            removed,
-        });
-    }
-
-    LineStatResult { items }
-}
-
-pub fn print_line_stat(mut lsr: LineStatResult) {
-    lsr.items.sort_unstable();
-
-    for item in lsr.items {
-        println!(
-            "{}  +{} -{}",
-            item.fname.display(),
-            item.added,
-            item.removed
-        );
-    }
-}
-
-pub fn line_ct(ds: &impl DataStore, key: Key) -> usize {
-    let mut data = Vec::new();
-    file::read_data(ds, key, &mut data).unwrap();
-
-    #[allow(clippy::naive_bytecount)]
-    // This whole function will be cached in the store at some point, this is just for testing
-    data.iter().filter(|x| **x == b'\n').count()
-}
-
-#[must_use]
-pub fn format_patch(p: &patch::Patch<'_>) -> String {
-    format!("{}\n", p)
-}
-
-fn print_str_diff(old: &str, new: &str, old_name: &str, new_name: &str, to: &mut String) {
-    use std::fmt::Write;
-
-    use similar::TextDiff;
-
-    write!(
-        to,
-        "{}",
-        TextDiff::from_lines(old, new)
-            .unified_diff()
-            .header(old_name, new_name)
-    )
-    .expect("writing to a string to never fail");
-}
-
-pub fn create_diff_patch_result(ds: &impl DataStore, r: DiffResult) -> anyhow::Result<String> {
-    let mut result = String::new();
-
-    tracing::debug!("{:?}", &r);
-
-    for added in r.added {
-        if added.is_dir {
-        } else if let Some(k) = added.new_key {
-            let path = added.path.to_string_lossy();
-
-            let mut data = Vec::new();
-            file::read_data(ds, k, &mut data).unwrap();
-
-            let data = std::str::from_utf8(&data);
-
-            match data {
-                Ok(s) => print_str_diff("", s, "/dev/null", &path, &mut result),
-                Err(_) => anyhow::bail!("this is a binary file"),
-            }
-        }
-    }
-
-    for removed in r.deleted {
-        if removed.is_dir {
-        } else if let Some(k) = removed.original_key {
-            let path = removed.path.to_string_lossy();
-
-            let mut data = Vec::new();
-            file::read_data(ds, k, &mut data).unwrap();
-
-            let data = std::str::from_utf8(&data);
-
-            match data {
-                Ok(s) => print_str_diff(s, "", &path, "/dev/null", &mut result),
-                Err(_) => anyhow::bail!("this is a binary file"),
-            }
-        }
-    }
-
-    for modified in r.modified {
-        let path = modified.path.to_string_lossy();
-        let mut before = Vec::new();
-
-        tracing::debug!("{:?}", &modified);
-
-        file::read_data(ds, modified.original_key, &mut before).unwrap();
-
-        let mut after = Vec::new();
-        file::read_data(ds, modified.new_key, &mut after).unwrap();
-
-        let before_str = String::from_utf8_lossy(&before);
-        let after_str = String::from_utf8_lossy(&after);
-
-        print_str_diff(&before_str, &after_str, &path, &path, &mut result);
-    }
-
-    Ok(result)
 }

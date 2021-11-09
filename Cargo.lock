@@ -46,7 +46,7 @@ checksum = "fcb51a0695d8f838b1ee009b3fbf66bda078cd64590202a864a8f3e8c4315c47"
 dependencies = [
  "getrandom",
  "once_cell",
- "version_check 0.9.3",
+ "version_check",
 ]
 
 [[package]]
@@ -264,12 +264,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8f1e260c3a9040a7c19a12468758f4c16f31a81a1fe087482be9570ec864bb6c"
 
 [[package]]
-name = "bytecount"
-version = "0.3.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f861d9ce359f56dbcb6e0c2a1cb84e52ad732cadb57b806adeb3c7668caccbd8"
-
-[[package]]
 name = "byteorder"
 version = "1.4.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -363,7 +357,6 @@ dependencies = [
  "libc",
  "num-integer",
  "num-traits",
- "time 0.1.43",
  "winapi",
 ]
 
@@ -421,8 +414,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "188a7c2ae2a1026b9831889fd6461db5d33c4f6d54d6f862bd8b81a2fcefbdba"
 dependencies = [
  "percent-encoding",
- "time 0.3.4",
- "version_check 0.9.3",
+ "time",
+ "version_check",
 ]
 
 [[package]]
@@ -588,18 +581,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "diff"
-version = "0.1.12"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0e25ea47919b1560c4e3b7fe0aaab9becf5b84a10325ddf7db0f0ba5e1026499"
-
-[[package]]
-name = "difference"
-version = "2.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "524cbf6897b527295dff137cec09ecf3a05f4fddffd7dfcd1585403449e74198"
-
-[[package]]
 name = "difflib"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -720,7 +701,7 @@ dependencies = [
  "serde",
  "toml",
  "uncased",
- "version_check 0.9.3",
+ "version_check",
 ]
 
 [[package]]
@@ -870,7 +851,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "501466ecc8a30d1d3b7fc9229b122b2ce8ed6e9d9223f1138d4babb253e51817"
 dependencies = [
  "typenum",
- "version_check 0.9.3",
+ "version_check",
 ]
 
 [[package]]
@@ -1161,8 +1142,6 @@ dependencies = [
  "cap-tempfile",
  "colored",
  "criterion",
- "diff",
- "difference",
  "either",
  "fastrand",
  "gearhash",
@@ -1170,13 +1149,11 @@ dependencies = [
  "globset",
  "itertools",
  "minicbor",
- "patch",
  "pretty-hex",
  "proptest",
  "rand",
  "rand_chacha",
  "rusqlite",
- "similar",
  "static_assertions",
  "thiserror",
  "tracing",
@@ -1340,28 +1317,7 @@ dependencies = [
  "tokio",
  "tokio-util",
  "twoway",
- "version_check 0.9.3",
-]
-
-[[package]]
-name = "nom"
-version = "4.2.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2ad2a91a8e869eeb30b9cb3119ae87773a8f4ae617f41b1eb9c154b2905f7bd6"
-dependencies = [
- "memchr",
- "version_check 0.1.5",
-]
-
-[[package]]
-name = "nom_locate"
-version = "0.3.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6a47c112b3861d81f7fbf73892b9271af933af32bd5dee6889aa3c3fa9caed7e"
-dependencies = [
- "bytecount",
- "memchr",
- "nom",
+ "version_check",
 ]
 
 [[package]]
@@ -1443,17 +1399,6 @@ dependencies = [
  "redox_syscall",
  "smallvec",
  "winapi",
-]
-
-[[package]]
-name = "patch"
-version = "0.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "af3e787c0fab69c4b1d0c722e9b87bd902f12e376d146da5a2fe8e298e1a0021"
-dependencies = [
- "chrono",
- "nom",
- "nom_locate",
 ]
 
 [[package]]
@@ -1592,7 +1537,7 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
- "version_check 0.9.3",
+ "version_check",
 ]
 
 [[package]]
@@ -1603,7 +1548,7 @@ checksum = "a1be40180e52ecc98ad80b184934baf3d0d29f979574e439af5a55274b35f869"
 dependencies = [
  "proc-macro2",
  "quote",
- "version_check 0.9.3",
+ "version_check",
 ]
 
 [[package]]
@@ -1624,7 +1569,7 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
- "version_check 0.9.3",
+ "version_check",
  "yansi",
 ]
 
@@ -1866,12 +1811,12 @@ dependencies = [
  "serde",
  "state",
  "tempfile",
- "time 0.3.4",
+ "time",
  "tokio",
  "tokio-stream",
  "tokio-util",
  "ubyte",
- "version_check 0.9.3",
+ "version_check",
  "yansi",
 ]
 
@@ -1910,7 +1855,7 @@ dependencies = [
  "smallvec",
  "stable-pattern",
  "state",
- "time 0.3.4",
+ "time",
  "tokio",
  "uncased",
 ]
@@ -2103,12 +2048,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "similar"
-version = "2.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2e24979f63a11545f5f2c60141afe249d4f19f84581ea2138065e400941d83d3"
-
-[[package]]
 name = "slab"
 version = "0.4.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2140,47 +2079,32 @@ checksum = "1ecab6c735a6bb4139c0caafd0cc3635748bbb3acf4550e8138122099251f309"
 name = "snapcd"
 version = "0.1.0"
 dependencies = [
- "aes-gcm-siv",
  "anyhow",
  "assert_cmd",
  "assert_fs",
- "bitvec",
- "blake3",
  "cap-std",
  "clap",
  "colored",
- "diff",
- "difference",
  "dirs",
- "either",
  "enum_dispatch",
- "gearhash",
- "globset",
  "indoc",
- "itertools",
  "libsnapcd",
  "minicbor",
- "patch",
- "pretty-hex",
  "rand",
  "rand_chacha",
  "rusqlite",
- "serde",
- "static_assertions",
  "structopt",
  "tempfile",
  "thiserror",
  "tracing",
  "tracing-log",
  "tracing-subscriber 0.3.1",
- "ureq",
 ]
 
 [[package]]
 name = "snapcdd"
 version = "0.1.0"
 dependencies = [
- "anyhow",
  "rocket",
  "sled",
  "tokio",
@@ -2341,16 +2265,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8018d24e04c95ac8790716a5987d0fec4f8b27249ffa0f7d33f1369bdfb88cbd"
 dependencies = [
  "once_cell",
-]
-
-[[package]]
-name = "time"
-version = "0.1.43"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ca8a50ef2360fbd1eeb0ecd46795a87a19024eb4b53c5dc916ca1fd95fe62438"
-dependencies = [
- "libc",
- "winapi",
 ]
 
 [[package]]
@@ -2592,7 +2506,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5baeed7327e25054889b9bd4f975f32e5f4c5d434042d59ab6cd4142c0a76ed0"
 dependencies = [
  "serde",
- "version_check 0.9.3",
+ "version_check",
 ]
 
 [[package]]
@@ -2715,12 +2629,6 @@ name = "vec_map"
 version = "0.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f1bddf1187be692e79c5ffeab891132dfb0f236ed36a43c7ed39f1165ee20191"
-
-[[package]]
-name = "version_check"
-version = "0.1.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "914b1a6776c4c929a602fafd8bc742e06365d4bcbe48c30f9cca5824f70dc9dd"
 
 [[package]]
 name = "version_check"

@@ -5,35 +5,20 @@ authors = ["5225225 <5225225@mailbox.org>"]
 edition = "2018"
 
 [dependencies]
-aes-gcm-siv = "0.10.3"
 anyhow = "1.0.45"
-bitvec = "0.22.3"
-blake3 = "1.2.0"
 cap-std = "0.20.0"
 clap = "2.33.3"
 colored = "2.0.0"
-diff = "0.1.12"
-difference = "2.0.0"
 dirs = "4.0.0"
-either = "1.6.1"
 enum_dispatch = "0.3.7"
-gearhash = "0.1.3"
-globset = "0.4.8"
-itertools = "0.10.1"
 libsnapcd = { path = "../libsnapcd" }
 minicbor = { version = "0.11.4", features = ["derive", "alloc", "half"] }
-patch = "0.5.0"
-pretty-hex = "0.2.1"
-rand = "0.8.4"
 rusqlite = { version = "0.26.1", features = ["trace"] }
-serde = { version = "1.0.130", features = ["derive"] }
-static_assertions = "1.1.0"
 structopt = "0.3.25"
 thiserror = "1.0.30"
 tracing = "0.1.29"
 tracing-log = "0.1.2"
 tracing-subscriber = "0.3.1"
-ureq = "2.3.0"
 
 [dev-dependencies]
 assert_cmd = "2.0.2"
