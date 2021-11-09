@@ -1,4 +1,4 @@
-use libsnapcd::{diff, ds::DataStore};
+use libsnapcd::ds::DataStore;
 use structopt::StructOpt;
 
 use crate::cmd::{CmdResult, CommandTrait, DatabaseNotFoundError, NoHeadError, State};
@@ -12,14 +12,13 @@ impl CommandTrait for StatusArgs {
 
         let reflog = ds_state.ds.get_head()?.ok_or(NoHeadError)?;
 
-        let path = &ds_state.repo_path;
-
         let ref_key = ds_state.ds.reflog_get(&reflog, None).ok();
 
         match &ref_key {
             Some(k) => {
                 println!("HEAD: {} [{}]", reflog, &k.as_user_key()[0..8]);
 
+                /*
                 let obj = ds_state
                     .ds
                     .get_obj(*k)
@@ -34,11 +33,12 @@ impl CommandTrait for StatusArgs {
                         state.common.exclude.clone(),
                         ds_state.db_folder_path.clone(),
                     ),
-                    Some(obj),
+                    obj,
                     &mut state.cache,
                 )?;
 
                 diff::print_diff_result(result);
+                */
             }
             None => {
                 println!("HEAD: {} (no commits on {})", reflog, reflog);

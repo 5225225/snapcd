@@ -1,9 +1,6 @@
-use std::{
-    collections::{HashMap, HashSet},
-    path::PathBuf,
-};
+use std::{collections::HashSet, path::PathBuf};
 
-use crate::{cache, dir, ds::DataStore, filter, key::Key};
+use crate::{dir, ds::DataStore, key::Key};
 
 #[allow(clippy::module_name_repetitions)]
 #[derive(Debug)]
@@ -41,41 +38,12 @@ pub struct DiffResult {
     modified: Vec<ModifiedDiffResult>,
 }
 
-// i don't care, i'll probably refactor this anyways :)
-#[allow(clippy::too_many_lines)]
-pub fn compare<'a>(
-    ds: &'a mut impl DataStore,
-    from: DiffTarget,
-    to: Option<Key>,
-    cache: impl Into<Option<&'a mut cache::Sqlite>>,
-) -> anyhow::Result<DiffResult> {
-    let cache = cache.into();
-    let cache = cache.as_ref();
+pub fn compare(ds: &mut impl DataStore, from: Key, to: Key) -> anyhow::Result<DiffResult> {
+    let db_items = dir::walk_fs_items(ds, from)?;
 
-    let from_path;
-    let from_map = match from {
-        DiffTarget::FileSystem(path, filters, folder_path) => {
-            let exclude = filter::make_filter_fn(&filters, folder_path);
-            let fs_items = dir::walk_real_fs_items(&path, &exclude)?;
-            from_path = Some(path);
-            either::Left(fs_items)
-        }
-        DiffTarget::Database(key) => {
-            let db_items = dir::walk_fs_items(ds, key)?;
-            from_path = None;
-            either::Right(db_items)
-        }
-    };
+    let to_map = dir::walk_fs_items(ds, to)?;
 
-    let to_map = match to {
-        Some(t) => dir::walk_fs_items(ds, t)?,
-        None => HashMap::new(),
-    };
-
-    let from_keys: HashSet<PathBuf> = from_map.clone().either(
-        |x| x.keys().cloned().collect(),
-        |x| x.keys().cloned().collect(),
-    );
+    let from_keys: HashSet<PathBuf> = db_items.keys().cloned().collect();
 
     let to_keys: HashSet<PathBuf> = to_map.keys().cloned().collect();
 
@@ -83,26 +51,8 @@ pub fn compare<'a>(
         .difference(&to_keys)
         .map(|x| AddedDiffResult {
             path: x.clone(),
-            new_key: from_map.as_ref().either(
-                |y| {
-                    if y[x] {
-                        // directories don't have a hash
-                        None
-                    } else {
-                        // this is a file
-                        match dir::hash_fs_item(
-                            ds,
-                            x,
-                            *cache.expect("you must pass a cache if you're hashing the fs"),
-                        ) {
-                            Ok(h) => Some(h),
-                            Err(e) => panic!("{}", e),
-                        }
-                    }
-                },
-                |y| Some(y[x].0),
-            ),
-            is_dir: from_map.as_ref().either(|y| y[x], |y| y[x].1),
+            new_key: Some(db_items[x].0),
+            is_dir: db_items[x].1,
         })
         .collect();
 
@@ -120,24 +70,7 @@ pub fn compare<'a>(
     let mut modified = Vec::new();
 
     for path in in_both {
-        let f;
-        match &from_map {
-            either::Left(fs_items) => {
-                if fs_items[path] {
-                    continue;
-                }
-
-                f = dir::hash_fs_item(
-                    ds,
-                    &from_path
-                        .as_ref()
-                        .expect("should have been populated")
-                        .join(path),
-                    *cache.expect("you must pass a cache if you're hashing the fs"),
-                )?;
-            }
-            either::Right(db_items) => f = db_items[path].0,
-        }
+        let f = db_items[path].0;
 
         let t = to_map[path];
 

@@ -1,4 +1,4 @@
-use libsnapcd::{diff, diff::DiffTarget, ds::DataStore, object::Object};
+use libsnapcd::{diff, ds::DataStore, object::Object};
 use structopt::StructOpt;
 
 use crate::cmd::{CmdResult, CommandTrait, DatabaseNotFoundError, NoHeadError, State};
@@ -33,12 +33,7 @@ impl CommandTrait for LogArgs {
 
                 let parent = ds_state.ds.get_obj(parents[0])?.tree(parents[0]).unwrap();
 
-                let result = diff::compare(
-                    &mut ds_state.ds,
-                    DiffTarget::Database(tree),
-                    Some(parent),
-                    &mut state.cache,
-                )?;
+                let result = diff::compare(&mut ds_state.ds, tree, parent)?;
 
                 diff::print_diff_result(result);
                 k = parents[0];

@@ -18,50 +18,74 @@ fn commit_test() {
 
     let dir = assert_fs::TempDir::new().unwrap();
 
-    let assert = Command::cargo_bin("snapcd")
+    Command::cargo_bin("snapcd")
         .unwrap()
         .arg("init")
         .current_dir(dir.path())
-        .assert();
-
-    assert.success();
+        .assert()
+        .success();
 
     dir.child("a").write_str("a").unwrap();
     dir.child("b").write_str("old").unwrap();
 
-    let assert = Command::cargo_bin("snapcd")
+    Command::cargo_bin("snapcd")
         .unwrap()
         .arg("commit")
         .arg("-m")
         .arg("0")
         .current_dir(dir.path())
-        .assert();
+        .assert()
+        .success();
 
-    assert.success();
+    Command::cargo_bin("snapcd")
+        .unwrap()
+        .arg("status")
+        .current_dir(dir.path())
+        .assert()
+        .success()
+        .stdout(indoc::indoc!("HEAD: main [borfq54p]\n"));
 
     std::fs::remove_file(dir.child("a").path()).unwrap();
     dir.child("b").write_str("new").unwrap();
     dir.child("c").write_str("c").unwrap();
 
-    let assert = Command::cargo_bin("snapcd")
+    Command::cargo_bin("snapcd")
+        .unwrap()
+        .arg("commit")
+        .arg("-m")
+        .arg("1")
+        .current_dir(dir.path())
+        .assert()
+        .success();
+
+    Command::cargo_bin("snapcd")
         .unwrap()
         .arg("status")
         .current_dir(dir.path())
-        .assert();
+        .assert()
+        .success()
+        .stdout(indoc::indoc!("HEAD: main [brg4j5iz]\n"));
 
-    let expected_output = indoc::indoc!(
-        "
-        HEAD: main [borfq54p]
+    Command::cargo_bin("snapcd")
+        .unwrap()
+        .arg("diff")
+        .arg("--from")
+        .arg("borfq54p")
+        .arg("--to")
+        .arg("brg4j5iz")
+        .current_dir(dir.path())
+        .assert()
+        .success()
+        .stdout(indoc::indoc!(
+            "
         added:
-          c
-        deleted:
           a
+        deleted:
+          c
         modified:
           b
-    "
-    );
-
-    assert.success().stdout(expected_output);
+        "
+        ));
 }
 
 #[test]

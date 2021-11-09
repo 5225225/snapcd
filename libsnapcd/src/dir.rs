@@ -284,6 +284,9 @@ pub fn internal_walk_fs_items<DS: DataStore>(
         Object::FsItemFile { .. } => {
             results.insert(path.to_path_buf(), (key, false));
         }
+        Object::Commit { tree, .. } => {
+            return internal_walk_fs_items(ds, tree, path);
+        }
         e => panic!("cannot handle object {:?}", e),
     }
 
