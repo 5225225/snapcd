@@ -8,6 +8,7 @@ use cap_std::fs::Dir;
 use libsnapcd::{
     ds::{sqlite::Sqlite, DataStore},
     file::{put_data, read_data},
+    keyish::Keyish,
 };
 use proptest::prelude::*;
 use rand::prelude::*;
@@ -246,4 +247,18 @@ fn chunker_works() {
 
     dbg!(after);
     dbg!(before);
+}
+
+#[test]
+fn unique_test() {
+    use std::str::FromStr;
+    let ds = Sqlite::new(":memory:").unwrap();
+
+    let k = ds.put(vec![1, 2, 3, 4]).unwrap();
+    let uid = ds.unique_identifier(k).unwrap();
+    assert_eq!(uid, "bk5kqqf2");
+
+    let key = Keyish::from_str(&uid).unwrap();
+    let result = ds.canonicalize(key).unwrap();
+    assert_eq!(k, result);
 }

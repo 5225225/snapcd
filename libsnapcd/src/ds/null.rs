@@ -69,4 +69,8 @@ impl crate::ds::DataStore for Null {
     fn raw_between(&self, _start: &[u8], _end: Option<&[u8]>) -> anyhow::Result<Vec<Vec<u8>>> {
         unimplemented!("null datastore, no data")
     }
+
+    fn count_between(&self, _start: &[u8], _end: Option<&[u8]>) -> anyhow::Result<usize> {
+        unimplemented!("null datastore, no data")
+    }
 }

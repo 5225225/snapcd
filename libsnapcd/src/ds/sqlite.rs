@@ -189,4 +189,21 @@ impl DataStore for Sqlite {
         tracing::trace!("... got results {:?}", &results);
         Ok(results)
     }
+
+    fn count_between(&self, start: &[u8], end: Option<&[u8]>) -> anyhow::Result<usize> {
+        if let Some(e) = end {
+            let mut statement = self
+                .conn
+                .prepare("COUNT(*) FROM data WHERE key >= ? AND key < ?")?;
+
+            let rows = statement.query_row(params![start, e], |row| row.get(0))?;
+
+            Ok(rows)
+        } else {
+            let mut statement = self.conn.prepare("COUNT(*) FROM data WHERE key >= ?")?;
+            let rows = statement.query_row(params![start], |row| row.get(0))?;
+
+            Ok(rows)
+        }
+    }
 }

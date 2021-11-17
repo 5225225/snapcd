@@ -97,6 +97,27 @@ pub trait DataStore {
     fn reflog_walk(&self, refname: &str, remote: Option<&str>) -> anyhow::Result<Vec<key::Key>>;
 
     fn raw_between(&self, start: &[u8], end: Option<&[u8]>) -> anyhow::Result<Vec<Vec<u8>>>;
+    fn count_between(&self, start: &[u8], end: Option<&[u8]>) -> anyhow::Result<usize>;
+
+    fn unique_identifier(&self, key: key::Key) -> anyhow::Result<String> {
+        use std::str::FromStr;
+
+        let display = key.to_string();
+        let mut length = 8;
+
+        loop {
+            let s = &display[0..length];
+            let keyish = Keyish::from_str(s).expect("parsing a valid key to never fail");
+
+            match self.canonicalize(keyish) {
+                Ok(_) => return Ok(s.to_owned()),
+                Err(CanonicalizeError::Ambigious(..)) => {}
+                Err(e) => return Err(e.into()),
+            }
+
+            length += 1;
+        }
+    }
 
     fn canonicalize(&self, search: Keyish) -> Result<key::Key, CanonicalizeError> {
         let mut results: Vec<Vec<u8>>;

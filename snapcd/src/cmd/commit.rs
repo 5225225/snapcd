@@ -54,7 +54,7 @@ impl CommandTrait for CommitArgs {
         let key = dir::put_fs_item(&mut ds_state.ds, &entry, &PathBuf::from(""), &filter)?;
 
         let attrs = libsnapcd::object::CommitAttrs {
-            message: Some(self.message),
+            message: Some(self.message.clone()),
         };
 
         let commit_key = commit::commit_tree(&mut ds_state.ds, key, parent_key, attrs)?;
@@ -65,7 +65,14 @@ impl CommandTrait for CommitArgs {
             remote: None,
         };
 
+        let name = ds_state
+            .ds
+            .unique_identifier(commit_key)
+            .unwrap_or_else(|_| commit_key.to_string());
+
         ds_state.ds.reflog_push(&log)?;
+
+        println!("[{} {}] {}", log.refname, name, self.message);
 
         Ok(())
     }
