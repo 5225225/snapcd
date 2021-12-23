@@ -27,8 +27,7 @@ impl Entry {
             let cap_dir = cap_std::fs::Dir::open_ambient_dir(&path, authority).unwrap();
             Self::Dir(cap_dir)
         } else if item.is_file() {
-            let file = std::fs::File::open(&path).unwrap();
-            let cap_file = cap_std::fs::File::from_std(file, authority);
+            let cap_file = cap_std::fs::File::open_ambient(&path, authority).unwrap();
             Self::File(cap_file)
         } else {
             panic!(

@@ -141,7 +141,7 @@ pub fn get_fs_item<DS: DataStore>(
         }
         Object::FsItemFile { .. } => {
             let stdf = std::fs::File::create(path)?;
-            let f = cap_std::fs::File::from_std(stdf, auth);
+            let f = cap_std::fs::File::from_std(stdf);
             get_fs_item_file(ds, key, &f)?;
         }
         Object::Commit { tree, .. } => {

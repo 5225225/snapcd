@@ -28,7 +28,7 @@ pub fn make_filter_fn<T: AsRef<str>>(
         let normalised_path = if path.starts_with("./") {
             path.strip_prefix("./").unwrap()
         } else {
-            &path
+            path
         };
 
         !excl_globset.is_match(normalised_path)

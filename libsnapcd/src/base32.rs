@@ -11,11 +11,11 @@ use thiserror::Error;
 fn pop_u5_from_bitvec(x: &mut BitVec<Msb0, u8>) -> u8 {
     let mut v = 0;
 
-    v |= (*x.get(0).as_deref().unwrap_or(&false) as u8) << 4;
-    v |= (*x.get(1).as_deref().unwrap_or(&false) as u8) << 3;
-    v |= (*x.get(2).as_deref().unwrap_or(&false) as u8) << 2;
-    v |= (*x.get(3).as_deref().unwrap_or(&false) as u8) << 1;
-    v |= *x.get(4).as_deref().unwrap_or(&false) as u8;
+    v |= u8::from(*x.get(0).as_deref().unwrap_or(&false)) << 4;
+    v |= u8::from(*x.get(1).as_deref().unwrap_or(&false)) << 3;
+    v |= u8::from(*x.get(2).as_deref().unwrap_or(&false)) << 2;
+    v |= u8::from(*x.get(3).as_deref().unwrap_or(&false)) << 1;
+    v |= u8::from(*x.get(4).as_deref().unwrap_or(&false));
 
     for _ in 0..5 {
         if !x.is_empty() {
@@ -50,7 +50,7 @@ pub fn decode(x: &str, max_len: usize) -> Result<BitVec<Msb0, u8>, DecodeError> 
         let idx = TABLE
             .iter()
             .position(|&x| x == ch)
-            .ok_or_else(|| DecodeError::UnknownByte(ch as char))?;
+            .ok_or(DecodeError::UnknownByte(ch as char))?;
 
         debug_assert!((ch as char).is_ascii_lowercase() || (ch as char).is_ascii_digit());
 

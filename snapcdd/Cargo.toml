@@ -9,4 +9,4 @@ edition = "2018"
 [dependencies]
 rocket = { git = "https://github.com/SergioBenitez/Rocket.git" }
 sled = "0.34.7"
-tokio = "1.13.0"
+tokio = "1.15.0"
